@@ -19,6 +19,7 @@ type UsersActions = {
   deleteUser: (id: string) => Promise<void>;
   selectUser: (user: User | null) => void;
   clearError: () => void;
+  reset: () => void;
 };
 
 export const useUsersStore = create<UsersState & UsersActions>()(
@@ -102,6 +103,7 @@ export const useUsersStore = create<UsersState & UsersActions>()(
 
       selectUser: (user) => set({ selectedUser: user }),
       clearError: () => set({ error: null }),
+      reset: () => set({ users: [], selectedUser: null, meta: null, isLoading: false, error: null }),
     }),
     { name: "UsersStore" }
   )

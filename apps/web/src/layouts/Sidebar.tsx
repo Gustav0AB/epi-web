@@ -75,7 +75,7 @@ export function Sidebar() {
                     "flex items-center rounded-md px-2.5 py-2.5 text-base font-medium transition-colors",
                     expanded ? "gap-3" : "justify-center",
                     isActive
-                      ? "bg-blue-50 text-blue-700"
+                      ? "bg-primary-muted text-primary"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
                   ].join(" ")
                 }

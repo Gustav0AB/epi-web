@@ -4,10 +4,10 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
-  secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200 focus:ring-gray-400",
-  ghost: "bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-400",
-  danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
+  primary:   "bg-primary text-white hover:bg-primary-hover focus:ring-primary",
+  secondary: "bg-secondary text-white hover:bg-secondary-hover focus:ring-secondary",
+  ghost:     "bg-transparent text-gray-600 hover:bg-gray-100 focus:ring-gray-400",
+  danger:    "bg-danger text-white hover:bg-danger-hover focus:ring-danger",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -47,24 +47,9 @@ export function Button({
     >
       {loading ? (
         <>
-          <svg
-            className="mr-2 h-4 w-4 animate-spin"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-            />
+          <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
           </svg>
           Loading…
         </>

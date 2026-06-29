@@ -37,7 +37,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
       },
 
-      logout: () => set({ token: null, isAuthenticated: false, error: null }),
+      logout: () => {
+        // Clear all other stores before wiping the token
+        void import("./users.store").then(({ useUsersStore }) => {
+          useUsersStore.getState().reset();
+        });
+        set({ token: null, isAuthenticated: false, error: null });
+      },
       clearError: () => set({ error: null }),
     }),
     {
