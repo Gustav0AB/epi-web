@@ -1,15 +1,12 @@
 import { useAuthStore } from "./store/auth.store";
 import { UserList } from "./features/users/UserList";
+import { LoginPage } from "./features/auth/LoginPage";
 
 export default function App() {
   const { isAuthenticated, logout } = useAuthStore();
 
   if (!isAuthenticated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <p className="text-gray-600">Please log in to continue.</p>
-      </div>
-    );
+    return <LoginPage />;
   }
 
   return (
