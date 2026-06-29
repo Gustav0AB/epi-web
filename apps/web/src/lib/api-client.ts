@@ -1,5 +1,6 @@
 import type { ApiResponse } from "@epi/shared";
 import { useAuthStore } from "../store/auth.store";
+import { resolveOfflineGet, applyOptimisticWrite } from "./offline";
 
 const BASE_URL = import.meta.env["VITE_API_URL"] ?? "";
 
@@ -14,10 +15,22 @@ class ApiError extends Error {
   }
 }
 
+type WriteMethod = "POST" | "PATCH" | "DELETE";
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+
+  if (!navigator.onLine) {
+    if (method === "GET") {
+      return resolveOfflineGet(path) as Promise<T>;
+    }
+    const body = options.body ? JSON.parse(options.body as string) : undefined;
+    return applyOptimisticWrite(method as WriteMethod, path, body) as Promise<T>;
+  }
+
   const token = useAuthStore.getState().token;
 
   const response = await fetch(`${BASE_URL}${path}`, {

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./layouts/AppLayout";
 import { ProtectedRoute } from "./router/ProtectedRoute";
@@ -5,8 +6,12 @@ import { PublicRoute } from "./router/PublicRoute";
 import { LoginPage } from "./features/auth/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { ComponentsPage } from "./pages/ComponentsPage";
+import { initSync } from "./lib/sync";
 
 export default function App() {
+  useEffect(() => {
+    initSync();
+  }, []);
   return (
     <Routes>
       {/* Public — redirect to /home if already logged in */}

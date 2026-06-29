@@ -1,4 +1,5 @@
 export { Badge } from "./Badge";
+export { OfflineBanner } from "./OfflineBanner";
 export { Button } from "./Button";
 export { Card } from "./Card";
 export { Dropdown } from "./Dropdown";

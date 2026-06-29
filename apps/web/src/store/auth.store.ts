@@ -26,10 +26,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       login: async (dto) => {
         set({ isLoading: true, error: null });
         try {
-          // Import here to avoid circular dep with api-client
           const { apiClient } = await import("../lib/api-client");
           const data = await apiClient.post<AuthToken>("/api/auth/login", dto);
           set({ token: data.accessToken, isAuthenticated: true, isLoading: false });
+
+          // Seed IndexedDB so the app can work offline from this point on
+          const { seedDatabase } = await import("../lib/seed");
+          await seedDatabase(data.accessToken);
         } catch (err) {
           const message = err instanceof Error ? err.message : "Login failed";
           set({ error: message, isLoading: false });
@@ -38,10 +41,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       },
 
       logout: () => {
-        // Clear all other stores before wiping the token
         void import("./users.store").then(({ useUsersStore }) => {
           useUsersStore.getState().reset();
         });
+        void import("../lib/seed").then(({ clearDatabase }) => clearDatabase());
         set({ token: null, isAuthenticated: false, error: null });
       },
       clearError: () => set({ error: null }),

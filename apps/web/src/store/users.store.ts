@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { User, PaginationMeta, PaginationQuery } from "@epi/shared";
 import { apiClient } from "../lib/api-client";
+import { db } from "../lib/db";
 
 type UsersState = {
   users: User[];
@@ -35,10 +36,18 @@ export const useUsersStore = create<UsersState & UsersActions>()(
         set({ isLoading: true, error: null });
         try {
           const { page = 1, pageSize = 20 } = pagination;
+
+          if (!navigator.onLine) {
+            const all = await db.users.orderBy("createdAt").reverse().toArray();
+            const total = all.length;
+            const start = (page - 1) * pageSize;
+            const meta: PaginationMeta = { total, page, pageSize, totalPages: Math.ceil(total / pageSize) || 1 };
+            set({ users: all.slice(start, start + pageSize), meta, isLoading: false });
+            return;
+          }
+
+          // Raw fetch here to access both data and meta from the ApiResponse wrapper
           const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-          // The full ApiResponse with meta is returned from the server
-          // Our api-client strips the wrapper and returns data — but we need meta too.
-          // We use a raw fetch here so we can access both data and meta.
           const response = await fetch(`/api/users?${params}`, {
             headers: { Authorization: `Bearer ${useAuthStore_getToken()}` },
           });
