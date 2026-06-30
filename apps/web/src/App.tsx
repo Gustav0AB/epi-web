@@ -6,6 +6,7 @@ import { PublicRoute } from "./router/PublicRoute";
 import { LoginPage } from "./features/auth/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { ComponentsPage } from "./pages/ComponentsPage";
+import { UsersPage } from "./features/users/UsersPage";
 import { initSync } from "./lib/sync";
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/home" element={<HomePage />} />
           <Route path="/components" element={<ComponentsPage />} />
+          <Route path="/users" element={<UsersPage />} />
         </Route>
       </Route>
 

@@ -6,16 +6,19 @@ import type { LoginDto, AuthToken } from "@epi/shared";
 
 export const authService = {
   async login(dto: LoginDto): Promise<AuthToken> {
-    const user = await usersRepository.findByEmail(dto.email);
+    const user = await usersRepository.findByUsername(dto.username);
     if (!user) throw Object.assign(new Error("Invalid credentials"), { statusCode: 401, code: "INVALID_CREDENTIALS" });
 
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) throw Object.assign(new Error("Invalid credentials"), { statusCode: 401, code: "INVALID_CREDENTIALS" });
 
     const expiresIn = 7 * 24 * 60 * 60; // 7d in seconds
-    const accessToken = jwt.sign({ sub: user.id, role: user.role }, env.JWT_SECRET, {
-      expiresIn: env.JWT_EXPIRES_IN,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accessToken = jwt.sign(
+      { sub: user.id, role: user.role.toLowerCase() },
+      env.JWT_SECRET,
+      { expiresIn: env.JWT_EXPIRES_IN as any }
+    );
 
     return { accessToken, tokenType: "Bearer", expiresIn };
   },

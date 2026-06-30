@@ -8,15 +8,40 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id @default(uuid())
+  name         String
+  username     String        @unique
+  email        String        @unique
+  password     String
+  role         Role          @default(USER)
+  userFeatures UserFeature[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@map("users")
+}
+
+model Feature {
+  id           String        @id @default(uuid())
+  key          String        @unique
+  name         String
+  description  String?
+  userFeatures UserFeature[]
+  createdAt    DateTime      @default(now())
+
+  @@map("features")
+}
+
+model UserFeature {
+  id         String   @id @default(uuid())
+  userId     String
+  featureKey String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feature    Feature  @relation(fields: [featureKey], references: [key], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, featureKey])
+  @@map("user_features")
 }
 
 enum Role {

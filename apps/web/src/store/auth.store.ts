@@ -1,36 +1,63 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AuthToken, LoginDto } from "@epi/shared";
+import type { AuthToken, LoginDto, User } from "@epi/shared";
 
 type AuthState = {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  currentUser: User | null;
 };
 
 type AuthActions = {
   login: (dto: LoginDto) => Promise<void>;
   logout: () => void;
   clearError: () => void;
+  initCurrentUser: () => Promise<void>;
 };
+
+function decodeJwtPayload(token: string): { sub: string; role: string } | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    return JSON.parse(atob(parts[1]!.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCurrentUser(token: string): Promise<User | null> {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.sub) return null;
+  try {
+    const res = await fetch(`/api/users/${payload.sub}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    return json.success ? (json.data as User) : null;
+  } catch {
+    return null;
+  }
+}
 
 export const useAuthStore = create<AuthState & AuthActions>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       token: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      currentUser: null,
 
       login: async (dto) => {
         set({ isLoading: true, error: null });
         try {
           const { apiClient } = await import("../lib/api-client");
           const data = await apiClient.post<AuthToken>("/api/auth/login", dto);
-          set({ token: data.accessToken, isAuthenticated: true, isLoading: false });
+          const currentUser = await fetchCurrentUser(data.accessToken);
+          set({ token: data.accessToken, isAuthenticated: true, isLoading: false, currentUser });
 
-          // Seed IndexedDB so the app can work offline from this point on
           const { seedDatabase } = await import("../lib/seed");
           await seedDatabase(data.accessToken);
         } catch (err) {
@@ -45,9 +72,17 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           useUsersStore.getState().reset();
         });
         void import("../lib/seed").then(({ clearDatabase }) => clearDatabase());
-        set({ token: null, isAuthenticated: false, error: null });
+        set({ token: null, isAuthenticated: false, error: null, currentUser: null });
       },
+
       clearError: () => set({ error: null }),
+
+      initCurrentUser: async () => {
+        const { token, currentUser } = get();
+        if (!token || currentUser) return;
+        const user = await fetchCurrentUser(token);
+        if (user) set({ currentUser: user });
+      },
     }),
     {
       name: "auth-storage",

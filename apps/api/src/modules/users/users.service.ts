@@ -1,6 +1,17 @@
 import { usersRepository } from "./users.repository.js";
 import type { CreateUserDto, UpdateUserDto, User, PaginationMeta } from "@epi/shared";
 
+type RawUser = {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+  userFeatures: { featureKey: string }[];
+};
+
 export class UsersService {
   async getAll(page = 1, pageSize = 20): Promise<{ users: User[]; meta: PaginationMeta }> {
     const { users, total } = await usersRepository.findAll(page, pageSize);
@@ -17,8 +28,12 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto): Promise<User> {
-    const existing = await usersRepository.findByEmail(dto.email);
-    if (existing) throw Object.assign(new Error("Email already in use"), { statusCode: 409, code: "EMAIL_CONFLICT" });
+    const byEmail = await usersRepository.findByEmail(dto.email);
+    if (byEmail) throw Object.assign(new Error("Email already in use"), { statusCode: 409, code: "EMAIL_CONFLICT" });
+
+    const byUsername = await usersRepository.findByUsername(dto.username);
+    if (byUsername) throw Object.assign(new Error("Username already taken"), { statusCode: 409, code: "USERNAME_CONFLICT" });
+
     const user = await usersRepository.create(dto);
     return this.#mapToDto(user);
   }
@@ -34,12 +49,14 @@ export class UsersService {
     await usersRepository.delete(id);
   }
 
-  #mapToDto(raw: { id: string; name: string; email: string; role: string; createdAt: Date; updatedAt: Date }): User {
+  #mapToDto(raw: RawUser): User {
     return {
       id: raw.id,
       name: raw.name,
+      username: raw.username,
       email: raw.email,
       role: raw.role.toLowerCase() as "admin" | "user",
+      featureKeys: raw.userFeatures.map((f) => f.featureKey),
       createdAt: raw.createdAt.toISOString(),
       updatedAt: raw.updatedAt.toISOString(),
     };

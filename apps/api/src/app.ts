@@ -5,6 +5,7 @@ import morgan from "morgan";
 import { env } from "./config/env.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { featuresRouter } from "./modules/features/features.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { apiError } from "@epi/shared";
 
@@ -21,6 +22,7 @@ export function createApp() {
 
   app.use("/api/auth", authRouter);
   app.use("/api/users", usersRouter);
+  app.use("/api/features", featuresRouter);
 
   app.use((_req, res) => {
     res.status(404).json(apiError("NOT_FOUND", "Route not found"));

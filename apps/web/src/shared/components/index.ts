@@ -5,6 +5,7 @@ export { Card } from "./Card";
 export { Dropdown } from "./Dropdown";
 export { Label } from "./Label";
 export { List } from "./List";
+export { Modal } from "./Modal";
 export { Table } from "./Table";
 export { TextField } from "./TextField";
 

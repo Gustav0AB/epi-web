@@ -4,13 +4,13 @@ import { useState } from "react";
 
 export function LoginPage() {
   const { login, isLoading, error, clearError } = useAuthStore();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     clearError();
-    await login({ email, password });
+    await login({ username, password });
   }
 
   return (
@@ -20,14 +20,14 @@ export function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <TextField
-            label="Email"
-            id="email"
-            type="email"
-            autoComplete="email"
+            label="Username"
+            id="username"
+            type="text"
+            autoComplete="username"
             required
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            placeholder="epi_admin"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
           <TextField
             label="Password"
