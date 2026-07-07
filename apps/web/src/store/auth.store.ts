@@ -6,6 +6,7 @@ type AuthState = {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isUserLoading: boolean;
   error: string | null;
   currentUser: User | null;
 };
@@ -47,6 +48,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       token: null,
       isAuthenticated: false,
       isLoading: false,
+      isUserLoading: false,
       error: null,
       currentUser: null,
 
@@ -80,8 +82,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       initCurrentUser: async () => {
         const { token, currentUser } = get();
         if (!token || currentUser) return;
+        set({ isUserLoading: true });
         const user = await fetchCurrentUser(token);
-        if (user) set({ currentUser: user });
+        set({ currentUser: user, isUserLoading: false });
       },
     }),
     {

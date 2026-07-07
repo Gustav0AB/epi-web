@@ -19,7 +19,7 @@ async function apiFetch<T>(path: string, token: string, options?: RequestInit): 
 }
 
 export function UsersPage() {
-  const { token, currentUser } = useAuthStore();
+  const { token, currentUser, isUserLoading } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -83,6 +83,14 @@ export function UsersPage() {
       },
     },
   ];
+
+  if (isUserLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
