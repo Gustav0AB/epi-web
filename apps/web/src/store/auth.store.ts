@@ -70,9 +70,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       },
 
       logout: () => {
-        void import("./users.store").then(({ useUsersStore }) => {
-          useUsersStore.getState().reset();
-        });
         void import("../lib/seed").then(({ clearDatabase }) => clearDatabase());
         set({ token: null, isAuthenticated: false, error: null, currentUser: null });
       },

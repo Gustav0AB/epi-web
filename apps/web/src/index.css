@@ -1,3 +1,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Vista de documento oficial (DocumentReportPage): al imprimir/exportar a
+   PDF, oculta el chrome de la app (header, sidebar, banners) y evita que
+   las tarjetas de contenido se corten a la mitad entre páginas. */
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 1.5cm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #report-document,
+  #report-document * {
+    visibility: visible;
+  }
+
+  #report-document {
+    position: absolute;
+    inset: 0;
+  }
+
+  #report-document .break-inside-avoid,
+  #report-document > div > * {
+    break-inside: avoid;
+  }
+}

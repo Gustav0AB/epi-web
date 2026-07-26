@@ -2,46 +2,105 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { FEATURE_KEYS } from "@epi/shared";
 import { useAuthStore } from "../store/auth.store";
+import { useI18n, type I18nKey } from "../lib/i18n";
+import MenuIcon from "@mui/icons-material/Menu";
+import MenuOpenIcon from "@mui/icons-material/MenuOpen";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
+import PollOutlinedIcon from "@mui/icons-material/PollOutlined";
+import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
+import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
+import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
+import QuestionAnswerOutlinedIcon from "@mui/icons-material/QuestionAnswerOutlined";
+import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
+import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
+import LogoutIcon from "@mui/icons-material/Logout";
 
 type NavItem = {
   to: string;
-  label: string;
-  featureKey: string | null; // null = always visible
-  adminOnly?: boolean;
+  label: I18nKey;
   icon: React.ReactNode;
-};
+} & (
+  | { kind: "functionality"; featureKey: string }
+  | { kind: "report_template"; templateKey: string }
+  | { kind: "user_management" }
+  | { kind: "system_admin" }
+  | { kind: "admin_tier" }
+);
 
 const navItems: NavItem[] = [
   {
     to: "/home",
-    label: "Home",
+    label: "nav.home",
+    kind: "functionality",
     featureKey: FEATURE_KEYS.HOME,
-    icon: (
-      <svg className="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7m-9 5v6h4v-6m-4 0H9m6 0h-2" />
-      </svg>
-    ),
+    icon: <HomeOutlinedIcon className="shrink-0" />,
   },
   {
-    to: "/components",
-    label: "Components",
-    featureKey: FEATURE_KEYS.COMPONENTS,
-    icon: (
-      <svg className="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h8m-8 6h16" />
-      </svg>
-    ),
+    to: "/surveys",
+    label: "nav.surveys",
+    kind: "functionality",
+    featureKey: FEATURE_KEYS.SURVEYS,
+    icon: <PollOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/scoring",
+    label: "nav.scoring",
+    kind: "functionality",
+    featureKey: FEATURE_KEYS.SCORING,
+    icon: <TuneOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/open-questions",
+    label: "nav.openQuestions",
+    kind: "functionality",
+    featureKey: FEATURE_KEYS.OPEN_QUESTIONS,
+    icon: <QuestionAnswerOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/reports",
+    label: "nav.reports",
+    kind: "report_template",
+    templateKey: "reports",
+    icon: <AssessmentOutlinedIcon className="shrink-0" />,
   },
   {
     to: "/users",
-    label: "Users",
-    featureKey: FEATURE_KEYS.USERS_MANAGEMENT,
-    adminOnly: true,
-    icon: (
-      <svg className="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H4v-2a4 4 0 014-4h1m4-4a4 4 0 100-8 4 4 0 000 8zm6 0a3 3 0 100-6 3 3 0 000 6zM3 20v-2a3 3 0 013-3" />
-      </svg>
-    ),
+    label: "nav.users",
+    kind: "user_management",
+    icon: <PeopleOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/organizations",
+    label: "nav.organizations",
+    kind: "system_admin",
+    icon: <CorporateFareOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/sites",
+    label: "nav.sites",
+    kind: "admin_tier",
+    icon: <PlaceOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/categories",
+    label: "nav.categories",
+    kind: "admin_tier",
+    icon: <CategoryOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/report-assignments",
+    label: "nav.reportAssignments",
+    kind: "admin_tier",
+    icon: <AssignmentOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/audit-log",
+    label: "nav.auditLog",
+    kind: "system_admin",
+    icon: <HistoryOutlinedIcon className="shrink-0" />,
   },
 ];
 
@@ -49,15 +108,18 @@ export function Sidebar() {
   const [expanded, setExpanded] = useState(false);
   const logout = useAuthStore((s) => s.logout);
   const currentUser = useAuthStore((s) => s.currentUser);
+  const { t } = useI18n();
 
-  const isAdmin = currentUser?.role === "admin";
-  const userFeatureKeys = currentUser?.featureKeys ?? [];
+  const isAdminTier = currentUser?.role === "system_admin" || currentUser?.role === "org_admin";
+  const featureKeys = currentUser?.featureKeys ?? [];
+  const reportTemplateKeys = currentUser?.reportTemplateKeys ?? [];
 
   const visibleItems = navItems.filter((item) => {
-    if (item.adminOnly) return isAdmin;
-    if (isAdmin) return true;
-    if (item.featureKey === null) return true;
-    return userFeatureKeys.includes(item.featureKey);
+    if (item.kind === "system_admin") return currentUser?.role === "system_admin";
+    if (item.kind === "admin_tier") return isAdminTier;
+    if (item.kind === "user_management") return isAdminTier;
+    if (item.kind === "functionality") return isAdminTier || featureKeys.includes(item.featureKey);
+    return isAdminTier || reportTemplateKeys.includes(item.templateKey);
   });
 
   return (
@@ -74,18 +136,12 @@ export function Sidebar() {
           title={expanded ? "Collapse sidebar" : "Expand sidebar"}
           className="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         >
-          {expanded ? (
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-          ) : (
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            </svg>
-          )}
+          {expanded ? <MenuOpenIcon /> : <MenuIcon />}
         </button>
         {expanded && (
-          <span className="ml-3 text-base font-semibold text-gray-900">Epi Web</span>
+          <span className="ml-3 text-base font-semibold text-gray-900">
+            EPI
+          </span>
         )}
       </div>
 
@@ -96,7 +152,7 @@ export function Sidebar() {
             <li key={item.to}>
               <NavLink
                 to={item.to}
-                title={!expanded ? item.label : undefined}
+                title={!expanded ? t(item.label) : undefined}
                 className={({ isActive }) =>
                   [
                     "flex items-center rounded-md px-2.5 py-2.5 text-base font-medium transition-colors",
@@ -108,7 +164,7 @@ export function Sidebar() {
                 }
               >
                 {item.icon}
-                {expanded && <span>{item.label}</span>}
+                {expanded && <span>{t(item.label)}</span>}
               </NavLink>
             </li>
           ))}
@@ -119,16 +175,14 @@ export function Sidebar() {
       <div className="shrink-0 border-t border-gray-200 p-2">
         <button
           onClick={logout}
-          title={!expanded ? "Sign out" : undefined}
+          title={!expanded ? t("header.logout") : undefined}
           className={[
             "flex w-full items-center rounded-md px-2.5 py-2.5 text-base font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900",
             expanded ? "gap-3" : "justify-center",
           ].join(" ")}
         >
-          <svg className="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" />
-          </svg>
-          {expanded && <span>Sign out</span>}
+          <LogoutIcon className="shrink-0" />
+          {expanded && <span>{t("header.logout")}</span>}
         </button>
       </div>
     </aside>

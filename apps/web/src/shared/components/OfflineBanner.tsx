@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useI18n } from "../../lib/i18n";
 
 export function OfflineBanner() {
+  const { t } = useI18n();
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
@@ -17,9 +19,9 @@ export function OfflineBanner() {
   if (!isOffline) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full bg-gray-900 px-4 py-2 text-sm text-white shadow-lg">
+    <div className="fixed bottom-4 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-center gap-2 rounded-full bg-gray-900 px-4 py-2 text-sm text-white shadow-lg sm:w-auto">
       <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-      Working offline — changes will sync when reconnected
+      {t("offline.banner")}
     </div>
   );
 }

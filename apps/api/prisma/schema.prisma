@@ -8,17 +8,51 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  name         String
-  username     String        @unique
-  email        String        @unique
-  password     String
-  role         Role          @default(USER)
-  userFeatures UserFeature[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                          String               @id @default(uuid())
+  name                        String
+  username                    String               @unique
+  email                       String               @unique
+  password                    String
+  role                        Role                 @default(FUNCTIONALITY_USER)
+  // Cargo institucional (Chaperon, Instructor, Coordinador...) — dato informativo, no afecta permisos.
+  institutionalPosition       String?
+  // false = no puede iniciar sesión NI usar un token ya emitido (requireAuth lo valida en cada request).
+  isActive                    Boolean              @default(true)
+  // Bloqueo temporal tras varios intentos de login fallidos seguidos (ver auth.service.ts#MAX_FAILED_ATTEMPTS).
+  failedLoginAttempts         Int                  @default(0)
+  lockedUntil                 DateTime?
+  // Tokens con iat anterior a esta fecha se rechazan (requireAuth) — "forzar cierre de
+  // sesión" y cambio de contraseña (propio o por admin) la actualizan a "ahora".
+  sessionValidAfter           DateTime?
+  organizationId              String?
+  organization                Organization?        @relation(fields: [organizationId], references: [id])
+  // Sitio(s) de referencia: prioriza esa vista por defecto, NO restringe — el
+  // usuario ve toda su organización salvo lo listado en excludedSiteIds/
+  // excludedSurveyDefinitionIds. Vacío = sin sitio de referencia particular.
+  siteIds                     String[]             @default([])
+  excludedSiteIds             String[]             @default([]) // sitios de su organización que este usuario NO puede ver
+  excludedSurveyDefinitionIds String[]             @default([]) // encuestas específicas que este usuario NO puede ver
+  userFeatures                UserFeature[]
+  userReportTemplates         UserReportTemplate[]
+  assignedReports             AssignedReport[]
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
 
   @@map("users")
+}
+
+// División por organización: EPI es la principal (ve todo); las demás solo
+// ven los datos de sus sitios.
+model Organization {
+  id         String     @id @default(uuid())
+  name       String     @unique
+  isActive   Boolean    @default(true)
+  users      User[]
+  sites      Site[]
+  categories Category[]
+  createdAt  DateTime   @default(now())
+
+  @@map("organizations")
 }
 
 model Feature {
@@ -45,6 +79,316 @@ model UserFeature {
 }
 
 enum Role {
-  ADMIN
-  USER
+  SYSTEM_ADMIN
+  ORG_ADMIN
+  REPORT_VIEWER
+  FUNCTIONALITY_USER
+}
+
+// Catálogo de plantillas de reporte (permiso simple, como Feature) —
+// asignables a usuarios REPORT_VIEWER.
+model ReportTemplate {
+  id                  String               @id @default(uuid())
+  key                 String               @unique
+  name                String
+  description         String?
+  userReportTemplates UserReportTemplate[]
+  createdAt           DateTime             @default(now())
+
+  @@map("report_templates")
+}
+
+model UserReportTemplate {
+  id             String         @id @default(uuid())
+  userId         String
+  templateKey    String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportTemplate ReportTemplate @relation(fields: [templateKey], references: [key], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+
+  @@unique([userId, templateKey])
+  @@map("user_report_templates")
+}
+
+// ─── Encuestas / Jotform ─────────────────────────────────────────────
+// Catálogo y configuración (reglas de negocio)
+
+model Site {
+  id                String             @id @default(uuid())
+  name              String             @unique
+  isActive          Boolean            @default(true)
+  organizationId    String?
+  organization      Organization?      @relation(fields: [organizationId], references: [id])
+  surveyDefinitions SurveyDefinition[]
+  createdAt         DateTime           @default(now())
+
+  @@map("sites")
+}
+
+// Catálogo de categorías/subcategorías, por organización (CSV o alta
+// individual). Cada organización tiene su propio catálogo — no se comparte.
+model Category {
+  id             String       @id @default(uuid())
+  name           String
+  subcategory    String?
+  isActive       Boolean      @default(true)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, name, subcategory])
+  @@map("categories")
+}
+
+// Catálogo de cargos institucionales (Chaperón, Coordinador...) que
+// alimenta el dropdown de alta de usuario — puramente informativo, User.
+// institutionalPosition sigue siendo un string libre (sin FK), esto solo
+// evita reescribir el mismo cargo a mano cada vez.
+model InstitutionalPosition {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("institutional_positions")
+}
+
+// Caché local de "GET /user/forms" de Jotform — el catálogo de formularios
+// de la cuenta, para poder elegir uno y darlo de alta (registerDefinition)
+// sin depender de que ya haya llegado una respuesta. El id ES el formID
+// real de Jotform (no generamos uno propio). Se refresca con
+// POST /api/surveys/jotform/forms/sync, que hace diff contra lo ya guardado.
+model JotformForm {
+  id         String   @id // formID de Jotform
+  title      String
+  status     String // ACTIVE | DISABLED | DELETED, tal como lo manda Jotform
+  importedAt DateTime @default(now())
+  syncedAt   DateTime @updatedAt
+
+  @@map("jotform_forms")
+}
+
+// Catálogo de campos "dimensión" (Grupo, Grado, Tipo de Programa, Edad…)
+// definido por la env CATALOG_DATA — preguntas que NO se ponderan como
+// Question sino que se guardan aquí (label + opciones combinadas de todos
+// los formularios que las traen) para usarlas como filtro en reportes.
+model CatalogField {
+  id        String   @id @default(uuid())
+  key       String   @unique // versión normalizada de CATALOG_DATA, ej. "GRUPO"
+  label     String // texto de la pregunta tal como viene de Jotform, ej. "Grupo"
+  options   String[] @default([]) // opciones combinadas (dedup) de todos los forms vistos
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("catalog_fields")
+}
+
+model SurveyDefinition {
+  id            String       @id @default(uuid())
+  siteId        String
+  site          Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  jotformFormId String // el formID que envía el webhook de Jotform
+  type          SurveyType   @default(LOCAL)
+  version       Int          @default(1)
+  questions     Question[]
+  submissions   Submission[]
+  createdAt     DateTime     @default(now())
+
+  @@unique([jotformFormId, version])
+  @@map("survey_definitions")
+}
+
+model Question {
+  id                 String           @id @default(uuid())
+  surveyDefinitionId String
+  surveyDefinition   SurveyDefinition @relation(fields: [surveyDefinitionId], references: [id], onDelete: Cascade)
+  externalId         String // id/nombre del campo tal como llega en el JSON de Jotform
+  text               String
+  type               QuestionType
+  options            String[]         @default([]) // opciones de Jotform (radio/dropdown/checkbox) — solo se usa como sugerencia para ONE_ANSWER.correctAnswer
+  weight             Weight? // no aplica a OPEN_TEXT (se procesan con IA, no se ponderan)
+  answers            Answer[]
+  insight            QuestionInsight?
+  createdAt          DateTime         @default(now())
+
+  @@unique([surveyDefinitionId, externalId])
+  @@map("questions")
+}
+
+// Resultado del análisis con IA de las respuestas a una pregunta abierta.
+model QuestionInsight {
+  id          String   @id @default(uuid())
+  questionId  String   @unique
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  summary     String // resumen de los temas principales
+  bestAnswers Json // [{ text, reason }]
+  model       String // modelo de IA usado
+  generatedAt DateTime @default(now())
+
+  @@map("question_insights")
+}
+
+// El motor de ponderación: si falta un Weight para una pregunta, la
+// submission queda PENDIENTE_CONFIGURACION.
+model Weight {
+  id            String   @id @default(uuid())
+  questionId    String   @unique
+  question      Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  category      String
+  subcategory   String?
+  maxScore      Float
+  correctAnswer String? // solo ONE_ANSWER
+  createdAt     DateTime @default(now())
+
+  @@map("weights")
+}
+
+// Ingesta y operación (flujo de datos)
+
+model Submission {
+  id                  String             @id @default(uuid())
+  jotformSubmissionId String             @unique
+  surveyDefinitionId  String?
+  surveyDefinition    SurveyDefinition?  @relation(fields: [surveyDefinitionId], references: [id])
+  participantId       String?
+  participant         Participant?       @relation(fields: [participantId], references: [id])
+  rawJsonData         Json // el JSON crudo — nunca se pierde
+  isPre               Boolean? // true = pre-actividad, false = post; null = desconocido
+  status              SubmissionStatus   @default(PENDIENTE_CONFIGURACION)
+  processingError     String? // detalle cuando status = ERROR, para revisión manual
+  isDuplicate         Boolean            @default(false) // mismo participante+encuesta+momento ya procesado antes
+  answers             Answer[]
+  results             AggregatedResult[]
+  receivedAt          DateTime           @default(now())
+  processedAt         DateTime?
+
+  @@map("submissions")
+}
+
+model Participant {
+  id          String       @id @default(uuid())
+  externalId  String       @unique // participant_id de Jotform
+  name        String?
+  age         Int?
+  gender      String?
+  school      String?
+  groupName   String?
+  submissions Submission[]
+
+  @@map("participants")
+}
+
+model Answer {
+  id           String     @id @default(uuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  questionId   String
+  question     Question   @relation(fields: [questionId], references: [id])
+  value        String
+
+  @@map("answers")
+}
+
+// Resultados y reportes
+
+model AggregatedResult {
+  id              String     @id @default(uuid())
+  submissionId    String
+  submission      Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  category        String
+  subcategory     String?
+  calculatedScore Float
+  maxPossible     Float      @default(0) // suma de maxScore de las preguntas respondidas (las en blanco no cuentan)
+  isPrePost       Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+
+  @@map("aggregated_results")
+}
+
+// Bitácora de acciones sensibles (login, alta/baja de usuario, cambio de
+// rol, reset de contraseña, import CSV). Sin FK a User a propósito: el
+// registro debe sobrevivir aunque el actor sea borrado después — actor* son
+// una foto de quién era en el momento, no una relación en vivo.
+model AuditLog {
+  id                  String   @id @default(uuid())
+  actorId             String?
+  actorUsername       String
+  actorRole           String
+  actorOrganizationId String?
+  action              String
+  targetType          String?
+  targetId            String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Documento de reporte asignado a un usuario puntual (permisos por
+// documento, no por funcionalidad completa). `templateKey` referencia el
+// registro de plantillas del frontend (features/reports/templates) — hoy
+// solo son plantillas de ejemplo, así que GET /:id/data siempre devuelve
+// kpis/series/tables vacíos hasta que se defina una fuente de datos real
+// por plantilla. `status` es el flujo de aprobación: pending → in_review →
+// published, a cargo de system_admin/org_admin.
+model AssignedReport {
+  id          String                  @id @default(uuid())
+  userId      String
+  user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateKey String
+  title       String
+  status      ReportAssignmentStatus  @default(PENDING)
+  filters     Json?
+  version     Int                     @default(1)
+  versions    AssignedReportVersion[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@map("assigned_reports")
+}
+
+// Historial inmutable: una fila por cada versión publicada de un
+// AssignedReport (alta cuenta como v1). actorUsername es una foto del
+// momento, igual que en AuditLog.
+model AssignedReportVersion {
+  id            String                 @id @default(uuid())
+  reportId      String
+  report        AssignedReport         @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  version       Int
+  title         String
+  status        ReportAssignmentStatus
+  filters       Json?
+  actorId       String?
+  actorUsername String
+  createdAt     DateTime               @default(now())
+
+  @@unique([reportId, version])
+  @@map("assigned_report_versions")
+}
+
+enum ReportAssignmentStatus {
+  PENDING
+  IN_REVIEW
+  PUBLISHED
+}
+
+enum SurveyType {
+  LOCAL
+  VISITING
+}
+
+enum QuestionType {
+  LIKERT
+  ONE_ANSWER
+  FREQUENCY
+  OPEN_TEXT
+}
+
+enum SubmissionStatus {
+  PROCESADO
+  PENDIENTE_CONFIGURACION
+  COMPLETADO
+  ERROR
 }

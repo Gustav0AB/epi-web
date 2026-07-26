@@ -45,6 +45,12 @@ async function request<T>(
   const json = (await response.json()) as ApiResponse<T>;
 
   if (!json.success) {
+    // Token inválido/expirado, cuenta desactivada o sesión revocada
+    // (ver requireAuth) — cierra sesión localmente; ProtectedRoute
+    // redirige a /login en el siguiente render.
+    if (json.error.code === "UNAUTHORIZED") {
+      useAuthStore.getState().logout();
+    }
     throw new ApiError(json.error.code, json.error.message, json.error.details);
   }
 

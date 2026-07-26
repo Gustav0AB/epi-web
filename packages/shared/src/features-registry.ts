@@ -1,7 +1,8 @@
 export const FEATURE_KEYS = {
   HOME: "home",
-  COMPONENTS: "components",
-  USERS_MANAGEMENT: "users_management",
+  SURVEYS: "surveys",
+  SCORING: "scoring",
+  OPEN_QUESTIONS: "open_questions",
 } as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[keyof typeof FEATURE_KEYS];
@@ -18,15 +19,20 @@ export const FEATURES_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
     name: "Home",
     description: "Access to the home dashboard",
   },
-  [FEATURE_KEYS.COMPONENTS]: {
-    key: FEATURE_KEYS.COMPONENTS,
-    name: "Components",
-    description: "UI components library",
+  [FEATURE_KEYS.SURVEYS]: {
+    key: FEATURE_KEYS.SURVEYS,
+    name: "Encuestas",
+    description: "Visualizar y buscar encuestas recibidas",
   },
-  [FEATURE_KEYS.USERS_MANAGEMENT]: {
-    key: FEATURE_KEYS.USERS_MANAGEMENT,
-    name: "User Management",
-    description: "Manage users and their permissions",
+  [FEATURE_KEYS.SCORING]: {
+    key: FEATURE_KEYS.SCORING,
+    name: "Ponderaciones",
+    description: "Configurar los puntos de las preguntas (manual o CSV)",
+  },
+  [FEATURE_KEYS.OPEN_QUESTIONS]: {
+    key: FEATURE_KEYS.OPEN_QUESTIONS,
+    name: "Preguntas abiertas",
+    description: "Ver y analizar con IA las respuestas de las preguntas abiertas",
   },
 };
 

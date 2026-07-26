@@ -9,11 +9,15 @@
     "jsx": "react-jsx",
     "outDir": "./dist",
     "composite": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["src/shared/*"]
+    }
   },
   "references": [
     { "path": "../../packages/shared" }
   ],
-  "include": ["src"],
+  "include": ["src/**/*", "src/lib/locales/es.json", "src/lib/locales/en.json"],
   "exclude": ["node_modules", "dist"]
 }

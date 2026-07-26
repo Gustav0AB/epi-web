@@ -1,4 +1,6 @@
 export { Badge } from "./Badge";
+export { ConfirmModal } from "./ConfirmModal";
+export { DatePicker } from "./DatePicker";
 export { OfflineBanner } from "./OfflineBanner";
 export { Button } from "./Button";
 export { Card } from "./Card";
