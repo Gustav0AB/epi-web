@@ -443,16 +443,28 @@ en vez de improvisar la respuesta de negocio:
   alcance). Persistencia + control de acceso por documento ya están
   resueltos; UI de gestión en `/report-assignments`
   (`ReportAssignmentsPage.tsx`).
-  **Con un límite deliberado:** las dos plantillas que existen hoy
-  (`operational-financial`, `activities-attendance`, en
-  `features/reports/templates/`) están marcadas en el propio código como
-  "Ejemplo 1"/"Ejemplo 2" — piden datos (ingresos/gastos, asistencia) que
-  no existen en el modelo de datos. Por eso `GET /:id/data` siempre
-  devuelve `{ kpis: {}, series: {}, tables: {} }` (el `ReportRenderer` ya
-  maneja bien series/tablas vacías y KPIs ausentes, se ve como "—" o
-  estado vacío, no rompe). Conectar cada plantilla a una fuente de datos
-  real es una decisión de negocio aparte — falta que EPI defina qué
-  reportes reales necesita y de dónde sale cada número.
+  ~~**Con un límite deliberado:** `GET /:id/data` siempre devuelve vacío.~~
+  Corregido parcialmente: `modules/reports-assignment/report-data-resolvers.ts`
+  es un registro `templateKey → resolver` — `GET /:id/data` ahora calcula
+  kpis/series/tables reales para las plantillas que tienen resolver
+  registrado (hoy: `seasonal-site-report`, una plantilla de **prueba** que
+  valida el pipeline completo con datos que sí existen). Las dos plantillas
+  de ejemplo originales (`operational-financial`, `activities-attendance`,
+  marcadas en el propio código como "Ejemplo 1"/"Ejemplo 2") siguen sin
+  resolver — piden datos (ingresos/gastos, asistencia) que no existen en el
+  modelo, y una plantilla sin resolver sigue devolviendo
+  `{ kpis: {}, series: {}, tables: {} }` como antes (el `ReportRenderer` ya
+  maneja bien ese caso). El alcance de sitios de cada resolver es el del
+  **usuario asignado al reporte**, no el de quien lo consulta. Además:
+  `AssignedReport.textContent` (Json, versionado igual que `filters`)
+  guarda los campos de texto libre (logros, retos...) que cada plantilla
+  declara y que el operativo llena desde `ReportAssignmentsPage.tsx`; el
+  donante puede mover un filtro Sitio/Global acotado a su propio alcance; y
+  la descarga es un PDF real (`@react-pdf/renderer`, ya no `window.print()`).
+  Detalle completo, con diagrama de secuencia, en
+  [arquitectura-front-backend.md §7](./arquitectura-front-backend.md#7-reportes-dos-sistemas-distintos-conviviendo).
+  Sigue pendiente de negocio: los N diseños institucionales reales, que EPI
+  está definiendo — la plomería ya está lista para recibirlos.
 
 ## 9. Endpoints (resumen)
 

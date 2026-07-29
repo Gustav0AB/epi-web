@@ -53,7 +53,9 @@ export type TableBlock = ReportBlockBase & {
 
 export type TextBlock = ReportBlockBase & {
   type: "text";
-  content: string;
+  content?: string; // texto fijo de la plantilla (boilerplate)
+  dataKey?: string; // si se define, el texto es "llenable": viene de ReportData.texts[dataKey],
+  // capturado por el usuario operativo al armar el reporte (ver getFillableTextFields).
 };
 
 export type ReportBlock = KpiBlock | ChartBlock | TableBlock | TextBlock;
@@ -75,9 +77,21 @@ export type ReportTemplate = {
 };
 
 // Datos resueltos para una plantilla dada: los bloques solo referencian
-// claves de este objeto (kpis / series / tables), nunca datos embebidos.
+// claves de este objeto (kpis / series / tables / texts), nunca datos
+// embebidos. `texts` son los campos de texto libre llenados por el
+// operativo (AssignedReport.textContent).
 export type ReportData = {
   kpis: Record<string, number | string>;
   series: Record<string, Record<string, unknown>[]>;
   tables: Record<string, Record<string, unknown>[]>;
+  texts: Record<string, string>;
 };
+
+// Los bloques "text" con dataKey son los campos que el operativo debe
+// llenar al armar/editar un reporte asignado de esta plantilla — se derivan
+// de los bloques en vez de declararse aparte, para no mantener dos listas.
+export function getFillableTextFields(template: ReportTemplate): { key: string; label: string }[] {
+  return template.blocks
+    .filter((b): b is TextBlock => b.type === "text" && !!b.dataKey)
+    .map((b) => ({ key: b.dataKey!, label: b.title ?? b.dataKey! }));
+}

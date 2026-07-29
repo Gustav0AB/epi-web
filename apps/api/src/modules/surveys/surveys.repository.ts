@@ -183,6 +183,8 @@ export const surveysRepository = {
     scope?: SurveyScope | undefined;
     type?: "LOCAL" | "VISITING" | undefined;
     school?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
   }) {
     const where: Prisma.SubmissionWhereInput = { status: "COMPLETADO" };
     const definition: Prisma.SurveyDefinitionWhereInput = {};
@@ -191,10 +193,18 @@ export const surveysRepository = {
     if (args.type) definition.type = args.type;
     if (Object.keys(definition).length) where.surveyDefinition = definition;
     if (args.school) where.participant = { school: args.school };
+    if (args.from || args.to) {
+      where.receivedAt = {
+        ...(args.from ? { gte: new Date(args.from) } : {}),
+        ...(args.to ? { lte: new Date(args.to) } : {}),
+      };
+    }
     return prisma.submission.findMany({
       where,
       select: {
         id: true,
+        participantId: true,
+        surveyDefinitionId: true,
         results: {
           select: {
             category: true,

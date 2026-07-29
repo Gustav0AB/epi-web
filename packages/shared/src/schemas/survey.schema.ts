@@ -77,6 +77,8 @@ export const ReportFiltersSchema = z.object({
   type: z.enum(["LOCAL", "VISITING"]).optional(),
   school: z.string().trim().min(1).optional(),
   category: z.string().trim().min(1).optional(),
+  from: z.string().trim().min(1).optional(), // fecha ISO (>= receivedAt)
+  to: z.string().trim().min(1).optional(), // fecha ISO (<= receivedAt)
 });
 export type ReportFilters = z.infer<typeof ReportFiltersSchema>;
 

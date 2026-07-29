@@ -1,5 +1,7 @@
 import { assignedReportsRepository } from "./assigned-reports.repository.js";
 import { usersRepository } from "../users/users.repository.js";
+import { allowedSiteIds } from "../../shared/site-scope.js";
+import { REPORT_DATA_RESOLVERS } from "./report-data-resolvers.js";
 import type {
   AssignedReportDto,
   AssignedReportVersionDto,
@@ -10,9 +12,9 @@ import type {
 } from "@epi/shared";
 import type { JwtPayload } from "../../middlewares/auth.middleware.js";
 
-type RawReport = { id: string; userId: string; templateKey: string; title: string; status: string; filters: unknown; version: number; createdAt: Date; updatedAt: Date };
-type RawVersion = { id: string; reportId: string; version: number; title: string; status: string; filters: unknown; actorUsername: string; createdAt: Date };
-type RawReportWithUser = RawReport & { user: { organizationId: string | null } };
+type RawReport = { id: string; userId: string; templateKey: string; title: string; status: string; filters: unknown; textContent: unknown; version: number; createdAt: Date; updatedAt: Date };
+type RawVersion = { id: string; reportId: string; version: number; title: string; status: string; filters: unknown; textContent: unknown; actorUsername: string; createdAt: Date };
+type RawReportWithUser = RawReport & { user: { organizationId: string | null; role: string; excludedSiteIds: string[] } };
 
 function forbidden(message: string) {
   return Object.assign(new Error(message), { statusCode: 403, code: "FORBIDDEN" });
@@ -45,6 +47,7 @@ function mapReport(row: RawReport): AssignedReportDto {
     title: row.title,
     status: row.status.toLowerCase() as ReportAssignmentStatus,
     filters: (row.filters as Record<string, unknown> | null) ?? null,
+    textContent: (row.textContent as Record<string, string> | null) ?? null,
     version: row.version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -59,6 +62,7 @@ function mapVersion(row: RawVersion): AssignedReportVersionDto {
     title: row.title,
     status: row.status.toLowerCase() as ReportAssignmentStatus,
     filters: (row.filters as Record<string, unknown> | null) ?? null,
+    textContent: (row.textContent as Record<string, string> | null) ?? null,
     actorUsername: row.actorUsername,
     createdAt: row.createdAt.toISOString(),
   };
@@ -112,13 +116,27 @@ export const assignedReportsService = {
     return rows.map(mapVersion);
   },
 
-  // Siempre vacío: ninguna plantilla hoy tiene una fuente de datos real
-  // conectada (ver features/reports/templates — son ejemplos). El shape
-  // correcto es suficiente para que el renderer del frontend funcione
-  // (kpis/series/tables ausentes se muestran como "—"/vacío, no rompen).
-  async getData(requester: JwtPayload, id: string): Promise<ReportDataDto> {
+  // Data real vía REPORT_DATA_RESOLVERS (por templateKey); plantillas sin
+  // resolver registrado devuelven kpis/series/tables vacíos — el shape
+  // correcto basta para que el renderer del frontend funcione (valores
+  // ausentes se muestran como "—"/vacío, no rompen). El alcance de sitios
+  // (siteId u undefined = todos) es el del USUARIO ASIGNADO al reporte, no
+  // el de quien lo consulta — así un admin ve exactamente lo que vería el
+  // donante/decisor dueño del reporte.
+  async getData(requester: JwtPayload, id: string, siteId?: string): Promise<ReportDataDto> {
     const existing = await loadOrThrow(id);
     assertReadAccess(requester, existing);
-    return { kpis: {}, series: {}, tables: {} };
+
+    const resolver = REPORT_DATA_RESOLVERS[existing.templateKey];
+    const texts = (existing.textContent as Record<string, string> | null) ?? {};
+    if (!resolver) return { kpis: {}, series: {}, tables: {}, texts };
+
+    const ownerSiteIds = await allowedSiteIds({
+      role: existing.user.role.toLowerCase(),
+      organizationId: existing.user.organizationId,
+      excludedSiteIds: existing.user.excludedSiteIds,
+    });
+    const data = await resolver({ siteId, scope: { siteIds: ownerSiteIds, excludedSurveyDefinitionIds: [] } });
+    return { ...data, texts };
   },
 };

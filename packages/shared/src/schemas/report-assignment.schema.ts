@@ -13,6 +13,7 @@ export const CreateAssignedReportSchema = z.object({
   templateKey: z.string().trim().min(1).max(100),
   title: z.string().trim().min(2).max(150),
   filters: z.record(z.unknown()).nullable().optional(),
+  textContent: z.record(z.string()).nullable().optional(),
 });
 export type CreateAssignedReportDto = z.infer<typeof CreateAssignedReportSchema>;
 
@@ -21,6 +22,7 @@ export const UpdateAssignedReportSchema = z.object({
   title: z.string().trim().min(2).max(150).optional(),
   status: z.enum(REPORT_ASSIGNMENT_STATUSES).optional(),
   filters: z.record(z.unknown()).nullable().optional(),
+  textContent: z.record(z.string()).nullable().optional(),
 });
 export type UpdateAssignedReportDto = z.infer<typeof UpdateAssignedReportSchema>;
 
@@ -31,6 +33,7 @@ export type AssignedReportDto = {
   title: string;
   status: ReportAssignmentStatus;
   filters: Record<string, unknown> | null;
+  textContent: Record<string, string> | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -43,15 +46,18 @@ export type AssignedReportVersionDto = {
   title: string;
   status: ReportAssignmentStatus;
   filters: Record<string, unknown> | null;
+  textContent: Record<string, string> | null;
   actorUsername: string;
   createdAt: string;
 };
 
 // Forma que espera el renderer de reportes (features/reports/templates/types.ts
-// en el frontend). Vive acá también porque GET /:id/data la devuelve —
-// hoy siempre vacía: no hay fuente de datos real conectada a las plantillas.
+// en el frontend). GET /:id/data la arma combinando el resolver de datos
+// reales por plantilla (report-data-resolvers.ts) + textContent del reporte;
+// las plantillas sin resolver registrado devuelven kpis/series/tables vacíos.
 export type ReportDataDto = {
   kpis: Record<string, number | string>;
   series: Record<string, Record<string, unknown>[]>;
   tables: Record<string, Record<string, unknown>[]>;
+  texts: Record<string, string>;
 };

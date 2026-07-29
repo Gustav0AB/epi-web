@@ -328,11 +328,15 @@ model AuditLog {
 
 // Documento de reporte asignado a un usuario puntual (permisos por
 // documento, no por funcionalidad completa). `templateKey` referencia el
-// registro de plantillas del frontend (features/reports/templates) — hoy
-// solo son plantillas de ejemplo, así que GET /:id/data siempre devuelve
-// kpis/series/tables vacíos hasta que se defina una fuente de datos real
-// por plantilla. `status` es el flujo de aprobación: pending → in_review →
-// published, a cargo de system_admin/org_admin.
+// registro de plantillas del frontend (features/reports/templates); su
+// data real (kpis/series/tables) la calcula un resolver por plantilla (ver
+// report-data-resolvers.ts) — solo las plantillas con resolver registrado
+// traen data, el resto vuelve vacía. `textContent` son los campos de texto
+// libre (logros, retos, comentarios...) que declara cada plantilla y llena
+// el usuario operativo — el backend los guarda tal cual, sin conocer sus
+// claves (eso lo define la plantilla en el frontend). `status` es el flujo
+// de aprobación: pending → in_review → published, a cargo de
+// system_admin/org_admin.
 model AssignedReport {
   id          String                  @id @default(uuid())
   userId      String
@@ -341,6 +345,7 @@ model AssignedReport {
   title       String
   status      ReportAssignmentStatus  @default(PENDING)
   filters     Json?
+  textContent Json?
   version     Int                     @default(1)
   versions    AssignedReportVersion[]
   createdAt   DateTime                @default(now())
@@ -360,6 +365,7 @@ model AssignedReportVersion {
   title         String
   status        ReportAssignmentStatus
   filters       Json?
+  textContent   Json?
   actorId       String?
   actorUsername String
   createdAt     DateTime               @default(now())

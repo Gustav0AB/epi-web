@@ -17,5 +17,7 @@ export type AssignedReport = AssignedReportDto;
 export const reportsApi = {
   assigned: (status?: ReportStatus) =>
     call<AssignedReport[]>(`/api/reports/assigned${status ? `?status=${status}` : ""}`),
-  data: (reportId: string) => call<ReportDataDto>(`/api/reports/${reportId}/data`),
+  // siteId ausente/"" = alcance completo del usuario asignado ("Global").
+  data: (reportId: string, siteId?: string) =>
+    call<ReportDataDto>(`/api/reports/${reportId}/data${siteId ? `?siteId=${siteId}` : ""}`),
 };

@@ -1,7 +1,7 @@
 // Exporta el <svg> que Recharts ya renderiza — sin jsPDF/html2canvas: el DOM
 // serializado a XML es suficiente para SVG, y Canvas nativo para PNG.
 
-function downloadBlob(blob: Blob, filename: string) {
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

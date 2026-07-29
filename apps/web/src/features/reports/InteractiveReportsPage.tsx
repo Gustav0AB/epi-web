@@ -8,6 +8,7 @@ import { ReportRenderer } from "./components/ReportRenderer";
 import { DocumentReportPage } from "./DocumentReportPage";
 import { reportsApi, REPORT_STATUSES } from "./api";
 import type { AssignedReport, ReportStatus } from "./api";
+import { surveyApi } from "../surveys/api";
 import { useI18n } from "../../lib/i18n";
 
 export function InteractiveReportsPage() {
@@ -30,6 +31,12 @@ export function InteractiveReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [documentView, setDocumentView] = useState(false);
 
+  // Sitio (o "" = Global, todo el alcance del usuario asignado) — el propio
+  // donante/decisor lo puede mover, acotado a lo que su organización y
+  // exclusiones le permiten ver (mismo /api/reports/filters que usa /reports).
+  const [siteId, setSiteId] = useState("");
+  const [siteOptions, setSiteOptions] = useState<DropdownOption[]>([]);
+
   useEffect(() => {
     setLoading(true);
     void reportsApi
@@ -39,16 +46,39 @@ export function InteractiveReportsPage() {
       .finally(() => setLoading(false));
   }, [status]);
 
+  useEffect(() => {
+    void surveyApi
+      .reportFilters()
+      .then((f) =>
+        setSiteOptions([{ label: t("reports.allSites"), value: "" }, ...f.sites.map((s) => ({ label: s.name, value: s.id }))])
+      )
+      .catch(() => {});
+  }, [t]);
+
   function openReport(report: AssignedReport) {
     setSelected(report);
     setDocumentView(false);
+    setSiteId("");
     void reportsApi.data(report.id).then(setData).catch(() => setData(null));
   }
 
+  function changeSite(nextSiteId: string) {
+    setSiteId(nextSiteId);
+    if (!selected) return;
+    void reportsApi.data(selected.id, nextSiteId).then(setData).catch(() => setData(null));
+  }
+
   const template = selected ? getReportTemplate(selected.templateKey) : undefined;
+  const siteLabel = siteOptions.find((o) => o.value === siteId)?.label ?? t("reports.allSites");
 
   // Detalle de un reporte: interactivo o documento oficial.
   if (selected && template && data) {
+    const appliedFilters = [
+      { label: t("reports.site"), value: siteLabel },
+      { label: t("surveys.filter.status"), value: STATUS_LABELS[selected.status] },
+      { label: t("interactiveReports.updatedLabel"), value: new Date(selected.updatedAt).toLocaleDateString(locale) },
+    ];
+
     if (documentView) {
       return (
         <div className="space-y-4">
@@ -57,31 +87,31 @@ export function InteractiveReportsPage() {
               {t("interactiveReports.backToInteractive")}
             </button>
           </div>
-          <DocumentReportPage
-            template={template}
-            data={data}
-            appliedFilters={[
-              { label: t("surveys.filter.status"), value: STATUS_LABELS[selected.status] },
-              { label: t("interactiveReports.updatedLabel"), value: new Date(selected.updatedAt).toLocaleDateString(locale) },
-            ]}
-          />
+          <DocumentReportPage template={template} data={data} appliedFilters={appliedFilters} />
         </div>
       );
     }
 
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <button onClick={() => setSelected(null)} className="text-sm font-medium text-primary hover:underline">
               {t("interactiveReports.backToAll")}
             </button>
             <Label variant="title" className="mt-1 block">{template.title}</Label>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setDocumentView(true)}>
-            <ArticleOutlinedIcon style={{ fontSize: 16 }} className="mr-1.5" />
-            {t("interactiveReports.viewDocument")}
-          </Button>
+          <div className="flex items-center gap-3">
+            {siteOptions.length > 0 && (
+              <div className="w-48">
+                <Dropdown label={t("reports.site")} options={siteOptions} value={siteId} onChange={changeSite} />
+              </div>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => setDocumentView(true)}>
+              <ArticleOutlinedIcon style={{ fontSize: 16 }} className="mr-1.5" />
+              {t("interactiveReports.viewDocument")}
+            </Button>
+          </div>
         </div>
         <ReportRenderer template={template} data={data} mode="interactive" />
       </div>

@@ -11,7 +11,7 @@ export const assignedReportsRepository = {
   findById(id: string) {
     return prisma.assignedReport.findUnique({
       where: { id },
-      include: { user: { select: { organizationId: true } } },
+      include: { user: { select: { organizationId: true, role: true, excludedSiteIds: true } } },
     });
   },
 
@@ -37,6 +37,7 @@ export const assignedReportsRepository = {
           templateKey: dto.templateKey,
           title: dto.title,
           ...(dto.filters !== undefined && { filters: toJsonInput(dto.filters) }),
+          ...(dto.textContent !== undefined && { textContent: toJsonInput(dto.textContent) }),
         },
       });
       await tx.assignedReportVersion.create({
@@ -46,6 +47,7 @@ export const assignedReportsRepository = {
           title: report.title,
           status: report.status,
           ...(report.filters !== null && { filters: report.filters as Prisma.InputJsonValue }),
+          ...(report.textContent !== null && { textContent: report.textContent as Prisma.InputJsonValue }),
           actorId: actor.id,
           actorUsername: actor.username,
         },
@@ -65,6 +67,7 @@ export const assignedReportsRepository = {
           ...(dto.title !== undefined && { title: dto.title }),
           ...(dto.status !== undefined && { status: dto.status.toUpperCase() as PrismaStatus }),
           ...(dto.filters !== undefined && { filters: toJsonInput(dto.filters) }),
+          ...(dto.textContent !== undefined && { textContent: toJsonInput(dto.textContent) }),
           version,
         },
       });
@@ -75,6 +78,7 @@ export const assignedReportsRepository = {
           title: updated.title,
           status: updated.status,
           ...(updated.filters !== null && { filters: updated.filters as Prisma.InputJsonValue }),
+          ...(updated.textContent !== null && { textContent: updated.textContent as Prisma.InputJsonValue }),
           actorId: actor.id,
           actorUsername: actor.username,
         },

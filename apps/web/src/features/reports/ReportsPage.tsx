@@ -21,9 +21,11 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import DeleteOutlineIcon from "@mui/icons-material/Delete";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
+import DownloadIcon from "@mui/icons-material/Download";
 import { Button, Card, DatePicker, Dropdown, Label } from "../../shared/components";
 import type { DropdownOption } from "../../shared/components";
 import { surveyApi } from "../surveys/api";
+import { filterSectionRows } from "./lib/section-rows";
 import { useI18n, type I18nKey } from "../../lib/i18n";
 
 const COLOR_PRE = "#2a78d6";
@@ -33,9 +35,9 @@ const INK = "#52514e";
 
 // ─── Section types ───────────────────────────────────────────────────────────
 
-type SectionType = "title" | "text" | "bar" | "radar" | "change" | "table";
+export type SectionType = "title" | "text" | "bar" | "radar" | "change" | "table";
 
-type ReportSection = {
+export type ReportSection = {
   id: string;
   type: SectionType;
   content: string;             // title / text sections
@@ -106,10 +108,7 @@ function SectionCard({
   const { t } = useI18n();
   const isContent = section.type !== "title" && section.type !== "text";
 
-  const filteredRows =
-    section.selectedCategories.length === 0
-      ? rows
-      : rows.filter((r) => section.selectedCategories.includes(r.category));
+  const filteredRows = filterSectionRows(rows, section.selectedCategories);
 
   const chartData = filteredRows.map((r) => ({
     name: r.subcategory ?? r.category,
@@ -151,7 +150,7 @@ function SectionCard({
           />
         )}
 
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 print:hidden">
           {isContent && (
             <button
               onClick={onToggleConfig}
@@ -192,7 +191,7 @@ function SectionCard({
 
       {/* Config panel */}
       {isContent && section.configOpen && (
-        <div className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <div className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3 print:hidden">
           {/* Pre / Post toggles (not on "change" sections — always pre→post diff) */}
           {section.type !== "change" && (
             <div className="flex flex-wrap gap-4">
@@ -364,13 +363,13 @@ export function ReportsPage() {
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [sections, setSections] = useState<ReportSection[]>([]);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   useEffect(() => {
     void surveyApi.reportFilters().then(setOptions).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!Object.values(filters).some(Boolean)) { setRows([]); return; }
     const p = new URLSearchParams();
     if (filters.siteId) p.set("siteId", filters.siteId);
     if (filters.type) p.set("type", filters.type);
@@ -434,6 +433,27 @@ export function ReportsPage() {
     ...[...new Set(options.categories.map((c) => c.name))].map((c) => ({ label: c, value: c })),
   ];
 
+  const appliedFilters = [
+    filters.siteId && { label: t("reports.site"), value: siteOptions.find((o) => o.value === filters.siteId)?.label ?? filters.siteId },
+    filters.type && { label: t("surveys.filter.localVisiting"), value: typeOptions.find((o) => o.value === filters.type)?.label ?? filters.type },
+    filters.school && { label: t("reports.school"), value: filters.school },
+    filters.category && { label: t("reports.category"), value: filters.category },
+    filters.from && { label: t("surveys.filter.from"), value: filters.from },
+    filters.to && { label: t("surveys.filter.to"), value: filters.to },
+  ].filter((f): f is { label: string; value: string } => Boolean(f));
+
+  async function handleDownloadPdf() {
+    setGeneratingPdf(true);
+    try {
+      // @react-pdf/renderer es pesado (~700kB gzip) — se carga solo al pedir el PDF,
+      // no en cada visita a /reports.
+      const { downloadReportPdf } = await import("./lib/report-pdf");
+      await downloadReportPdf({ title: t("nav.reports"), appliedFilters, sections, rows, t });
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -462,7 +482,7 @@ export function ReportsPage() {
 
       {/* Empty / loading state */}
       {loading && <p className="text-center text-sm text-gray-400">{t("reportBuilder.loadingData")}</p>}
-      {!loading && rows.length === 0 && Object.values(filters).some(Boolean) && (
+      {!loading && rows.length === 0 && (
         <p className="text-center text-sm text-gray-400">{t("reports.empty")}</p>
       )}
 
@@ -470,15 +490,23 @@ export function ReportsPage() {
       {rows.length > 0 && (
         <>
           {/* Add section toolbar */}
-          <div>
-            <p className="mb-2 text-sm font-medium text-gray-500">{t("reportBuilder.addSection")}</p>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(SECTION_LABEL_KEYS) as SectionType[]).map((type) => (
-                <Button key={type} variant="ghost" size="sm" onClick={() => addSection(type)}>
-                  + {t(SECTION_LABEL_KEYS[type])}
-                </Button>
-              ))}
+          <div className="flex flex-wrap items-start justify-between gap-2 print:hidden">
+            <div>
+              <p className="mb-2 text-sm font-medium text-gray-500">{t("reportBuilder.addSection")}</p>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(SECTION_LABEL_KEYS) as SectionType[]).map((type) => (
+                  <Button key={type} variant="ghost" size="sm" onClick={() => addSection(type)}>
+                    + {t(SECTION_LABEL_KEYS[type])}
+                  </Button>
+                ))}
+              </div>
             </div>
+            {sections.length > 0 && (
+              <Button variant="secondary" size="sm" onClick={() => void handleDownloadPdf()} disabled={generatingPdf}>
+                <DownloadIcon style={{ fontSize: 16 }} className="mr-1.5" />
+                {generatingPdf ? t("documentReport.generatingPdf") : t("documentReport.downloadPdf")}
+              </Button>
+            )}
           </div>
 
           {sections.length === 0 && (
@@ -487,21 +515,23 @@ export function ReportsPage() {
             </p>
           )}
 
-          {sections.map((sec, idx) => (
-            <SectionCard
-              key={sec.id}
-              section={sec}
-              rows={rows}
-              allCategories={allCategories}
-              isFirst={idx === 0}
-              isLast={idx === sections.length - 1}
-              onMoveUp={() => moveSection(sec.id, -1)}
-              onMoveDown={() => moveSection(sec.id, 1)}
-              onDelete={() => removeSection(sec.id)}
-              onToggleConfig={() => updateSection(sec.id, { configOpen: !sec.configOpen })}
-              onUpdate={(patch) => updateSection(sec.id, patch)}
-            />
-          ))}
+          <div className="space-y-6">
+            {sections.map((sec, idx) => (
+              <SectionCard
+                key={sec.id}
+                section={sec}
+                rows={rows}
+                allCategories={allCategories}
+                isFirst={idx === 0}
+                isLast={idx === sections.length - 1}
+                onMoveUp={() => moveSection(sec.id, -1)}
+                onMoveDown={() => moveSection(sec.id, 1)}
+                onDelete={() => removeSection(sec.id)}
+                onToggleConfig={() => updateSection(sec.id, { configOpen: !sec.configOpen })}
+                onUpdate={(patch) => updateSection(sec.id, patch)}
+              />
+            ))}
+          </div>
         </>
       )}
     </div>

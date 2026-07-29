@@ -20,6 +20,8 @@ import { CategoriesPage } from "./features/categories/CategoriesPage";
 import { AuditLogPage } from "./features/audit/AuditLogPage";
 import { ReportAssignmentsPage } from "./features/reports/ReportAssignmentsPage";
 import { initSync } from "./lib/sync";
+import { useAuthStore } from "./store/auth.store";
+import { getDefaultRoute } from "./router/RoleGate";
 
 function NoAccessPage() {
   return (
@@ -30,6 +32,9 @@ function NoAccessPage() {
 }
 
 export default function App() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const currentUser = useAuthStore((s) => s.currentUser);
+
   useEffect(() => {
     initSync();
   }, []);
@@ -49,7 +54,9 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Reportes: con sidebar, accesible para system_admin/org_admin y report_viewer con esa plantilla */}
+        {/* Reportes: con sidebar — herramienta interna del usuario operativo
+            para ver la información de forma genérica y dar visto bueno,
+            antes de que se publique como reporte asignado (interactive-reports). */}
         <Route element={<RoleGate allow="report_template" templateKey="reports" />}>
           <Route element={<AppLayout />}>
             <Route path="/reports" element={<ReportsPage />} />
@@ -104,7 +111,10 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/home" replace />} />
+      <Route
+        path="*"
+        element={<Navigate to={isAuthenticated && currentUser ? getDefaultRoute(currentUser) : "/home"} replace />}
+      />
     </Routes>
   );
 }

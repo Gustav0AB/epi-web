@@ -87,6 +87,7 @@ assignedReportsRouter.get(
   "/:id/data",
   requireAuth,
   wrap(async (req, res) => {
-    res.json(apiSuccess(await assignedReportsService.getData(req.user!, req.params.id!)));
+    const siteId = typeof req.query.siteId === "string" && req.query.siteId ? req.query.siteId : undefined;
+    res.json(apiSuccess(await assignedReportsService.getData(req.user!, req.params.id!, siteId)));
   })
 );

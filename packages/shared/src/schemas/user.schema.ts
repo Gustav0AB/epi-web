@@ -12,14 +12,27 @@ export type Role = (typeof ROLES)[number];
 const roleSchema = z.enum(ROLES);
 
 // Todo rol salvo system_admin pertenece a una organización.
-function requireOrgUnlessSystemAdmin<
-  T extends { role?: Role | undefined; organizationId?: string | null | undefined },
+// "reports" e "interactive_reports" son vistas mutuamente excluyentes:
+// ningún usuario puede tener acceso a ambas a la vez.
+function validateUserFields<
+  T extends {
+    role?: Role | undefined;
+    organizationId?: string | null | undefined;
+    reportTemplateKeys?: string[] | undefined;
+  },
 >(data: T, ctx: z.RefinementCtx) {
   if (data.role && data.role !== "system_admin" && !data.organizationId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["organizationId"],
       message: "organizationId is required for this role",
+    });
+  }
+  if (data.reportTemplateKeys?.includes("reports") && data.reportTemplateKeys.includes("interactive_reports")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reportTemplateKeys"],
+      message: "reportTemplateKeys cannot include both 'reports' and 'interactive_reports'",
     });
   }
 }
@@ -57,7 +70,7 @@ export const CreateUserSchema = z
     excludedSiteIds: z.array(z.string()).optional(),
     excludedSurveyDefinitionIds: z.array(z.string()).optional(),
   })
-  .superRefine(requireOrgUnlessSystemAdmin);
+  .superRefine(validateUserFields);
 
 export const UpdateUserSchema = z
   .object({
@@ -74,7 +87,7 @@ export const UpdateUserSchema = z
     excludedSiteIds: z.array(z.string()).optional(),
     excludedSurveyDefinitionIds: z.array(z.string()).optional(),
   })
-  .superRefine(requireOrgUnlessSystemAdmin);
+  .superRefine(validateUserFields);
 
 export const ResetPasswordSchema = z.object({
   password: z.string().min(8).max(72),

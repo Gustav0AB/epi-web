@@ -368,5 +368,7 @@
   "interactiveReports.noneAssigned": "You have no reports assigned with this filter.",
 
   "documentReport.printSave": "Print / Save as PDF",
+  "documentReport.downloadPdf": "Download PDF",
+  "documentReport.generatingPdf": "Generating PDF…",
   "documentReport.generatedOn": "Generated on"
 }

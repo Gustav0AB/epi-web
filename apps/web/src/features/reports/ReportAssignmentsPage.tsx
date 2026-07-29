@@ -4,7 +4,7 @@ import { REPORT_ASSIGNMENT_STATUSES } from "@epi/shared";
 import { Badge, Button, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
 import type { Column, DropdownOption } from "../../shared/components";
 import { apiClient } from "../../lib/api-client";
-import { REPORT_TEMPLATES } from "./templates";
+import { REPORT_TEMPLATES, getFillableTextFields } from "./templates";
 import { useI18n } from "../../lib/i18n";
 
 const STATUS_COLOR: Record<ReportAssignmentStatus, "gray" | "blue" | "green"> = {
@@ -30,6 +30,7 @@ export function ReportAssignmentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AssignedReportDto | null>(null);
   const [form, setForm] = useState(initialForm);
+  const [textContent, setTextContent] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<ReportAssignmentStatus>("pending");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export function ReportAssignmentsPage() {
   function openCreate() {
     setEditing(null);
     setForm(initialForm);
+    setTextContent({});
     setStatus("pending");
     setError(null);
     setModalOpen(true);
@@ -76,6 +78,7 @@ export function ReportAssignmentsPage() {
   function openEdit(report: AssignedReportDto) {
     setEditing(report);
     setForm({ userId: report.userId, templateKey: report.templateKey, title: report.title });
+    setTextContent(report.textContent ?? {});
     setStatus(report.status);
     setError(null);
     setModalOpen(true);
@@ -91,6 +94,7 @@ export function ReportAssignmentsPage() {
           templateKey: form.templateKey,
           title: form.title.trim(),
           status,
+          textContent,
         });
       } else {
         if (!form.userId) return;
@@ -98,6 +102,7 @@ export function ReportAssignmentsPage() {
           userId: form.userId,
           templateKey: form.templateKey,
           title: form.title.trim(),
+          textContent,
         });
       }
       setModalOpen(false);
@@ -108,6 +113,8 @@ export function ReportAssignmentsPage() {
       setSaving(false);
     }
   }
+
+  const fillableFields = form.templateKey && REPORT_TEMPLATES[form.templateKey] ? getFillableTextFields(REPORT_TEMPLATES[form.templateKey]!) : [];
 
   async function openHistory(report: AssignedReportDto) {
     setHistory(report);
@@ -200,6 +207,17 @@ export function ReportAssignmentsPage() {
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             placeholder="Reporte Marzo 2026"
           />
+          {fillableFields.map((field) => (
+            <div key={field.key} className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">{field.label}</label>
+              <textarea
+                rows={3}
+                value={textContent[field.key] ?? ""}
+                onChange={(e) => setTextContent((c) => ({ ...c, [field.key]: e.target.value }))}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          ))}
           {editing && (
             <Dropdown
               label={t("common.status")}

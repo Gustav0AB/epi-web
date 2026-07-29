@@ -507,6 +507,8 @@ export async function reportResults(
     type?: "LOCAL" | "VISITING" | undefined;
     school?: string | undefined;
     category?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
   },
   userId: string
 ) {
@@ -521,17 +523,27 @@ export async function reportResults(
     scope: { siteIds, excludedSurveyDefinitionIds: scope.excludedSurveyDefinitionIds },
     type: filters.type,
     school: filters.school,
+    from: filters.from,
+    to: filters.to,
   });
 
-  // % por (categoría, subcategoría): promedio de score/maxPossible por submission,
-  // separado en pre y post según la encuesta.
+  return aggregateCategoryResults(subs, filters.category);
+}
+
+// % por (categoría, subcategoría): promedio de score/maxPossible por submission,
+// separado en pre y post según la encuesta. Reutilizado por reportResults y
+// por los resolvers de data de reportes asignados (report-data-resolvers.ts).
+export function aggregateCategoryResults(
+  subs: { results: { category: string; subcategory: string | null; calculatedScore: number; maxPossible: number; isPrePost: boolean }[] }[],
+  categoryFilter?: string
+) {
   const buckets = new Map<
     string,
     { category: string; subcategory: string | null; pre: number[]; post: number[] }
   >();
   for (const s of subs) {
     for (const r of s.results) {
-      if (filters.category && r.category !== filters.category) continue;
+      if (categoryFilter && r.category !== categoryFilter) continue;
       if (r.maxPossible <= 0) continue;
       const key = `${r.category}||${r.subcategory ?? ""}`;
       let acc = buckets.get(key);

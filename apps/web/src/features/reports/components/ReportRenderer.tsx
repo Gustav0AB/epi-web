@@ -40,10 +40,11 @@ function ReportBlockView({
   noDataText: string;
 }) {
   if (block.type === "text") {
+    const content = block.dataKey ? (data.texts[block.dataKey] ?? "") : (block.content ?? "");
     return (
       <Card>
         {block.title && <h3 className="mb-1 text-sm font-semibold text-gray-800">{block.title}</h3>}
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-600">{block.content}</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-600">{content || noDataText}</p>
       </Card>
     );
   }
