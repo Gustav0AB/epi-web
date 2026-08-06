@@ -49,7 +49,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   try {
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { isActive: true, sessionValidAfter: true },
+      select: { isActive: true, mustChangePassword: true, sessionValidAfter: true },
     });
     if (!user || !user.isActive) {
       res.status(401).json(apiError("UNAUTHORIZED", "Account is inactive"));
@@ -57,6 +57,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
     if (user.sessionValidAfter && payload.iat !== undefined && payload.iat * 1000 < user.sessionValidAfter.getTime()) {
       res.status(401).json(apiError("UNAUTHORIZED", "Session was revoked, please log in again"));
+      return;
+    }
+    const url = req.originalUrl.split("?")[0];
+    const canChangePassword = req.method === "POST" && url === "/api/users/me/change-password";
+    const canReadSelf = req.method === "GET" && url === `/api/users/${payload.sub}`;
+    if (user.mustChangePassword && !canChangePassword && !canReadSelf) {
+      res.status(403).json(apiError("PASSWORD_CHANGE_REQUIRED", "Password change required"));
       return;
     }
   } catch (err) {

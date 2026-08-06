@@ -13,6 +13,7 @@ const userSelect = {
   role: true,
   institutionalPosition: true,
   isActive: true,
+  mustChangePassword: true,
   organizationId: true,
   siteIds: true,
   excludedSiteIds: true,
@@ -162,7 +163,7 @@ export const usersRepository = {
     // (contraseña actual) o es un admin resolviendo el acceso a mano.
     await prisma.user.update({
       where: { id },
-      data: { password: hashed, sessionValidAfter: new Date(), failedLoginAttempts: 0, lockedUntil: null },
+      data: { password: hashed, mustChangePassword: false, sessionValidAfter: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
   },
 

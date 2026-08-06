@@ -31,7 +31,7 @@ export function LoginPage() {
             type="text"
             autoComplete="username"
             required
-            placeholder="epi_admin"
+            placeholder="admin"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />

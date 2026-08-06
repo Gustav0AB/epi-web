@@ -6,9 +6,10 @@ import { useI18n } from "../../../lib/i18n";
 type Props = {
   open: boolean;
   onClose: () => void;
+  required?: boolean;
 };
 
-export function ChangePasswordModal({ open, onClose }: Props) {
+export function ChangePasswordModal({ open, onClose, required = false }: Props) {
   const { t } = useI18n();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -17,6 +18,7 @@ export function ChangePasswordModal({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   function handleClose() {
+    if (required) return;
     setCurrent("");
     setNext("");
     setConfirm("");
@@ -38,7 +40,7 @@ export function ChangePasswordModal({ open, onClose }: Props) {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error?.message ?? t("common.changePasswordError"));
-      handleClose();
+      useAuthStore.getState().logout();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.changePasswordError"));
     } finally {
@@ -53,7 +55,7 @@ export function ChangePasswordModal({ open, onClose }: Props) {
       title={t("header.changePassword")}
       footer={
         <>
-          <Button variant="ghost" onClick={handleClose} disabled={saving}>{t("common.cancel")}</Button>
+          {!required && <Button variant="ghost" onClick={handleClose} disabled={saving}>{t("common.cancel")}</Button>}
           <Button type="submit" form="change-password-form" loading={saving}>{t("common.save")}</Button>
         </>
       }

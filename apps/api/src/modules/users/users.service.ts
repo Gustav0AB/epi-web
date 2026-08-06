@@ -12,6 +12,7 @@ type RawUser = {
   role: string;
   institutionalPosition: string | null;
   isActive: boolean;
+  mustChangePassword: boolean;
   organizationId: string | null;
   siteIds: string[];
   excludedSiteIds: string[];

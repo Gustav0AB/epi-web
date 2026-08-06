@@ -9,6 +9,7 @@ type AuthState = {
   isUserLoading: boolean;
   error: string | null;
   currentUser: User | null;
+  mustChangePassword: boolean;
 };
 
 type AuthActions = {
@@ -51,6 +52,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       isUserLoading: false,
       error: null,
       currentUser: null,
+      mustChangePassword: false,
 
       login: async (dto) => {
         set({ isLoading: true, error: null });
@@ -58,7 +60,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           const { apiClient } = await import("../lib/api-client");
           const data = await apiClient.post<AuthToken>("/api/auth/login", dto);
           const currentUser = await fetchCurrentUser(data.accessToken);
-          set({ token: data.accessToken, isAuthenticated: true, isLoading: false, currentUser });
+          set({ token: data.accessToken, isAuthenticated: true, isLoading: false, currentUser, mustChangePassword: data.mustChangePassword });
 
           const { seedDatabase } = await import("../lib/seed");
           await seedDatabase(data.accessToken);
@@ -71,7 +73,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       logout: () => {
         void import("../lib/seed").then(({ clearDatabase }) => clearDatabase());
-        set({ token: null, isAuthenticated: false, error: null, currentUser: null });
+        set({ token: null, isAuthenticated: false, error: null, currentUser: null, mustChangePassword: false });
       },
 
       clearError: () => set({ error: null }),
@@ -86,7 +88,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     }),
     {
       name: "auth-storage",
-      partialize: (state) => ({ token: state.token, isAuthenticated: state.isAuthenticated }),
+      partialize: (state) => ({ token: state.token, isAuthenticated: state.isAuthenticated, mustChangePassword: state.mustChangePassword }),
     }
   )
 );

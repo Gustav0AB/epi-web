@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import path from "node:path";
 import { env } from "./config/env.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
@@ -34,6 +35,15 @@ export function createApp() {
   app.use("/api/reports", assignedReportsRouter); // /assigned, /assignments*, /:id/data
   app.use("/api", catalogRouter); // /organizations, /sites, /categories
   app.use("/api", auditRouter); // /audit-logs
+
+  if (env.NODE_ENV === "production") {
+    const webDist = path.resolve(process.cwd(), "apps/web/dist");
+    app.use(express.static(webDist));
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api/")) return next();
+      res.sendFile(path.join(webDist, "index.html"));
+    });
+  }
 
   app.use((_req, res) => {
     res.status(404).json(apiError("NOT_FOUND", "Route not found"));

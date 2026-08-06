@@ -19,6 +19,7 @@ function rawUser(overrides: Partial<Record<string, unknown>> = {}) {
     role: "FUNCTIONALITY_USER",
     institutionalPosition: null,
     isActive: true,
+    mustChangePassword: false,
     organizationId: ORG_A,
     siteIds: [],
     excludedSiteIds: [],

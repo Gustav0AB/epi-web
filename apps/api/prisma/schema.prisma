@@ -18,6 +18,7 @@ model User {
   institutionalPosition       String?
   // false = no puede iniciar sesión NI usar un token ya emitido (requireAuth lo valida en cada request).
   isActive                    Boolean              @default(true)
+  mustChangePassword          Boolean              @default(false)
   // Bloqueo temporal tras varios intentos de login fallidos seguidos (ver auth.service.ts#MAX_FAILED_ATTEMPTS).
   failedLoginAttempts         Int                  @default(0)
   lockedUntil                 DateTime?

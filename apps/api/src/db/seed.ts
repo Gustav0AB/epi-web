@@ -46,8 +46,8 @@ async function seedInstitutionalPositions() {
 }
 
 async function seedAdminUser() {
-  const username = "epi_admin";
-  const email = "epi_admin@epi.local";
+  const username = "admin";
+  const email = "admin@epi.local";
 
   // Fix existing admin whose username was set to email by the migration default
   const byEmail = await prisma.user.findUnique({ where: { email } });
@@ -61,15 +61,15 @@ async function seedAdminUser() {
     return;
   }
 
-  const password = await bcrypt.hash("epi_admin", 10);
+  const password = await bcrypt.hash("Admin1234!", 12);
 
   await prisma.user.create({
-    data: { name: "Epi Admin", username, email, password, role: "SYSTEM_ADMIN" },
+    data: { name: "System Admin", username, email, password, role: "SYSTEM_ADMIN", mustChangePassword: true },
   });
 
   console.log("Created default admin user:");
-  console.log("  Username: epi_admin");
-  console.log("  Password: epi_admin");
+  console.log("  Username: admin");
+  console.log("  Password: Admin1234!");
 }
 
 // Fixture para probar aislamiento multiorganización en dev: dos
@@ -309,6 +309,7 @@ async function main() {
   await seedReportTemplates();
   await seedInstitutionalPositions();
   await seedAdminUser();
+  if (process.env.NODE_ENV === "production") return;
   await seedDemoOrganizations();
   await seedDemoReportData();
 }

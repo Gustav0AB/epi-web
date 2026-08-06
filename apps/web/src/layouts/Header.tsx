@@ -65,6 +65,7 @@ function useClickOutside(onOutside: () => void) {
 
 export function Header() {
   const currentUser = useAuthStore((s) => s.currentUser);
+  const mustChangePassword = useAuthStore((s) => s.mustChangePassword);
   const logout = useAuthStore((s) => s.logout);
   const { lang, setLang, t } = useI18n();
   const navigate = useNavigate();
@@ -77,6 +78,10 @@ export function Header() {
   const canSeeSurveys =
     isAdminTier || (currentUser?.role === "functionality_user" && currentUser.featureKeys.includes("surveys"));
   const { count, markSeen } = useNewResponsesCount(canSeeSurveys);
+
+  useEffect(() => {
+    if (mustChangePassword) setChangePwOpen(true);
+  }, [mustChangePassword]);
 
   const initials = currentUser?.name
     ? currentUser.name
@@ -180,8 +185,9 @@ export function Header() {
       </header>
 
       <ChangePasswordModal
-        open={changePwOpen}
+        open={changePwOpen || mustChangePassword}
         onClose={() => setChangePwOpen(false)}
+        required={mustChangePassword}
       />
     </>
   );

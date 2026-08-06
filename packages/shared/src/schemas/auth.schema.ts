@@ -9,6 +9,7 @@ export const AuthTokenSchema = z.object({
   accessToken: z.string(),
   tokenType: z.literal("Bearer"),
   expiresIn: z.number(),
+  mustChangePassword: z.boolean().default(false),
 });
 
 export type LoginDto = z.infer<typeof LoginSchema>;

@@ -57,6 +57,6 @@ export const authService = {
 
     await auditService.record(payload, "LOGIN");
 
-    return { accessToken, tokenType: "Bearer", expiresIn };
+    return { accessToken, tokenType: "Bearer", expiresIn, mustChangePassword: user.mustChangePassword };
   },
 };
