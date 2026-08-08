@@ -134,7 +134,6 @@ function SectionCard({
 
   return (
     <Card>
-      {/* Header row */}
       <div className="mb-4 flex items-center gap-2">
         <span className="shrink-0 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
           {t(SECTION_LABEL_KEYS[section.type])}

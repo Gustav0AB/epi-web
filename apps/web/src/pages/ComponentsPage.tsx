@@ -42,8 +42,6 @@ function Section({
   );
 }
 
-// ── sample data ──────────────────────────────────────────────────────────────
-
 type User = { id: string; name: string; email: string; role: string };
 
 const sampleUsers: User[] = [
@@ -72,8 +70,6 @@ const roleOptions: DropdownOption[] = [
   { label: "User", value: "USER" },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 export function ComponentsPage() {
   const [textValue, setTextValue] = useState("");
   const [role, setRole] = useState<string>("");
@@ -82,7 +78,6 @@ export function ComponentsPage() {
     <div className="space-y-6">
       <Label variant="title">Components</Label>
 
-      {/* Button */}
       <Section
         title="Button"
         description="Variants: primary · secondary · ghost · danger. Sizes: sm · md · lg."
@@ -103,7 +98,6 @@ export function ComponentsPage() {
         <Button disabled>Disabled</Button>
       </Section>
 
-      {/* Label */}
       <Section
         title="Label"
         description="Variants: title · subtitle · label · caption. Renders the appropriate HTML tag by default."
@@ -120,7 +114,6 @@ export function ComponentsPage() {
         </div>
       </Section>
 
-      {/* Badge */}
       <Section
         title="Badge"
         description="Colors: gray · blue · green · red · yellow · purple."
@@ -139,7 +132,6 @@ export function ComponentsPage() {
         <Badge color="purple">purple</Badge>
       </Section>
 
-      {/* TextField */}
       <Section
         title="TextField"
         description="Supports label, placeholder, error, and helperText."
@@ -173,7 +165,6 @@ export function ComponentsPage() {
         </div>
       </Section>
 
-      {/* Dropdown */}
       <Section
         title="Dropdown"
         description="Typed options, placeholder, error, and helperText."
@@ -214,7 +205,6 @@ export function ComponentsPage() {
         </div>
       </Section>
 
-      {/* Card */}
       <Section
         title="Card"
         description="White rounded container. Padding: none · sm · md (default) · lg."
@@ -233,7 +223,6 @@ export function ComponentsPage() {
         </Card>
       </Section>
 
-      {/* List */}
       <Section
         title="List"
         description="Generic list with renderItem and keyExtractor. Divided rows by default."
@@ -269,7 +258,6 @@ export function ComponentsPage() {
         </div>
       </Section>
 
-      {/* Table */}
       <Section
         title="Table"
         description="Column definitions with optional custom render, align, loading and empty states."

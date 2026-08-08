@@ -129,7 +129,6 @@ export function Sidebar() {
         expanded ? "w-56" : "w-16",
       ].join(" ")}
     >
-      {/* Header — toggle button */}
       <div className="flex h-14 shrink-0 items-center border-b border-gray-200 px-3">
         <button
           onClick={() => setExpanded((v) => !v)}
@@ -145,7 +144,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-4">
         <ul className="space-y-1">
           {visibleItems.map((item) => (
@@ -171,7 +169,6 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Sign out */}
       <div className="shrink-0 border-t border-gray-200 p-2">
         <button
           onClick={logout}

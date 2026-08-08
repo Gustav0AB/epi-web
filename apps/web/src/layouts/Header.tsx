@@ -32,7 +32,7 @@ function useNewResponsesCount(enabled: boolean) {
         const json = await res.json();
         if (!cancelled && json.success) setCount(json.data.count);
       } catch {
-        /* sin red → se reintenta en el siguiente ciclo */
+        void 0;
       }
     }
     void poll();
@@ -50,7 +50,6 @@ function useNewResponsesCount(enabled: boolean) {
   return { count, markSeen };
 }
 
-// Cierra el menú al hacer click fuera.
 function useClickOutside(onOutside: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -95,14 +94,11 @@ export function Header() {
   return (
     <>
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 sm:px-6">
-        {/* Brand */}
         <div className="flex items-center gap-2.5">
           <img src={Logo} alt={t("app.name")} className="h-8 w-auto sm:h-10" />
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-1.5 sm:gap-3">
-          {/* Idioma ES ⇄ EN */}
           <button
             onClick={() => setLang(lang === "es" ? "en" : "es")}
             title={lang === "es" ? "Switch to English" : "Cambiar a español"}
@@ -111,7 +107,6 @@ export function Header() {
             {lang === "es" ? "EN" : "ES"}
           </button>
 
-          {/* Notificaciones: quien tenga acceso a encuestas — respuestas nuevas de Jotform */}
           {canSeeSurveys && (
             <button
               title={`${count} ${t("header.newResponses")}`}
@@ -130,7 +125,6 @@ export function Header() {
             </button>
           )}
 
-          {/* Usuario → menú desplegable */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}

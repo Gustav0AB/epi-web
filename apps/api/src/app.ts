@@ -21,7 +21,7 @@ export function createApp() {
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
   app.use(morgan(env.NODE_ENV === "development" ? "dev" : "combined"));
   app.use(express.json());
-  app.use(express.text({ type: "text/csv", limit: "1mb" })); // import CSV de ponderaciones
+  app.use(express.text({ type: "text/csv", limit: "1mb" }));
   app.use(express.urlencoded({ extended: true }));
 
   app.get("/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
@@ -32,9 +32,9 @@ export function createApp() {
   app.use("/api/webhooks", webhooksRouter);
   app.use("/api/surveys", surveysRouter);
   app.use("/api/reports", reportsRouter);
-  app.use("/api/reports", assignedReportsRouter); // /assigned, /assignments*, /:id/data
-  app.use("/api", catalogRouter); // /organizations, /sites, /categories
-  app.use("/api", auditRouter); // /audit-logs
+  app.use("/api/reports", assignedReportsRouter);
+  app.use("/api", catalogRouter);
+  app.use("/api", auditRouter);
 
   if (env.NODE_ENV === "production") {
     const webDist = path.resolve(process.cwd(), "apps/web/dist");

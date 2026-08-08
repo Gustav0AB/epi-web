@@ -1,13 +1,6 @@
-// Auto-check de normalizeJotform contra los dos shapes reales de Jotform:
-// el webhook en vivo (rawRequest plano keyed por `name`) y la API de
-// submissions (answers anidado keyed por qid, con name/answer) — el
-// fixture de este segundo es el JSON real que compartió EPI para el form
-// 262046014002034. Correr: tsx src/modules/surveys/jotform-ingest.selfcheck.ts
 import assert from "node:assert";
 import { normalizeJotform } from "./surveys.service.js";
 
-// ── Webhook real: Jotform manda rawRequest como string JSON plano,
-// keyed por el `name` del campo, sin envolver en { answers: [...] }.
 const flatRawRequest = {
   q3_dropdown1: "Grupo 1",
   q4_dropdown2: "Grado 1",
@@ -15,7 +8,7 @@ const flatRawRequest = {
   q6_radio4: "Local",
   q7_radio5: "Masculino",
   q8_textarea6: "test",
-  slug: "some-slug", // no es una pregunta, debe filtrarse
+  slug: "some-slug",
 };
 
 const webhookBody = {
@@ -39,8 +32,6 @@ assert.deepStrictEqual(
 );
 assert.ok(!normalizedWebhook.answers.some((a) => a.questionId === "slug"));
 
-// ── Importación vía API de submissions (fixture real, form 262046014002034,
-// recortado a lo que normalizeJotform necesita).
 const submissionsApiBody = {
   id: "6607335351011958939",
   form_id: "262046014002034",
@@ -48,8 +39,8 @@ const submissionsApiBody = {
     "3": { name: "q3_dropdown1", order: "3", text: "Grupo", type: "control_dropdown", answer: "Grupo 1" },
     "4": { name: "q4_dropdown2", order: "4", text: "Grado", type: "control_dropdown", answer: "Grado 1" },
     "5": { name: "q5_number3", order: "5", text: "Edad", type: "control_number", answer: "20" },
-    "12": { name: "q12_collapse10", order: "12", text: "Actividad de exploración", type: "control_collapse" }, // sin "answer" — no es respuesta
-    "17": { name: "q17_submit", order: "17", text: "Enviar", type: "control_button" }, // idem
+    "12": { name: "q12_collapse10", order: "12", text: "Actividad de exploración", type: "control_collapse" },
+    "17": { name: "q17_submit", order: "17", text: "Enviar", type: "control_button" },
   },
 };
 

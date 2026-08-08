@@ -18,7 +18,7 @@ type TableProps<T> = {
   keyExtractor: (row: T, index: number) => string;
   loading?: boolean;
   emptyText?: string;
-  pageSize?: number; // enables pagination; defaults to 25 when provided
+  pageSize?: number;
 };
 
 const alignClass = {
@@ -40,7 +40,6 @@ export function Table<T extends Record<string, unknown>>({
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(initialPageSize ?? 25);
 
-  // Reset to first page whenever rows or size changes
   useEffect(() => { setPage(0); }, [rows, size]);
 
   const totalPages = Math.ceil(rows.length / size);
@@ -100,7 +99,6 @@ export function Table<T extends Record<string, unknown>>({
 
       {paginated && !loading && rows.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-gray-500">
-          {/* Page size selector */}
           <div className="flex items-center gap-2">
             <span>{t("table.rowsPerPage")}</span>
             <select
@@ -114,7 +112,6 @@ export function Table<T extends Record<string, unknown>>({
             </select>
           </div>
 
-          {/* Count + page nav */}
           <div className="flex items-center gap-3">
             <span>{from}–{to} {t("table.of")} {rows.length}</span>
             <div className="flex items-center gap-1">

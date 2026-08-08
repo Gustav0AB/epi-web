@@ -29,7 +29,6 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
 
       {/* Panel — flex column so header/footer are sticky and body scrolls */}
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-gray-200 bg-white shadow-xl">
-        {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           <button

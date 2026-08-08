@@ -8,6 +8,7 @@
     "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsc -b",
     "start": "node dist/server.js",
+    "test:unit": "DATABASE_URL=postgresql://user:pass@localhost:5432/epi_test JWT_SECRET=unit-test-secret-123 JWT_EXPIRES_IN=7d sh -c 'for f in src/modules/surveys/scoring.selfcheck.ts src/modules/surveys/csv.selfcheck.ts src/modules/surveys/jotform-questions.selfcheck.ts src/modules/surveys/jotform-ingest.selfcheck.ts src/modules/surveys/surveys.repository.selfcheck.ts src/shared/site-scope.selfcheck.ts src/modules/users/users.service.selfcheck.ts src/modules/auth/auth.service.selfcheck.ts src/modules/reports-assignment/assigned-reports.service.selfcheck.ts; do tsx \"$f\"; done'",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
