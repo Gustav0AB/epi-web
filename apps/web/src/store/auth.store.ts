@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { AuthToken, LoginDto, User } from "@epi/shared";
 
 type AuthState = {
@@ -88,6 +88,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     }),
     {
       name: "auth-storage",
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({ token: state.token, isAuthenticated: state.isAuthenticated, mustChangePassword: state.mustChangePassword }),
     }
   )

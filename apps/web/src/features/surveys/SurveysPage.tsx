@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
   GroupSummary,
+  HistoricalImportResult,
+  HistoricalSubmissionDto,
   SiteDto,
   SurveyDefinitionDto,
   SurveyListItem,
@@ -37,6 +39,7 @@ const EMPTY: Filters = {
 
 function buildQuery(f: Filters): string {
   const p = new URLSearchParams();
+  p.set("weightedOnly", "true");
   if (f.surveyDefinitionId) p.set("surveyDefinitionId", f.surveyDefinitionId);
   if (f.status) p.set("status", f.status);
   if (f.groupName) p.set("groupName", f.groupName);
@@ -67,6 +70,15 @@ export function SurveysPage() {
   const [reprocessingId, setReprocessingId] = useState<string | null>(null);
   const [completingGroup, setCompletingGroup] = useState<string | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  const [historyDefinitionIds, setHistoryDefinitionIds] = useState<string[]>([]);
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyRows, setHistoryRows] = useState<HistoricalSubmissionDto[]>([]);
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyImporting, setHistoryImporting] = useState(false);
+  const [historyResult, setHistoryResult] = useState<HistoricalImportResult | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     void surveyApi.definitions().then(setDefinitions).catch(() => {});
@@ -115,12 +127,63 @@ export function SurveysPage() {
     }
   }
 
+  function toggleHistoryDefinition(id: string) {
+    setHistoryDefinitionIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  }
+
+  function historyQuery() {
+    const p = new URLSearchParams();
+    p.set("surveyDefinitionIds", historyDefinitionIds.join(","));
+    if (historyFrom) p.set("from", historyFrom);
+    if (historyTo) p.set("to", historyTo);
+    return `?${p.toString()}`;
+  }
+
+  async function searchHistory() {
+    if (historyDefinitionIds.length === 0) return;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    setHistoryResult(null);
+    try {
+      const rows = await surveyApi.historicalSubmissions(historyQuery());
+      setHistoryRows(rows);
+      setSelectedHistoryIds(rows.filter((r) => !r.alreadyImported).map((r) => r.id));
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : t("surveys.history.error"));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function importHistory(ids: string[]) {
+    if (historyDefinitionIds.length === 0 || ids.length === 0) return;
+    setHistoryImporting(true);
+    setHistoryError(null);
+    try {
+      setHistoryResult(
+        await surveyApi.importHistoricalSubmissions({
+          surveyDefinitionIds: historyDefinitionIds,
+          ...(historyFrom ? { from: historyFrom } : {}),
+          ...(historyTo ? { to: historyTo } : {}),
+          submissionIds: ids,
+        })
+      );
+      await searchHistory();
+      await load();
+      setSummary(await surveyApi.summary());
+    } catch (e) {
+      setHistoryError(e instanceof Error ? e.message : t("surveys.history.error"));
+    } finally {
+      setHistoryImporting(false);
+    }
+  }
+
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
   const surveyOptions: DropdownOption[] = [
     { label: t("surveys.filter.allSurveys"), value: "" },
-    ...definitions.map((d) => ({
-      label: `${d.jotformFormId} (v${d.version})`,
+    ...definitions.filter((d) => d.isWeighted).map((d) => ({
+      label: `${d.title}${d.accountName ? ` · ${d.accountName}` : ""} (v${d.version})`,
       value: d.id,
     })),
   ];
@@ -267,6 +330,117 @@ export function SurveysPage() {
           >
             {t("surveys.filter.clear")}
           </button>
+        )}
+      </Card>
+
+      <Card>
+        <Label variant="subtitle" className="mb-3 block">
+          {t("surveys.history.title")}
+        </Label>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_12rem_12rem_auto]">
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">{t("scoring.selectSurvey")}</p>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-gray-200 p-2">
+              {definitions.map((d) => (
+                <label key={d.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={historyDefinitionIds.includes(d.id)}
+                    onChange={() => toggleHistoryDefinition(d.id)}
+                  />
+                  <span>{d.title}{d.accountName ? ` · ${d.accountName}` : ""}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <DatePicker label={t("surveys.filter.from")} value={historyFrom} onChange={setHistoryFrom} />
+          <DatePicker label={t("surveys.filter.to")} value={historyTo} onChange={setHistoryTo} />
+          <div className="flex items-end">
+            <Button loading={historyLoading} disabled={historyDefinitionIds.length === 0} onClick={searchHistory}>
+              {t("surveys.history.search")}
+            </Button>
+          </div>
+        </div>
+
+        {historyError && <p className="mt-3 text-sm text-danger">{historyError}</p>}
+        {historyResult && (
+          <p className="mt-3 text-sm text-gray-700">
+            {t("surveys.history.imported")}: <strong>{historyResult.imported}</strong> ·{" "}
+            {t("scoring.result.skipped")}: <strong>{historyResult.skipped}</strong> ·{" "}
+            {t("scoring.result.reprocessed")}: <strong>{historyResult.processed}</strong> ·{" "}
+            {t("scoring.result.stillPending")}: <strong>{historyResult.pending}</strong> ·{" "}
+            {t("scoring.result.withError")}: <strong>{historyResult.errors}</strong>
+          </p>
+        )}
+
+        {historyRows.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <div className="flex justify-end">
+              <Button
+                loading={historyImporting}
+                disabled={selectedHistoryIds.length === 0}
+                onClick={() => void importHistory(selectedHistoryIds)}
+              >
+                {t("surveys.history.importSelected")}
+              </Button>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 bg-white text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">
+                      <input
+                        type="checkbox"
+                        checked={selectedHistoryIds.length > 0 && selectedHistoryIds.length === historyRows.filter((r) => !r.alreadyImported).length}
+                        onChange={(e) =>
+                          setSelectedHistoryIds(e.target.checked ? historyRows.filter((r) => !r.alreadyImported).map((r) => r.id) : [])
+                        }
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium">{t("surveys.table.survey")}</th>
+                    <th className="px-4 py-3 text-left font-medium">{t("surveys.table.date")}</th>
+                    <th className="px-4 py-3 text-left font-medium">{t("common.status")}</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {historyRows.map((r) => (
+                    <tr key={r.id}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          disabled={r.alreadyImported}
+                          checked={selectedHistoryIds.includes(r.id)}
+                          onChange={(e) =>
+                            setSelectedHistoryIds((ids) =>
+                              e.target.checked ? [...ids, r.id] : ids.filter((id) => id !== r.id)
+                            )
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">{r.formTitle}</td>
+                      <td className="px-4 py-3 text-gray-700">{new Date(r.createdAt).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {r.alreadyImported ? t("surveys.history.alreadyImported") : t("surveys.history.ready")}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {!r.alreadyImported && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={historyImporting}
+                            onClick={() => void importHistory([r.id])}
+                          >
+                            {t("surveys.history.importOne")}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </Card>
 

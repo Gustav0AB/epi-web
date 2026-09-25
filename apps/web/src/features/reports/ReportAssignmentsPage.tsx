@@ -30,6 +30,7 @@ export function ReportAssignmentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AssignedReportDto | null>(null);
   const [form, setForm] = useState(initialForm);
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [textContent, setTextContent] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<ReportAssignmentStatus>("pending");
   const [saving, setSaving] = useState(false);
@@ -69,6 +70,7 @@ export function ReportAssignmentsPage() {
   function openCreate() {
     setEditing(null);
     setForm(initialForm);
+    setFilters({});
     setTextContent({});
     setStatus("pending");
     setError(null);
@@ -78,6 +80,7 @@ export function ReportAssignmentsPage() {
   function openEdit(report: AssignedReportDto) {
     setEditing(report);
     setForm({ userId: report.userId, templateKey: report.templateKey, title: report.title });
+    setFilters(Object.fromEntries(Object.entries(report.filters ?? {}).map(([k, v]) => [k, String(v ?? "")])));
     setTextContent(report.textContent ?? {});
     setStatus(report.status);
     setError(null);
@@ -86,14 +89,27 @@ export function ReportAssignmentsPage() {
 
   async function handleSave() {
     if (!form.title.trim() || !form.templateKey) return;
+    const selectedTemplate = REPORT_TEMPLATES[form.templateKey];
+    const requiredMissing = selectedTemplate
+      ? [
+          ...selectedTemplate.filters.filter((f) => f.required && !filters[f.key]?.trim()).map((f) => f.label),
+          ...getFillableTextFields(selectedTemplate).filter((f) => !textContent[f.key]?.trim()).map((f) => f.label),
+        ]
+      : [];
+    if (status === "published" && requiredMissing.length) {
+      setError(`Faltan datos para publicar: ${requiredMissing.join(", ")}`);
+      return;
+    }
     setSaving(true);
     setError(null);
+    const cleanedFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()]));
     try {
       if (editing) {
         await apiClient.patch(`/api/reports/assignments/${editing.id}`, {
           templateKey: form.templateKey,
           title: form.title.trim(),
           status,
+          filters: Object.keys(cleanedFilters).length ? cleanedFilters : null,
           textContent,
         });
       } else {
@@ -102,6 +118,7 @@ export function ReportAssignmentsPage() {
           userId: form.userId,
           templateKey: form.templateKey,
           title: form.title.trim(),
+          filters: Object.keys(cleanedFilters).length ? cleanedFilters : null,
           textContent,
         });
       }
@@ -114,7 +131,9 @@ export function ReportAssignmentsPage() {
     }
   }
 
-  const fillableFields = form.templateKey && REPORT_TEMPLATES[form.templateKey] ? getFillableTextFields(REPORT_TEMPLATES[form.templateKey]!) : [];
+  const selectedTemplate = form.templateKey ? REPORT_TEMPLATES[form.templateKey] : undefined;
+  const fillableFields = selectedTemplate ? getFillableTextFields(selectedTemplate) : [];
+  const filterFields = selectedTemplate?.filters.filter((f) => f.key !== "siteId") ?? [];
 
   async function openHistory(report: AssignedReportDto) {
     setHistory(report);
@@ -207,6 +226,15 @@ export function ReportAssignmentsPage() {
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             placeholder="Reporte Marzo 2026"
           />
+          {filterFields.map((field) => (
+            <TextField
+              key={field.key}
+              label={`${field.label}${field.required ? " *" : ""}`}
+              type={field.kind === "date" ? "date" : "text"}
+              value={filters[field.key] ?? ""}
+              onChange={(e) => setFilters((current) => ({ ...current, [field.key]: e.target.value }))}
+            />
+          ))}
           {fillableFields.map((field) => (
             <div key={field.key} className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">{field.label}</label>

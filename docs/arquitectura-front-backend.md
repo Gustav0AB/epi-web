@@ -7,7 +7,7 @@
 >
 > - [`administracion-accesos-flujo.md`](./administracion-accesos-flujo.md) — usuarios, roles, organizaciones, sitios, seguridad.
 > - [`evaluaciones-flujo.md`](./evaluaciones-flujo.md) — ingesta Jotform, ponderación, cálculo, reportes agregados.
-> - [`../apps/api/src/modules/surveys/README.md`](../apps/api/src/modules/surveys/README.md) — qué cambió en la última iteración de encuestas.
+> - [`modulo-gestion-de-evalaciones.md`](./modulo-gestion-de-evalaciones.md) — qué cambió en la última iteración de encuestas.
 
 ## 1. Monorepo y stack
 

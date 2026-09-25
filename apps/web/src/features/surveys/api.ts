@@ -3,6 +3,8 @@ import type {
   CategoryDto,
   FormQuestionsPreviewDto,
   GroupSummary,
+  HistoricalImportResult,
+  HistoricalSubmissionDto,
   JotformFormDto,
   JotformFormsSyncResult,
   QuestionInsightDto,
@@ -48,6 +50,8 @@ export const surveyApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     }),
+  deleteWeight: (questionId: string) =>
+    call<unknown>(`/api/surveys/questions/${questionId}/weight`, { method: "DELETE" }),
   importWeights: (defId: string, csv: string) =>
     call<WeightImportResult>(`/api/surveys/definitions/${defId}/weights/import`, {
       method: "POST",
@@ -61,6 +65,19 @@ export const surveyApi = {
     }),
   sites: () => call<SiteDto[]>("/api/sites"),
   summary: () => call<GroupSummary[]>("/api/surveys/summary"),
+  historicalSubmissions: (query: string) =>
+    call<HistoricalSubmissionDto[]>(`/api/surveys/jotform/submissions${query}`),
+  importHistoricalSubmissions: (input: {
+    surveyDefinitionIds: string[];
+    from?: string;
+    to?: string;
+    submissionIds?: string[];
+  }) =>
+    call<HistoricalImportResult>("/api/surveys/jotform/submissions/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
   completeGroup: (groupName: string) =>
     call<{ completed: number }>("/api/surveys/groups/complete", {
       method: "POST",
@@ -96,6 +113,12 @@ export const surveyApi = {
     call<QuestionInsightDto>(`/api/surveys/questions/${questionId}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+    }),
+  updateOpenQuestionsSummary: (defId: string, summary: string) =>
+    call<{ openQuestionsSummary: string | null }>(`/api/surveys/definitions/${defId}/open-questions-summary`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary }),
     }),
   reportResults: (query: string) => call<ReportRow[]>(`/api/reports/results${query}`),
   reportFilters: () =>

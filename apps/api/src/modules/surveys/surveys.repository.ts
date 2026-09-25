@@ -21,12 +21,20 @@ export function scopeToDefinitionWhere(scope?: SurveyScope): Prisma.SurveyDefini
 
 export const surveysRepository = {
   // Idempotente: reenvíos del mismo webhook no duplican la submission.
-  upsertSubmission(jotformSubmissionId: string, rawJsonData: Prisma.InputJsonValue, isPre: boolean) {
+  upsertSubmission(jotformSubmissionId: string, rawJsonData: Prisma.InputJsonValue, isPre: boolean, receivedAt?: Date) {
     return prisma.submission.upsert({
       where: { jotformSubmissionId },
-      create: { jotformSubmissionId, rawJsonData, isPre },
-      update: { rawJsonData, isPre },
+      create: { jotformSubmissionId, rawJsonData, isPre, ...(receivedAt ? { receivedAt } : {}) },
+      update: { rawJsonData, isPre, ...(receivedAt ? { receivedAt } : {}) },
     });
+  },
+
+  async existingSubmissionIds(ids: string[]) {
+    const rows = await prisma.submission.findMany({
+      where: { jotformSubmissionId: { in: ids } },
+      select: { jotformSubmissionId: true },
+    });
+    return new Set(rows.map((r) => r.jotformSubmissionId));
   },
 
   upsertParticipant(
@@ -101,6 +109,9 @@ export const surveysRepository = {
     else if (scope?.siteIds) definition.siteId = { in: scope.siteIds };
     if (filters.type) definition.type = filters.type;
     if (scope?.excludedSurveyDefinitionIds?.length) definition.id = { notIn: scope.excludedSurveyDefinitionIds };
+    if (filters.weightedOnly) {
+      definition.questions = { every: { OR: [{ type: "OPEN_TEXT" }, { weight: { isNot: null } }] } };
+    }
     if (Object.keys(definition).length) where.surveyDefinition = definition;
     if (filters.from || filters.to) {
       const receivedAt: Prisma.DateTimeFilter = {};
@@ -133,12 +144,13 @@ export const surveysRepository = {
   // Base del resumen por grupo: submissions procesadas/completadas con su
   // grupo y el número de respuestas en blanco.
   listForSummary(scope?: SurveyScope) {
-    const definition = scopeToDefinitionWhere(scope);
+    const definition = scopeToDefinitionWhere(scope) ?? {};
+    definition.questions = { every: { OR: [{ type: "OPEN_TEXT" }, { weight: { isNot: null } }] } };
     return prisma.submission.findMany({
       where: {
         status: { in: ["PROCESADO", "COMPLETADO"] },
         participant: { isNot: null },
-        ...(definition ? { surveyDefinition: definition } : {}),
+        surveyDefinition: definition,
       },
       select: {
         id: true,
@@ -152,12 +164,13 @@ export const surveysRepository = {
   },
 
   findGroupSubmissions(groupName: string, scope?: SurveyScope) {
-    const definition = scopeToDefinitionWhere(scope);
+    const definition = scopeToDefinitionWhere(scope) ?? {};
+    definition.questions = { every: { OR: [{ type: "OPEN_TEXT" }, { weight: { isNot: null } }] } };
     return prisma.submission.findMany({
       where: {
         participant: { groupName },
         status: { in: ["PROCESADO", "COMPLETADO"] },
-        ...(definition ? { surveyDefinition: definition } : {}),
+        surveyDefinition: definition,
       },
       select: { id: true, isPre: true, status: true },
     });
@@ -183,6 +196,7 @@ export const surveysRepository = {
     scope?: SurveyScope | undefined;
     type?: "LOCAL" | "VISITING" | undefined;
     school?: string | undefined;
+    groupName?: string | undefined;
     from?: string | undefined;
     to?: string | undefined;
   }) {
@@ -192,7 +206,7 @@ export const surveysRepository = {
     if (args.scope?.excludedSurveyDefinitionIds?.length) definition.id = { notIn: args.scope.excludedSurveyDefinitionIds };
     if (args.type) definition.type = args.type;
     if (Object.keys(definition).length) where.surveyDefinition = definition;
-    if (args.school) where.participant = { school: args.school };
+    if (args.school || args.groupName) where.participant = { ...(args.school ? { school: args.school } : {}), ...(args.groupName ? { groupName: args.groupName } : {}) };
     if (args.from || args.to) {
       where.receivedAt = {
         ...(args.from ? { gte: new Date(args.from) } : {}),
@@ -248,7 +262,15 @@ export const surveysRepository = {
     const defs = await prisma.surveyDefinition.findMany({
       where: scopeToDefinitionWhere(scope) ?? {},
       orderBy: [{ jotformFormId: "asc" }, { version: "desc" }],
-      select: { id: true, jotformFormId: true, type: true, version: true, site: { select: { organizationId: true } } },
+      select: {
+        id: true,
+        jotformFormId: true,
+        type: true,
+        version: true,
+        openQuestionsSummary: true,
+        site: { select: { organizationId: true } },
+        questions: { select: { type: true, weight: { select: { id: true } } } },
+      },
     });
     if (defs.length === 0) return [];
 
@@ -256,9 +278,10 @@ export const surveysRepository = {
     // jotformFormId para que el frontend muestre un nombre, no el id crudo.
     const forms = await prisma.jotformForm.findMany({
       where: { id: { in: [...new Set(defs.map((d) => d.jotformFormId))] } },
-      select: { id: true, title: true },
+      select: { id: true, title: true, account: { select: { name: true } } },
     });
     const titleByFormId = new Map(forms.map((f) => [f.id, f.title]));
+    const accountByFormId = new Map(forms.map((f) => [f.id, f.account?.name ?? null]));
 
     return defs.map((d) => ({
       id: d.id,
@@ -267,6 +290,9 @@ export const surveysRepository = {
       version: d.version,
       title: titleByFormId.get(d.jotformFormId) ?? `${d.jotformFormId} (v${d.version})`,
       organizationId: d.site.organizationId,
+      accountName: accountByFormId.get(d.jotformFormId) ?? null,
+      isWeighted: d.questions.every((q) => q.type === "OPEN_TEXT" || q.weight !== null),
+      openQuestionsSummary: d.openQuestionsSummary,
     }));
   },
 
@@ -274,9 +300,34 @@ export const surveysRepository = {
     return prisma.surveyDefinition.findUnique({ where: { id } });
   },
 
+  async listDefinitionsForHistorical(ids: string[], scope?: SurveyScope) {
+    const defs = await prisma.surveyDefinition.findMany({
+      where: { id: { in: ids }, ...(scopeToDefinitionWhere(scope) ?? {}) },
+      select: { id: true, jotformFormId: true },
+    });
+    const forms = await prisma.jotformForm.findMany({
+      where: { id: { in: [...new Set(defs.map((d) => d.jotformFormId))] } },
+      select: { id: true, title: true, account: { select: { apiKey: true } } },
+    });
+    const formById = new Map(forms.map((f) => [f.id, f]));
+    return defs.map((d) => ({
+      ...d,
+      formTitle: formById.get(d.jotformFormId)?.title ?? d.jotformFormId,
+      apiKey: formById.get(d.jotformFormId)?.account?.apiKey ?? null,
+    }));
+  },
+
   // Sitio de una definición — usado para autorizar mutaciones de ponderación.
   findDefinitionSite(id: string) {
     return prisma.surveyDefinition.findUnique({ where: { id }, select: { siteId: true } });
+  },
+
+  updateOpenQuestionsSummary(id: string, summary: string) {
+    return prisma.surveyDefinition.update({
+      where: { id },
+      data: { openQuestionsSummary: summary },
+      select: { openQuestionsSummary: true },
+    });
   },
 
   // Sitio de la definición dueña de una pregunta — idem, para setWeight/analyze.
@@ -319,6 +370,10 @@ export const surveysRepository = {
       create: { questionId, ...data },
       update: data,
     });
+  },
+
+  deleteWeight(questionId: string) {
+    return prisma.weight.deleteMany({ where: { questionId } });
   },
 
   getQuestionWithAnswers(questionId: string) {
@@ -400,11 +455,14 @@ export const surveysRepository = {
   // ── catálogo de formularios de Jotform (GET /user/forms cacheado) ────
 
   listJotformForms() {
-    return prisma.jotformForm.findMany({ orderBy: { title: "asc" } });
+    return prisma.jotformForm.findMany({
+      orderBy: { title: "asc" },
+      include: { account: { select: { name: true } } },
+    });
   },
 
   // Upsert en bloque + diff: qué ids son nuevos frente a lo ya guardado.
-  async upsertJotformForms(forms: { id: string; title: string; status: string }[]) {
+  async upsertJotformForms(forms: { id: string; title: string; status: string; accountId?: string | null }[]) {
     const existingIds = new Set(
       (await prisma.jotformForm.findMany({ select: { id: true } })).map((f) => f.id)
     );
@@ -413,8 +471,8 @@ export const surveysRepository = {
         forms.map((f) =>
           prisma.jotformForm.upsert({
             where: { id: f.id },
-            create: { id: f.id, title: f.title, status: f.status },
-            update: { title: f.title, status: f.status },
+            create: { id: f.id, title: f.title, status: f.status, accountId: f.accountId ?? null },
+            update: { title: f.title, status: f.status, accountId: f.accountId ?? null },
           })
         )
       );
@@ -430,6 +488,22 @@ export const surveysRepository = {
       select: { jotformFormId: true },
     });
     return new Set(rows.map((r) => r.jotformFormId));
+  },
+
+  listJotformAccounts() {
+    return prisma.jotformAccount.findMany({ orderBy: { createdAt: "desc" } });
+  },
+
+  createJotformAccount(data: { name: string; apiKey: string }) {
+    return prisma.jotformAccount.upsert({
+      where: { apiKey: data.apiKey },
+      create: data,
+      update: { name: data.name },
+    });
+  },
+
+  deleteJotformAccount(id: string) {
+    return prisma.jotformAccount.delete({ where: { id } });
   },
 };
 

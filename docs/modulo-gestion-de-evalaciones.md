@@ -5,7 +5,7 @@ las respuestas de los instrumentos de evaluación (Jotform) usados por EPI.
 
 > Para el mapa completo de funcionalidad con diagramas (arquitectura, modelo
 > de datos, secuencias backend/frontend) ver
-> [`docs/evaluaciones-flujo.md`](../../../../../docs/evaluaciones-flujo.md).
+> [`evaluaciones-flujo.md`](./evaluaciones-flujo.md).
 > Este documento se enfoca en qué se agregó en la última iteración y qué
 > queda pendiente de definir con EPI.
 

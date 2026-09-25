@@ -12,6 +12,12 @@ import {
   type UpdateQuestionInput,
   type UnregisteredFormDto,
   type ReprocessPendingResult,
+  type CreateJotformAccountInput,
+  type UpdateOpenQuestionsSummaryInput,
+  type HistoricalSubmissionsQuery,
+  type HistoricalSubmissionsImportInput,
+  type HistoricalSubmissionDto,
+  type HistoricalImportResult,
 } from "@epi/shared";
 import { parseCsv } from "./csv.js";
 import {
@@ -44,7 +50,8 @@ export const surveysService = {
     const submission = await surveysRepository.upsertSubmission(
       payload.submissionID,
       payload as unknown as Prisma.InputJsonValue,
-      Boolean(payload.isPrePost)
+      Boolean(payload.isPrePost),
+      receivedAtFromJotform(body)
     );
 
     if (payload.participant?.id) {
@@ -70,6 +77,12 @@ export const surveysService = {
   syncJotformForms,
   listJotformForms,
   previewFormQuestions,
+  listJotformAccounts,
+  createJotformAccount,
+  deleteJotformAccount,
+  updateOpenQuestionsSummary,
+  listHistoricalSubmissions,
+  importHistoricalSubmissions,
   listCatalogFields: () => catalogFieldsRepository.list(),
   listPending: (userId: string) => resolveScope(userId).then((scope) => surveysRepository.listPending(scope)),
 
@@ -94,6 +107,12 @@ export const surveysService = {
     const site = await surveysRepository.findQuestionSite(questionId);
     await assertSiteAllowed(userId, site?.surveyDefinition?.siteId);
     return surveysRepository.upsertWeight(questionId, input);
+  },
+
+  async deleteWeight(questionId: string, userId: string) {
+    const site = await surveysRepository.findQuestionSite(questionId);
+    await assertSiteAllowed(userId, site?.surveyDefinition?.siteId);
+    return surveysRepository.deleteWeight(questionId);
   },
 
   /**
@@ -162,6 +181,16 @@ export async function analyzeOpenQuestion(questionId: string, userId: string) {
     bestAnswers: insight.bestAnswers as unknown as PrismaNS.InputJsonValue,
     model: AI_MODEL,
   });
+}
+
+export async function updateOpenQuestionsSummary(
+  surveyDefinitionId: string,
+  input: UpdateOpenQuestionsSummaryInput,
+  userId: string
+) {
+  const def = await surveysRepository.findDefinitionSite(surveyDefinitionId);
+  await assertSiteAllowed(userId, def?.siteId);
+  return surveysRepository.updateOpenQuestionsSummary(surveyDefinitionId, input.summary);
 }
 
 /**
@@ -307,7 +336,14 @@ export async function listUnregisteredForms(): Promise<UnregisteredFormDto[]> {
 
 /** GET /user/forms → guarda/actualiza el catálogo local y regresa el diff. */
 export async function syncJotformForms() {
-  const forms = await jotformClient.listForms();
+  const accounts = await jotformAccountsForApi();
+  const forms = (
+    await Promise.all(
+      accounts.map(async (account) =>
+        (await jotformClient.listForms(account.apiKey)).map((form) => ({ ...form, accountId: account.id }))
+      )
+    )
+  ).flat();
   return surveysRepository.upsertJotformForms(forms);
 }
 
@@ -317,13 +353,126 @@ export async function listJotformForms() {
     surveysRepository.listJotformForms(),
     surveysRepository.registeredJotformFormIds(),
   ]);
-  return forms.map((f) => ({ ...f, registered: registeredIds.has(f.id) }));
+  return forms.map((f) => ({ ...f, accountName: f.account?.name ?? null, registered: registeredIds.has(f.id) }));
 }
 
 /** GET /form/:id/questions en vivo, ya separado en preguntas ponderables vs. catálogo. */
 export async function previewFormQuestions(formId: string) {
-  const questions = await jotformClient.getFormQuestions(formId);
+  const questions = await firstSuccessfulJotform((apiKey) => jotformClient.getFormQuestions(formId, apiKey));
   return mapJotformQuestions(questions, parseCatalogLabels(env.CATALOG_DATA));
+}
+
+function maskApiKey(apiKey: string) {
+  return apiKey.length <= 4 ? "••••" : `••••${apiKey.slice(-4)}`;
+}
+
+async function jotformApiKeys() {
+  const keys = (await jotformAccountsForApi()).map((a) => a.apiKey);
+  if (keys.length === 0) throw new Error("JOTFORM_API_KEY no configurada");
+  return keys;
+}
+
+async function jotformAccountsForApi() {
+  const accounts = await surveysRepository.listJotformAccounts();
+  const apiAccounts: { id: string | null; apiKey: string }[] = accounts.map((a) => ({ id: a.id, apiKey: a.apiKey }));
+  if (env.JOTFORM_API_KEY) apiAccounts.push({ id: null, apiKey: env.JOTFORM_API_KEY });
+  return apiAccounts;
+}
+
+async function firstSuccessfulJotform<T>(fn: (apiKey: string) => Promise<T>) {
+  let lastError: unknown;
+  for (const apiKey of await jotformApiKeys()) {
+    try {
+      return await fn(apiKey);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
+export async function listJotformAccounts() {
+  const accounts = await surveysRepository.listJotformAccounts();
+  return accounts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    apiKeyPreview: maskApiKey(a.apiKey),
+    createdAt: a.createdAt.toISOString(),
+  }));
+}
+
+export async function createJotformAccount(input: CreateJotformAccountInput) {
+  await jotformClient.listForms(input.apiKey);
+  const account = await surveysRepository.createJotformAccount(input);
+  return {
+    id: account.id,
+    name: account.name,
+    apiKeyPreview: maskApiKey(account.apiKey),
+    createdAt: account.createdAt.toISOString(),
+  };
+}
+
+export async function deleteJotformAccount(id: string) {
+  await surveysRepository.deleteJotformAccount(id);
+  return { id };
+}
+
+async function listHistoricalRaw(input: HistoricalSubmissionsQuery | HistoricalSubmissionsImportInput, userId: string) {
+  const scope = await resolveScope(userId);
+  const defs = await surveysRepository.listDefinitionsForHistorical(input.surveyDefinitionIds, scope);
+  const all = (
+    await Promise.all(
+      defs.map(async (def) => {
+        const filters = {
+          ...(input.from ? { from: input.from } : {}),
+          ...(input.to ? { to: input.to } : {}),
+        };
+        const submissions = def.apiKey
+          ? await jotformClient.listSubmissions(def.jotformFormId, def.apiKey, filters)
+          : await firstSuccessfulJotform((apiKey) => jotformClient.listSubmissions(def.jotformFormId, apiKey, filters));
+        return submissions.map((submission) => ({ def, submission }));
+      })
+    )
+  ).flat();
+  return all.sort((a, b) => b.submission.created_at.localeCompare(a.submission.created_at));
+}
+
+export async function listHistoricalSubmissions(
+  input: HistoricalSubmissionsQuery,
+  userId: string
+): Promise<HistoricalSubmissionDto[]> {
+  const rows = await listHistoricalRaw(input, userId);
+  const existing = await surveysRepository.existingSubmissionIds(rows.map((r) => r.submission.id));
+  return rows.map(({ def, submission }) => ({
+    id: submission.id,
+    formId: def.jotformFormId,
+    formTitle: def.formTitle,
+    createdAt: toIsoDate(submission.created_at),
+    alreadyImported: existing.has(submission.id),
+  }));
+}
+
+export async function importHistoricalSubmissions(
+  input: HistoricalSubmissionsImportInput,
+  userId: string
+): Promise<HistoricalImportResult> {
+  const selected = input.submissionIds ? new Set(input.submissionIds) : null;
+  const rows = (await listHistoricalRaw(input, userId)).filter((r) => !selected || selected.has(r.submission.id));
+  const existing = await surveysRepository.existingSubmissionIds(rows.map((r) => r.submission.id));
+  const result: HistoricalImportResult = { imported: 0, skipped: 0, processed: 0, pending: 0, errors: 0 };
+
+  for (const { submission } of rows) {
+    if (existing.has(submission.id)) {
+      result.skipped++;
+      continue;
+    }
+    const outcome = await surveysService.ingest(submission);
+    result.imported++;
+    if (outcome.status === "PROCESADO") result.processed++;
+    else if (outcome.status === "PENDIENTE_CONFIGURACION") result.pending++;
+    else result.errors++;
+  }
+  return result;
 }
 
 /**
@@ -687,6 +836,19 @@ export function normalizeJotform(body: unknown): unknown {
   }
 
   return b;
+}
+
+function receivedAtFromJotform(body: unknown): Date | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const raw = (body as Record<string, unknown>)["created_at"];
+  if (typeof raw !== "string") return undefined;
+  const date = new Date(raw.includes("T") ? raw : raw.replace(" ", "T"));
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function toIsoDate(value: string): string {
+  const date = new Date(value.includes("T") ? value : value.replace(" ", "T"));
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
 }
 
 function normalizeValue(value: string | number | unknown[]): string {

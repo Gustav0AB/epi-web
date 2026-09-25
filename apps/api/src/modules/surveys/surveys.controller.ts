@@ -7,6 +7,10 @@ import {
   ReportFiltersSchema,
   RegisterDefinitionSchema,
   UpdateQuestionSchema,
+  CreateJotformAccountSchema,
+  UpdateOpenQuestionsSummarySchema,
+  HistoricalSubmissionsQuerySchema,
+  HistoricalSubmissionsImportSchema,
 } from "@epi/shared";
 import { env } from "../../config/env.js";
 import { surveysService, reprocessSurvey, analyzeOpenQuestion } from "./surveys.service.js";
@@ -98,6 +102,14 @@ export const surveysController = {
     }
   },
 
+  async deleteWeight(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json(apiSuccess(await surveysService.deleteWeight(req.params.id!, req.user!.sub)));
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async importWeights(req: Request, res: Response, next: NextFunction) {
     try {
       const csv = typeof req.body === "string" ? req.body : "";
@@ -158,6 +170,64 @@ export const surveysController = {
     }
   },
 
+  async listJotformAccounts(_req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json(apiSuccess(await surveysService.listJotformAccounts()));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async createJotformAccount(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = CreateJotformAccountSchema.parse(req.body);
+      res.status(201).json(apiSuccess(await surveysService.createJotformAccount(input)));
+    } catch (err) {
+      const e = err as Error & { statusCode?: number; code?: string };
+      if (e.statusCode) {
+        res.status(e.statusCode).json(apiError(e.code ?? "ERROR", e.message));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  async deleteJotformAccount(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json(apiSuccess(await surveysService.deleteJotformAccount(req.params.id!)));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async listHistoricalSubmissions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = HistoricalSubmissionsQuerySchema.parse(req.query);
+      res.json(apiSuccess(await surveysService.listHistoricalSubmissions(input, req.user!.sub)));
+    } catch (err) {
+      const e = err as Error & { statusCode?: number; code?: string };
+      if (e.statusCode) {
+        res.status(e.statusCode).json(apiError(e.code ?? "ERROR", e.message));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  async importHistoricalSubmissions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = HistoricalSubmissionsImportSchema.parse(req.body);
+      res.json(apiSuccess(await surveysService.importHistoricalSubmissions(input, req.user!.sub)));
+    } catch (err) {
+      const e = err as Error & { statusCode?: number; code?: string };
+      if (e.statusCode) {
+        res.status(e.statusCode).json(apiError(e.code ?? "ERROR", e.message));
+        return;
+      }
+      next(err);
+    }
+  },
+
   async listCatalogFields(_req: Request, res: Response, next: NextFunction) {
     try {
       res.json(apiSuccess(await surveysService.listCatalogFields()));
@@ -197,6 +267,20 @@ export const surveysController = {
   async reprocessPending(req: Request, res: Response, next: NextFunction) {
     try {
       res.json(apiSuccess(await surveysService.reprocessPending(req.params.id!, req.user!.sub)));
+    } catch (err) {
+      const e = err as Error & { statusCode?: number; code?: string };
+      if (e.statusCode) {
+        res.status(e.statusCode).json(apiError(e.code ?? "ERROR", e.message));
+        return;
+      }
+      next(err);
+    }
+  },
+
+  async updateOpenQuestionsSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = UpdateOpenQuestionsSummarySchema.parse(req.body);
+      res.json(apiSuccess(await surveysService.updateOpenQuestionsSummary(req.params.id!, input, req.user!.sub)));
     } catch (err) {
       const e = err as Error & { statusCode?: number; code?: string };
       if (e.statusCode) {

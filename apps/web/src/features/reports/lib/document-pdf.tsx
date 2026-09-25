@@ -21,6 +21,9 @@ const styles = StyleSheet.create({
   section: { marginBottom: 14 },
   blockTitle: { fontSize: 11, fontWeight: 700, color: "#1f2937", marginBottom: 6 },
   paragraph: { fontSize: 10, lineHeight: 1.5, color: "#4b5563" },
+  placeholder: { height: 180, border: "1px dashed #cfcac1", borderRadius: 4, alignItems: "center", justifyContent: "center", color: "#9ca3af" },
+  reportImage: { width: "100%", objectFit: "cover", borderRadius: 4 },
+  caption: { fontSize: 8, color: "#6b7280", marginTop: 5 },
   card: { border: "1px solid #e5e2db", borderRadius: 4, padding: 12 },
   kpiRow: { flexDirection: "row", gap: 10 },
   kpiBox: { flex: 1, border: "1px solid #e5e2db", borderRadius: 4, padding: 10 },
@@ -144,6 +147,25 @@ function TableSection({ block, rows }: { block: Extract<ReportTemplate["blocks"]
   );
 }
 
+function ImageSection({ block, data, noDataText }: { block: Extract<ReportTemplate["blocks"][number], { type: "image" }>; data: ReportData; noDataText: string }) {
+  const src = data.texts[block.dataKey]?.trim();
+  const caption = block.captionKey ? data.texts[block.captionKey]?.trim() : "";
+  return (
+    <View style={styles.card} wrap={false}>
+      {block.title && <Text style={styles.blockTitle}>{block.title}</Text>}
+      {src ? (
+        // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image no acepta alt
+        <Image src={src} style={[styles.reportImage, { height: block.height ?? 180 }]} />
+      ) : (
+        <View style={[styles.placeholder, { height: block.height ?? 180 }]}>
+          <Text>{noDataText}</Text>
+        </View>
+      )}
+      {caption && <Text style={styles.caption}>{caption}</Text>}
+    </View>
+  );
+}
+
 type DocumentPdfArgs = {
   template: ReportTemplate;
   data: ReportData;
@@ -182,11 +204,12 @@ function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabe
 
         {template.blocks.map((block) => (
           <View key={block.id} style={styles.section}>
-            {block.title && block.type !== "text" && <Text style={styles.blockTitle}>{block.title}</Text>}
+            {block.title && block.type !== "text" && block.type !== "image" && <Text style={styles.blockTitle}>{block.title}</Text>}
 
             {block.type === "kpi-group" && <KpiSection template={block} data={data} />}
             {block.type === "chart" && <ChartSection block={block} rows={data.series[block.dataKey] ?? []} />}
             {block.type === "table" && <TableSection block={block} rows={data.tables[block.dataKey] ?? []} />}
+            {block.type === "image" && <ImageSection block={block} data={data} noDataText={noDataText} />}
             {block.type === "text" && (
               <>
                 {block.title && <Text style={styles.blockTitle}>{block.title}</Text>}

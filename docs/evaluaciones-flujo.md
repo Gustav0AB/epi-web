@@ -2,7 +2,7 @@
 
 > Documento de arquitectura pensado para verse en Obsidian (los bloques
 > ```mermaid``` se renderizan nativos). Complementa a
-> [`apps/api/src/modules/surveys/README.md`](../apps/api/src/modules/surveys/README.md),
+> [`modulo-gestion-de-evalaciones.md`](./modulo-gestion-de-evalaciones.md),
 > que lleva el detalle de qué se agregó en la última iteración y qué queda
 > pendiente de definir con EPI. Este documento es el mapa completo: toda la
 > funcionalidad, cómo fluyen los datos y cómo interactúan backend y frontend.

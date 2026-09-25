@@ -162,10 +162,23 @@ model JotformForm {
   id         String   @id // formID de Jotform
   title      String
   status     String // ACTIVE | DISABLED | DELETED, tal como lo manda Jotform
+  accountId  String?
+  account    JotformAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   importedAt DateTime @default(now())
   syncedAt   DateTime @updatedAt
 
   @@map("jotform_forms")
+}
+
+model JotformAccount {
+  id        String   @id @default(uuid())
+  name      String
+  apiKey    String   @unique
+  forms     JotformForm[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("jotform_accounts")
 }
 
 // Catálogo de campos "dimensión" (Grupo, Grado, Tipo de Programa, Edad…)
@@ -190,6 +203,7 @@ model SurveyDefinition {
   jotformFormId String // el formID que envía el webhook de Jotform
   type          SurveyType   @default(LOCAL)
   version       Int          @default(1)
+  openQuestionsSummary String?
   questions     Question[]
   submissions   Submission[]
   createdAt     DateTime     @default(now())

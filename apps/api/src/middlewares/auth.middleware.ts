@@ -31,6 +31,11 @@ declare global {
 // efecto inmediato — antes de esto un token vigente seguía funcionando
 // hasta expirar sin importar lo que hiciera el admin.
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.user) {
+    next();
+    return;
+  }
+
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
     res.status(401).json(apiError("UNAUTHORIZED", "Missing or invalid token"));
@@ -40,7 +45,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   let payload: JwtPayload;
   try {
     const token = header.slice(7);
-    payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+    payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] }) as JwtPayload;
   } catch {
     res.status(401).json(apiError("UNAUTHORIZED", "Token expired or invalid"));
     return;

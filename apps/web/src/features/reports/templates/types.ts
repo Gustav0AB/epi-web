@@ -58,13 +58,21 @@ export type TextBlock = ReportBlockBase & {
   // capturado por el usuario operativo al armar el reporte (ver getFillableTextFields).
 };
 
-export type ReportBlock = KpiBlock | ChartBlock | TableBlock | TextBlock;
+export type ImageBlock = ReportBlockBase & {
+  type: "image";
+  dataKey: string; // URL de foto capturada en AssignedReport.textContent
+  captionKey?: string;
+  height?: number;
+};
+
+export type ReportBlock = KpiBlock | ChartBlock | TableBlock | TextBlock | ImageBlock;
 
 export type ReportFilterField = {
   key: string;
   label: string;
-  kind: "select" | "date" | "date-range";
+  kind: "select" | "date" | "date-range" | "text";
   optionsSourceKey?: string; // se resuelve en runtime contra el endpoint de opciones
+  required?: boolean;
 };
 
 export type ReportTemplate = {
@@ -92,6 +100,17 @@ export type ReportData = {
 // de los bloques en vez de declararse aparte, para no mantener dos listas.
 export function getFillableTextFields(template: ReportTemplate): { key: string; label: string }[] {
   return template.blocks
-    .filter((b): b is TextBlock => b.type === "text" && !!b.dataKey)
-    .map((b) => ({ key: b.dataKey!, label: b.title ?? b.dataKey! }));
+    .filter((b): b is (TextBlock | ImageBlock) & { dataKey: string } => (b.type === "text" || b.type === "image") && !!b.dataKey)
+    .map((b) => ({ key: b.dataKey, label: b.title ?? b.dataKey }));
+}
+
+export function missingRequiredReportFields(template: ReportTemplate, data: ReportData, filters: Record<string, unknown> | null = null): string[] {
+  const missingFilters = template.filters
+    .filter((f) => f.required && !String(filters?.[f.key] ?? "").trim())
+    .map((f) => f.label);
+  const missingContent = getFillableTextFields(template)
+    .filter((f) => !String(data.texts[f.key] ?? "").trim())
+    .map((f) => f.label);
+  const hasData = Object.values(data.series).some((rows) => rows.length > 0) || Object.values(data.tables).some((rows) => rows.length > 0);
+  return [...missingFilters, ...missingContent, ...(hasData ? [] : ["Resultados pre/post"])];
 }

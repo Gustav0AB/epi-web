@@ -11,6 +11,7 @@ import { surveysRouter, webhooksRouter, reportsRouter } from "./modules/surveys/
 import { catalogRouter } from "./modules/catalog/catalog.routes.js";
 import { auditRouter } from "./modules/audit/audit.routes.js";
 import { assignedReportsRouter } from "./modules/reports-assignment/assigned-reports.routes.js";
+import { requireAuth } from "./middlewares/auth.middleware.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { apiError } from "@epi/shared";
 
@@ -27,9 +28,10 @@ export function createApp() {
   app.get("/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
 
   app.use("/api/auth", authRouter);
+  app.use("/api/webhooks", webhooksRouter);
+  app.use("/api", requireAuth);
   app.use("/api/users", usersRouter);
   app.use("/api/features", featuresRouter);
-  app.use("/api/webhooks", webhooksRouter);
   app.use("/api/surveys", surveysRouter);
   app.use("/api/reports", reportsRouter);
   app.use("/api/reports", assignedReportsRouter);

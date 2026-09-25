@@ -37,15 +37,30 @@ const QuestionsResponseSchema = z.object({
   content: z.record(z.string(), JotformQuestionSchema),
 });
 
-function requireApiKey(): string {
-  if (!env.JOTFORM_API_KEY) throw new Error("JOTFORM_API_KEY no configurada");
-  return env.JOTFORM_API_KEY;
-}
+const JotformSubmissionSchema = z
+  .object({
+    id: z.string(),
+    form_id: z.string(),
+    created_at: z.string(),
+    answers: z.record(z.string(), z.unknown()).default({}),
+  })
+  .passthrough();
+export type JotformSubmission = z.infer<typeof JotformSubmissionSchema>;
 
-async function jotformGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-  const apiKey = requireApiKey();
+const SubmissionsResponseSchema = z.object({
+  responseCode: z.number(),
+  content: z.array(JotformSubmissionSchema),
+});
+
+async function jotformGet<T>(
+  path: string,
+  apiKey: string,
+  schema: z.ZodType<T>,
+  params: Record<string, string> = {}
+): Promise<T> {
   const url = new URL(path, env.JOTFORM_API_BASE);
   url.searchParams.set("apiKey", apiKey);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   const res = await fetch(url);
   if (!res.ok) {
     throw Object.assign(new Error(`Jotform API ${path} respondió ${res.status}`), { statusCode: 502 });
@@ -59,13 +74,30 @@ async function jotformGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
 }
 
 export const jotformClient = {
-  async listForms(): Promise<JotformFormSummary[]> {
-    const res = await jotformGet(`/user/forms`, ListFormsResponseSchema);
+  async listForms(apiKey: string): Promise<JotformFormSummary[]> {
+    const res = await jotformGet(`/user/forms`, apiKey, ListFormsResponseSchema);
     return res.content.map((f) => ({ id: f.id, title: f.title, status: f.status }));
   },
 
-  async getFormQuestions(formId: string): Promise<JotformQuestion[]> {
-    const res = await jotformGet(`/form/${encodeURIComponent(formId)}/questions`, QuestionsResponseSchema);
+  async getFormQuestions(formId: string, apiKey: string): Promise<JotformQuestion[]> {
+    const res = await jotformGet(`/form/${encodeURIComponent(formId)}/questions`, apiKey, QuestionsResponseSchema);
     return Object.values(res.content);
+  },
+
+  async listSubmissions(
+    formId: string,
+    apiKey: string,
+    filters: { from?: string; to?: string; limit?: number; offset?: number }
+  ): Promise<JotformSubmission[]> {
+    const filter: Record<string, string> = {};
+    if (filters.from) filter["created_at:gt"] = `${filters.from} 00:00:00`;
+    if (filters.to) filter["created_at:lt"] = `${filters.to} 23:59:59`;
+    const res = await jotformGet(`/form/${encodeURIComponent(formId)}/submissions`, apiKey, SubmissionsResponseSchema, {
+      limit: String(filters.limit ?? 1000),
+      offset: String(filters.offset ?? 0),
+      orderby: "created_at",
+      ...(Object.keys(filter).length ? { filter: JSON.stringify(filter) } : {}),
+    });
+    return res.content.map((s) => ({ ...s, answers: s.answers ?? {} }));
   },
 };

@@ -39,8 +39,10 @@ auditService.record = (async (_actor: unknown, action: string) => {
 }) as typeof auditService.record;
 
 const token = await authService.login({ username: "ana", password: "correct-password" });
-const payload = jwt.verify(token.accessToken, env.JWT_SECRET) as { sub: string; role: string; featureKeys: string[] };
+const payload = jwt.verify(token.accessToken, env.JWT_SECRET) as { sub: string; role: string; featureKeys: string[]; iat: number; exp: number };
 assert.equal(token.tokenType, "Bearer");
+assert.equal(token.expiresIn, 8 * 60 * 60);
+assert.equal(payload.exp - payload.iat, 8 * 60 * 60);
 assert.equal(payload.sub, "user-1");
 assert.equal(payload.role, "functionality_user");
 assert.deepEqual(payload.featureKeys, ["home", "surveys"]);

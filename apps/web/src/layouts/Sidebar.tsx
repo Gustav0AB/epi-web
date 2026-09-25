@@ -16,6 +16,7 @@ import CategoryOutlinedIcon from "@mui/icons-material/CategoryOutlined";
 import QuestionAnswerOutlinedIcon from "@mui/icons-material/QuestionAnswerOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
+import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 
 type NavItem = {
@@ -95,6 +96,12 @@ const navItems: NavItem[] = [
     label: "nav.reportAssignments",
     kind: "admin_tier",
     icon: <AssignmentOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/jotform-accounts",
+    label: "nav.jotformAccounts",
+    kind: "admin_tier",
+    icon: <VpnKeyOutlinedIcon className="shrink-0" />,
   },
   {
     to: "/audit-log",

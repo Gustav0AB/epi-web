@@ -49,6 +49,24 @@ function ReportBlockView({
     );
   }
 
+  if (block.type === "image") {
+    const src = data.texts[block.dataKey]?.trim();
+    const caption = block.captionKey ? data.texts[block.captionKey]?.trim() : "";
+    return (
+      <Card>
+        {block.title && <h3 className="mb-3 text-sm font-semibold text-gray-800">{block.title}</h3>}
+        {src ? (
+          <img src={src} alt={block.title ?? ""} className="w-full rounded object-cover" style={{ height: block.height ?? 260 }} />
+        ) : (
+          <div className="flex items-center justify-center rounded border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-400" style={{ height: block.height ?? 260 }}>
+            {noDataText}
+          </div>
+        )}
+        {caption && <p className="mt-2 text-xs text-gray-500">{caption}</p>}
+      </Card>
+    );
+  }
+
   if (block.type === "kpi-group") {
     return (
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

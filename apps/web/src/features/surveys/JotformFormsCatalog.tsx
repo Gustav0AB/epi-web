@@ -105,6 +105,7 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
             <thead>
               <tr className="border-b border-gray-200 text-gray-500">
                 <th className="py-2 font-medium">{t("jotformCatalog.table.title")}</th>
+                <th className="py-2 font-medium">{t("jotformCatalog.table.account")}</th>
                 <th className="py-2 font-medium">{t("jotformCatalog.table.id")}</th>
                 <th className="py-2 font-medium">{t("jotformCatalog.table.status")}</th>
                 <th className="py-2" />
@@ -114,6 +115,7 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
               {forms.map((f) => (
                 <tr key={f.id}>
                   <td className="py-2 text-gray-800">{f.title}</td>
+                  <td className="py-2 text-gray-600">{f.accountName ?? "—"}</td>
                   <td className="py-2 font-mono text-xs text-gray-500">{f.id}</td>
                   <td className="py-2">
                     {f.registered ? (

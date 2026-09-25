@@ -126,6 +126,7 @@ export const assignedReportsService = {
   async getData(requester: JwtPayload, id: string, siteId?: string): Promise<ReportDataDto> {
     const existing = await loadOrThrow(id);
     assertReadAccess(requester, existing);
+    if (existing.status !== "PUBLISHED") throw forbidden("Report is not approved for viewing");
 
     const resolver = REPORT_DATA_RESOLVERS[existing.templateKey];
     const texts = (existing.textContent as Record<string, string> | null) ?? {};
@@ -136,7 +137,12 @@ export const assignedReportsService = {
       organizationId: existing.user.organizationId,
       excludedSiteIds: existing.user.excludedSiteIds,
     });
-    const data = await resolver({ siteId, scope: { siteIds: ownerSiteIds, excludedSurveyDefinitionIds: [] } });
+    const filters = (existing.filters as Record<string, unknown> | null) ?? undefined;
+    const data = await resolver({
+      siteId,
+      ...(filters ? { filters } : {}),
+      scope: { siteIds: ownerSiteIds, excludedSurveyDefinitionIds: [] },
+    });
     return { ...data, texts };
   },
 };

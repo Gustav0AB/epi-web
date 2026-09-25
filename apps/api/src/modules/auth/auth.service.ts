@@ -9,6 +9,7 @@ import type { LoginDto, AuthToken } from "@epi/shared";
 // necesita ajustar por despliegue.
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
+const SESSION_TTL_SECONDS = 8 * 60 * 60;
 
 export const authService = {
   async login(dto: LoginDto): Promise<AuthToken> {
@@ -42,7 +43,6 @@ export const authService = {
 
     if (user.failedLoginAttempts > 0 || user.lockedUntil) await usersRepository.clearFailedLogins(user.id);
 
-    const expiresIn = 7 * 24 * 60 * 60; // 7d in seconds
     const featureKeys =
       user.role === "FUNCTIONALITY_USER" ? await usersRepository.findFeatureKeys(user.id) : [];
     const payload = {
@@ -52,11 +52,10 @@ export const authService = {
       organizationId: user.organizationId,
       featureKeys,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const accessToken = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN as any });
+    const accessToken = jwt.sign(payload, env.JWT_SECRET, { expiresIn: SESSION_TTL_SECONDS });
 
     await auditService.record(payload, "LOGIN");
 
-    return { accessToken, tokenType: "Bearer", expiresIn, mustChangePassword: user.mustChangePassword };
+    return { accessToken, tokenType: "Bearer", expiresIn: SESSION_TTL_SECONDS, mustChangePassword: user.mustChangePassword };
   },
 };

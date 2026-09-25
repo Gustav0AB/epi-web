@@ -49,6 +49,30 @@ export const UpdateQuestionSchema = z.object({
 });
 export type UpdateQuestionInput = z.infer<typeof UpdateQuestionSchema>;
 
+export const UpdateOpenQuestionsSummarySchema = z.object({
+  summary: z.string(),
+});
+export type UpdateOpenQuestionsSummaryInput = z.infer<typeof UpdateOpenQuestionsSummarySchema>;
+
+export const HistoricalSubmissionsQuerySchema = z.object({
+  surveyDefinitionIds: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
+  from: z.string().trim().min(1).optional(),
+  to: z.string().trim().min(1).optional(),
+});
+export type HistoricalSubmissionsQuery = z.infer<typeof HistoricalSubmissionsQuerySchema>;
+
+export const HistoricalSubmissionsImportSchema = z.object({
+  surveyDefinitionIds: z.array(z.string().trim().min(1)).min(1),
+  from: z.string().trim().min(1).optional(),
+  to: z.string().trim().min(1).optional(),
+  submissionIds: z.array(z.string().trim().min(1)).optional(),
+});
+export type HistoricalSubmissionsImportInput = z.infer<typeof HistoricalSubmissionsImportSchema>;
+
 // "true"/"false" en query params → boolean.
 const queryBool = z
   .enum(["true", "false"])
@@ -66,6 +90,7 @@ export const SurveyFiltersSchema = z.object({
   status: z.enum(SUBMISSION_STATUSES).optional(),
   from: z.string().trim().min(1).optional(), // fecha ISO (>= receivedAt)
   to: z.string().trim().min(1).optional(), // fecha ISO (<= receivedAt)
+  weightedOnly: queryBool,
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
 });
@@ -111,6 +136,9 @@ export type SurveyDefinitionDto = {
   version: number;
   title: string;
   organizationId: string | null;
+  accountName: string | null;
+  isWeighted: boolean;
+  openQuestionsSummary: string | null;
 };
 
 export type QuestionInsightDto = {
@@ -157,9 +185,39 @@ export type JotformFormDto = {
   title: string;
   status: string;
   registered: boolean;
+  accountName: string | null;
 };
 
 export type JotformFormsSyncResult = { added: string[]; total: number };
+
+export type HistoricalSubmissionDto = {
+  id: string;
+  formId: string;
+  formTitle: string;
+  createdAt: string;
+  alreadyImported: boolean;
+};
+
+export type HistoricalImportResult = {
+  imported: number;
+  skipped: number;
+  processed: number;
+  pending: number;
+  errors: number;
+};
+
+export const CreateJotformAccountSchema = z.object({
+  name: z.string().trim().min(1),
+  apiKey: z.string().trim().min(1),
+});
+export type CreateJotformAccountInput = z.infer<typeof CreateJotformAccountSchema>;
+
+export type JotformAccountDto = {
+  id: string;
+  name: string;
+  apiKeyPreview: string;
+  createdAt: string;
+};
 
 // Preview de GET /form/:id/questions ya separado en preguntas ponderables
 // vs. campos de catálogo (CATALOG_DATA) — antes de dar de alta la encuesta.

@@ -128,6 +128,16 @@ export function ScoringPage() {
     }
   }
 
+  async function removeWeight(q: QuestionWithWeight) {
+    setSavingId(q.id);
+    try {
+      await surveyApi.deleteWeight(q.id);
+      await loadQuestions(selectedId);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   // Guarda todas las filas con una categoría y un puntaje máximo válidos —
   // las incompletas se dejan para el flujo individual, sin bloquear el resto.
   async function saveAll() {
@@ -199,7 +209,10 @@ export function ScoringPage() {
 
   const definitionOptions: DropdownOption[] = [
     { label: t("scoring.selectPlaceholder"), value: "" },
-    ...definitions.map((d) => ({ label: d.title, value: d.id })),
+    ...definitions.map((d) => ({
+      label: `${d.title}${d.accountName ? ` · ${d.accountName}` : ""}`,
+      value: d.id,
+    })),
   ];
 
   // Nombres de categoría activos del catálogo de esta organización, y sus
@@ -346,9 +359,16 @@ export function ScoringPage() {
       header: "",
       align: "right",
       render: (q) => (
-        <Button size="sm" loading={savingId === q.id} onClick={() => save(q)}>
-          {t("scoring.table.save")}
-        </Button>
+        <div className="flex justify-end gap-1">
+          {q.weight && (
+            <Button variant="ghost" size="sm" loading={savingId === q.id} onClick={() => removeWeight(q)}>
+              {t("common.delete")}
+            </Button>
+          )}
+          <Button size="sm" loading={savingId === q.id} onClick={() => save(q)}>
+            {t("scoring.table.save")}
+          </Button>
+        </div>
       ),
     },
   ];

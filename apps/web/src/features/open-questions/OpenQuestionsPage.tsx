@@ -12,6 +12,8 @@ export function OpenQuestionsPage() {
   const [questions, setQuestions] = useState<QuestionWithWeight[]>([]);
   const [loading, setLoading] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [summary, setSummary] = useState("");
+  const [savingSummary, setSavingSummary] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,8 +33,25 @@ export function OpenQuestionsPage() {
 
   function selectDefinition(id: string) {
     setSelectedId(id);
+    setSummary(definitions.find((d) => d.id === id)?.openQuestionsSummary ?? "");
     setError(null);
     void loadQuestions(id);
+  }
+
+  async function saveSummary() {
+    if (!selectedId) return;
+    setSavingSummary(true);
+    setError(null);
+    try {
+      await surveyApi.updateOpenQuestionsSummary(selectedId, summary);
+      setDefinitions((defs) =>
+        defs.map((d) => (d.id === selectedId ? { ...d, openQuestionsSummary: summary } : d))
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("common.genericError"));
+    } finally {
+      setSavingSummary(false);
+    }
   }
 
   async function analyze(questionId: string) {
@@ -50,7 +69,10 @@ export function OpenQuestionsPage() {
 
   const definitionOptions: DropdownOption[] = [
     { label: t("scoring.selectPlaceholder"), value: "" },
-    ...definitions.map((d) => ({ label: d.title, value: d.id })),
+    ...definitions.map((d) => ({
+      label: `${d.title}${d.accountName ? ` · ${d.accountName}` : ""}`,
+      value: d.id,
+    })),
   ];
 
   return (
@@ -74,6 +96,25 @@ export function OpenQuestionsPage() {
       </Card>
 
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      {selectedId && (
+        <Card>
+          <Label variant="subtitle" className="mb-2 block">
+            {t("openQuestions.generalSummary")}
+          </Label>
+          <textarea
+            className="min-h-32 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            placeholder={t("openQuestions.generalSummaryPlaceholder")}
+          />
+          <div className="mt-3 flex justify-end">
+            <Button loading={savingSummary} onClick={() => void saveSummary()}>
+              {t("common.save")}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {selectedId && !loading && questions.length === 0 && (
         <p className="text-sm text-gray-500">{t("openQuestions.empty")}</p>

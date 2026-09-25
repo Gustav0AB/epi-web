@@ -6,8 +6,7 @@ const EnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
-  JWT_SECRET: z.string().min(16),
-  JWT_EXPIRES_IN: z.string().default("7d"),
+  JWT_SECRET: z.string().min(32),
   CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
   // Si se define, el webhook de Jotform exige ?secret= o header x-jotform-secret.
   JOTFORM_WEBHOOK_SECRET: z.string().min(8).optional(),
@@ -33,6 +32,11 @@ if (!parsed.success) {
     "❌ Invalid environment variables:\n",
     parsed.error.flatten().fieldErrors,
   );
+  process.exit(1);
+}
+
+if (parsed.data.NODE_ENV === "production" && !parsed.data.JOTFORM_WEBHOOK_SECRET) {
+  console.error("❌ JOTFORM_WEBHOOK_SECRET is required in production");
   process.exit(1);
 }
 

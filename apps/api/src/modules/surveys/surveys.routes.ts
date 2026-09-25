@@ -22,9 +22,11 @@ surveysRouter.post("/groups/complete", requireAuth, requireFunctionality("survey
 surveysRouter.get("/groups", requireAuth, requireFunctionality("surveys"), surveysController.listGroups);
 surveysRouter.get("/definitions", requireAuth, requireFunctionality("surveys", "scoring", "open_questions"), surveysController.listDefinitions);
 surveysRouter.get("/definitions/:id/questions", requireAuth, requireFunctionality("scoring", "open_questions"), surveysController.listQuestions);
+surveysRouter.patch("/definitions/:id/open-questions-summary", requireAuth, requireFunctionality("open_questions"), surveysController.updateOpenQuestionsSummary);
 surveysRouter.post("/definitions/:id/weights/import", requireAuth, requireFunctionality("scoring"), surveysController.importWeights);
 surveysRouter.post("/definitions/:id/reprocess-pending", requireAuth, requireFunctionality("scoring"), surveysController.reprocessPending);
 surveysRouter.put("/questions/:id/weight", requireAuth, requireFunctionality("scoring"), surveysController.setWeight);
+surveysRouter.delete("/questions/:id/weight", requireAuth, requireFunctionality("scoring"), surveysController.deleteWeight);
 surveysRouter.patch("/questions/:id", requireAuth, requireFunctionality("scoring"), surveysController.updateQuestion);
 surveysRouter.post("/:id/reprocess", requireAuth, requireFunctionality("surveys"), surveysController.reprocess);
 surveysRouter.post("/questions/:id/analyze", requireAuth, requireFunctionality("scoring", "open_questions"), surveysController.analyzeQuestion);
@@ -40,6 +42,11 @@ surveysRouter.post("/definitions", requireAuth, requireRole("system_admin", "org
 surveysRouter.get("/jotform/forms", requireAuth, requireRole("system_admin", "org_admin"), surveysController.listJotformForms);
 surveysRouter.post("/jotform/forms/sync", requireAuth, requireRole("system_admin", "org_admin"), surveysController.syncJotformForms);
 surveysRouter.get("/jotform/forms/:formId/questions", requireAuth, requireRole("system_admin", "org_admin"), surveysController.previewFormQuestions);
+surveysRouter.get("/jotform/submissions", requireAuth, requireRole("system_admin", "org_admin"), surveysController.listHistoricalSubmissions);
+surveysRouter.post("/jotform/submissions/import", requireAuth, requireRole("system_admin", "org_admin"), surveysController.importHistoricalSubmissions);
+surveysRouter.get("/jotform/accounts", requireAuth, requireRole("system_admin", "org_admin"), surveysController.listJotformAccounts);
+surveysRouter.post("/jotform/accounts", requireAuth, requireRole("system_admin", "org_admin"), surveysController.createJotformAccount);
+surveysRouter.delete("/jotform/accounts/:id", requireAuth, requireRole("system_admin", "org_admin"), surveysController.deleteJotformAccount);
 
 // Reportes: cualquier usuario autenticado, restringido por su organización y
 // sitios. Solo devuelve encuestas en estado COMPLETADO.

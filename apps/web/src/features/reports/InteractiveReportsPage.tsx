@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import { Button, Card, Dropdown, Label } from "../../shared/components";
 import type { DropdownOption } from "../../shared/components";
-import { getReportTemplate } from "./templates";
+import { getReportTemplate, missingRequiredReportFields } from "./templates";
 import type { ReportData } from "./templates/types";
 import { ReportRenderer } from "./components/ReportRenderer";
 import { DocumentReportPage } from "./DocumentReportPage";
@@ -23,12 +23,13 @@ export function InteractiveReportsPage() {
     { label: t("surveys.filter.allStatuses"), value: "" },
     ...REPORT_STATUSES.map((s) => ({ label: STATUS_LABELS[s], value: s })),
   ];
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState<string>("published");
   const [reports, setReports] = useState<AssignedReport[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [selected, setSelected] = useState<AssignedReport | null>(null);
   const [data, setData] = useState<ReportData | null>(null);
+  const [selectedError, setSelectedError] = useState<string | null>(null);
   const [documentView, setDocumentView] = useState(false);
 
   // Sitio (o "" = Global, todo el alcance del usuario asignado) — el propio
@@ -59,19 +60,48 @@ export function InteractiveReportsPage() {
     setSelected(report);
     setDocumentView(false);
     setSiteId("");
-    void reportsApi.data(report.id).then(setData).catch(() => setData(null));
+    setData(null);
+    if (report.status !== "published") {
+      setSelectedError("Este reporte todavia no esta aprobado para visualizarse.");
+      return;
+    }
+    setSelectedError(null);
+    void reportsApi.data(report.id).then(setData).catch((e: unknown) => {
+      setData(null);
+      setSelectedError(e instanceof Error ? e.message : "No se pudo cargar el reporte.");
+    });
   }
 
   function changeSite(nextSiteId: string) {
     setSiteId(nextSiteId);
     if (!selected) return;
-    void reportsApi.data(selected.id, nextSiteId).then(setData).catch(() => setData(null));
+    void reportsApi.data(selected.id, nextSiteId).then(setData).catch((e: unknown) => {
+      setData(null);
+      setSelectedError(e instanceof Error ? e.message : "No se pudo cargar el reporte.");
+    });
   }
 
   const template = selected ? getReportTemplate(selected.templateKey) : undefined;
   const siteLabel = siteOptions.find((o) => o.value === siteId)?.label ?? t("reports.allSites");
+  const missingFields = selected && template && data ? missingRequiredReportFields(template, data, selected.filters) : [];
 
   // Detalle de un reporte: interactivo o documento oficial.
+  if (selected && template && (selectedError || missingFields.length > 0)) {
+    return (
+      <div className="space-y-4">
+        <button onClick={() => setSelected(null)} className="text-sm font-medium text-primary hover:underline">
+          {t("interactiveReports.backToAll")}
+        </button>
+        <Card>
+          <p className="font-medium text-gray-900">{selected.title}</p>
+          <p className="mt-2 text-sm text-gray-500">
+            {selectedError ?? `Faltan datos para generar el reporte: ${missingFields.join(", ")}.`}
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   if (selected && template && data) {
     const appliedFilters = [
       { label: t("reports.site"), value: siteLabel },

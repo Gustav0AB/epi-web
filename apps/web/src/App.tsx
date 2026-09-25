@@ -10,6 +10,7 @@ import { HomePage } from "./pages/HomePage";
 import { UsersPage } from "./features/users/UsersPage";
 import { SurveysPage } from "./features/surveys/SurveysPage";
 import { ScoringPage } from "./features/surveys/ScoringPage";
+import { JotformAccountsPage } from "./features/surveys/JotformAccountsPage";
 import { OpenQuestionsPage } from "./features/open-questions/OpenQuestionsPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
 import { InteractiveReportsPage } from "./features/reports/InteractiveReportsPage";
@@ -107,6 +108,7 @@ export default function App() {
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/report-assignments" element={<ReportAssignmentsPage />} />
+            <Route path="/jotform-accounts" element={<JotformAccountsPage />} />
           </Route>
         </Route>
       </Route>
