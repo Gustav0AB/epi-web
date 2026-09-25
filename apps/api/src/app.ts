@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { env } from "./config/env.js";
 import { usersRouter } from "./modules/users/users.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
@@ -13,6 +14,9 @@ import { auditRouter } from "./modules/audit/audit.routes.js";
 import { assignedReportsRouter } from "./modules/reports-assignment/assigned-reports.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { apiError } from "@epi/shared";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function createApp() {
   const app = express();
@@ -37,7 +41,7 @@ export function createApp() {
   app.use("/api", auditRouter);
 
   if (env.NODE_ENV === "production") {
-    const webDist = path.resolve(process.cwd(), "apps/web/dist");
+    const webDist = path.resolve(__dirname, "../../apps/web/dist");
     app.use(express.static(webDist));
     app.get("*", (req, res, next) => {
       if (req.path.startsWith("/api/")) return next();
@@ -53,3 +57,4 @@ export function createApp() {
 
   return app;
 }
+
