@@ -6,7 +6,7 @@
 - npm.
 - PostgreSQL.
 - Una base de datos accesible por `DATABASE_URL`.
-- Opcional: API key de Jotform y API key de Gemini.
+- Opcional: API key de Gemini.
 
 ## Instalacion local
 
@@ -33,7 +33,6 @@ API (`apps/api/.env`):
 | `JWT_SECRET` | Secreto JWT, minimo 32 caracteres. |
 | `CORS_ORIGIN` | Origen permitido del frontend en desarrollo. |
 | `JOTFORM_WEBHOOK_SECRET` | Secreto opcional en desarrollo; obligatorio en produccion. |
-| `JOTFORM_API_KEY` | API key para sincronizar formularios y descargar preguntas. |
 | `JOTFORM_API_BASE` | Base URL de Jotform, por defecto `https://api.jotform.com`. |
 | `GEMINI_API_KEY` | Requerida para analizar preguntas abiertas. |
 | `GEMINI_MODEL` | Modelo Gemini, por defecto `gemini-2.5-flash`. |
@@ -55,6 +54,15 @@ npm run db:migrate
 npm run db:studio
 npm run db:seed -w apps/api
 ```
+
+El seed crea el super usuario inicial:
+
+```text
+Usuario: admin
+Password: Admin1234!
+```
+
+Ese usuario queda marcado con cambio obligatorio de contrasena en el primer inicio. Los usuarios/datos demo no se cargan salvo que ejecutes el seed con `SEED_DEMO=true`.
 
 En produccion se debe usar:
 

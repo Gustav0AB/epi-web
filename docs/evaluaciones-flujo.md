@@ -17,8 +17,10 @@
 graph TD
     subgraph Frontend["apps/web — React + Vite"]
         SurveysPage["SurveysPage /surveys"]
+        SurveyGroupsPage["SurveyGroupsPage /survey-groups"]
+        SurveySettingsPage["SurveySettingsPage /survey-settings"]
         ScoringPage["ScoringPage /scoring"]
-        UnregisteredForms["UnregisteredForms (dentro de ScoringPage)"]
+        UnregisteredForms["UnregisteredForms (dentro de SurveySettingsPage)"]
         AuthStore["auth.store.ts (Zustand + JWT)"]
         SurveyApi["features/surveys/api.ts"]
     end
@@ -44,6 +46,8 @@ graph TD
     Service --> Repo --> DB[("PostgreSQL")]
 
     SurveysPage --> SurveyApi
+    SurveyGroupsPage --> SurveyApi
+    SurveySettingsPage --> SurveyApi
     ScoringPage --> SurveyApi
     UnregisteredForms --> SurveyApi
 ```
@@ -95,7 +99,7 @@ erDiagram
         string jotformSubmissionId "único — idempotencia del webhook"
         json rawJsonData "crudo, nunca se pierde"
         enum status "PENDIENTE_CONFIGURACION|PROCESADO|COMPLETADO|ERROR"
-        bool isPre
+        enum surveyMoment "PRE|POST|CQS|UNKNOWN"
         bool isDuplicate
         string processingError
     }
@@ -113,7 +117,7 @@ erDiagram
         string subcategory
         float calculatedScore
         float maxPossible
-        bool isPrePost
+        bool isPrePost "true para PRE"
     }
     QUESTION_INSIGHT {
         string summary
@@ -133,7 +137,7 @@ sequenceDiagram
     JF->>API: POST /api/webhooks/jotform (header/query secreto)
     API->>API: valida JOTFORM_WEBHOOK_SECRET
     API->>SVC: ingest(body)
-    SVC->>SVC: normalizeJotform (rawRequest→JSON) + liftIdentifiers<br/>(detecta pre/post, participante, escuela, grupo…)
+    SVC->>SVC: normalizeJotform (rawRequest→JSON) + liftIdentifiers<br/>(detecta PRE/POST/CQS, participante, escuela, grupo…)
     SVC->>DB: upsert Submission (rawJsonData crudo,<br/>status=PENDIENTE_CONFIGURACION)
     SVC->>DB: upsert Participant
     SVC->>SVC: processSubmission(submissionId)
@@ -146,7 +150,7 @@ sequenceDiagram
         Note over DB: aparece en Ponderaciones / listado de pendientes
     else reglas completas → calcular
         SVC->>SVC: scoreAnswer + aggregate (scoring.ts)
-        SVC->>DB: findProcessedSibling (¿mismo participante+encuesta+pre/post ya procesado?)
+        SVC->>DB: findProcessedSibling (¿mismo participante+encuesta+momento ya procesado?)
         alt fallo inesperado
             SVC->>DB: markError(mensaje)
         else ok
@@ -184,7 +188,7 @@ Dos caminos conviven, según si el admin quiere configurar el instrumento
 ```mermaid
 sequenceDiagram
     participant Admin
-    participant FE as ScoringPage (JotformFormsCatalog / UnregisteredForms)
+    participant FE as SurveySettingsPage (JotformFormsCatalog / UnregisteredForms)
     participant API as Express
     participant SVC as surveys.service
     participant JF as Jotform API
@@ -193,8 +197,8 @@ sequenceDiagram
     rect rgb(240,245,248)
     Note over Admin,DB: Camino A — catálogo de formularios (proactivo)
     Admin->>FE: "Sincronizar" en el catálogo de formularios
-    FE->>API: POST /api/surveys/jotform/forms/sync
-    API->>SVC: syncJotformForms()
+    FE->>API: POST /api/surveys/jotform/forms/sync?accountId=...
+    API->>SVC: syncJotformForms(accountId?)
     SVC->>JF: GET /user/forms
     SVC->>DB: upsert JotformForm[] (diff: cuáles son nuevos)
     Admin->>FE: elige un formulario nuevo, sitio + tipo, "Asociar y procesar"
@@ -312,11 +316,15 @@ flowchart TD
 flowchart LR
     Login["/login"] --> Home["/home"]
     Home --> Surveys["/surveys — SurveysPage"]
+    Home --> Groups["/survey-groups — SurveyGroupsPage"]
+    Home --> Settings["/survey-settings — SurveySettingsPage"]
     Home --> Scoring["/scoring — ScoringPage"]
     Home --> Reports["/reports"]
 
-    Surveys -->|"filtrar, reprocesar,<br/>completar grupo pre/post"| APIsurveys[("API /api/surveys/*")]
-    Scoring -->|"ponderar, importar/exportar CSV,<br/>asociar instrumento, reprocesar en bloque"| APIsurveys
+    Surveys -->|"filtrar por PRE/POST/CQS,<br/>reprocesar, completar grupo"| APIsurveys[("API /api/surveys/*")]
+    Groups -->|"buscar grupos por fecha"| APIsurveys
+    Settings -->|"cuentas Jotform, asociar instrumento,<br/>importar históricos"| APIsurveys
+    Scoring -->|"ponderar, importar/exportar CSV,<br/>reprocesar en bloque"| APIsurveys
     Reports -->|"resultados agregados % pre/post"| APIreports[("API /api/reports/*")]
 
     subgraph Permisos
@@ -335,10 +343,9 @@ flowchart LR
     FU -.->|"si tiene featureKey 'scoring'"| Scoring
 ```
 
-Dentro de `/scoring`, la sección **"Instrumentos sin configurar"** (alta de
-formularios nuevos) solo se muestra si el usuario es `system_admin` u
-`org_admin` — es una decisión de a qué sitio pertenece un instrumento nuevo,
-no una tarea de ponderación cualquiera.
+Dentro de `/survey-settings`, las secciones de catálogo Jotform, instrumentos
+sin configurar e importación histórica solo se muestran a `system_admin` u
+`org_admin` — son decisiones de configuración, no de ponderación diaria.
 
 ## 8. Interacción completa: usuario configurando pesos hasta ver el reporte
 
@@ -380,11 +387,12 @@ sequenceDiagram
 | `POST` | `/api/webhooks/jotform` | Público (secreto) | Ingesta y dispara `processSubmission` |
 | `GET` | `/api/surveys` | `surveys` | Listado filtrable de respuestas |
 | `GET` | `/api/surveys/pending` | `surveys` | Solo `PENDIENTE_CONFIGURACION` |
-| `GET` | `/api/surveys/summary` / `POST /groups/complete` | `surveys` | Resumen y cierre por grupo pre/post |
+| `GET` | `/api/surveys/summary` / `POST /groups/complete` | `surveys` | Resumen y cierre por grupo PRE/POST |
+| `GET` | `/api/surveys/group-search` | `surveys` | Busqueda de grupos por fecha, conteos PRE/POST/CQS y mejora |
 | `POST` | `/api/surveys/:id/reprocess` | `surveys` | Reintenta una respuesta puntual |
 | `GET` | `/api/surveys/unregistered` | `system_admin`/`org_admin` | Formularios de Jotform sin asociar (camino B, §5) |
 | `GET` | `/api/surveys/jotform/forms` | `system_admin`/`org_admin` | Catálogo local de formularios (camino A, §5) |
-| `POST` | `/api/surveys/jotform/forms/sync` | `system_admin`/`org_admin` | `GET /user/forms` en Jotform + diff |
+| `POST` | `/api/surveys/jotform/forms/sync?accountId=:id` | `system_admin`/`org_admin` | `GET /user/forms` en Jotform por cuenta + diff |
 | `GET` | `/api/surveys/jotform/forms/:formId/questions` | `system_admin`/`org_admin` | Preview de preguntas/catálogo en vivo |
 | `GET` | `/api/catalog-fields` | Autenticado | Campos de catálogo (Grupo/Grado/...) — `catalogRouter` |
 | `POST` | `/api/surveys/definitions` | `system_admin`/`org_admin` | Da de alta un instrumento nuevo (§5) |

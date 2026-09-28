@@ -2,6 +2,17 @@
 
 Sistema web para administrar usuarios, organizaciones, sitios, evaluaciones Jotform, ponderaciones, resultados y reportes institucionales de EPI.
 
+## Super usuario inicial
+
+Despues de ejecutar `npm run db:seed -w apps/api`:
+
+```text
+Usuario: admin
+Password: Admin1234!
+```
+
+La cuenta se crea con `mustChangePassword=true`; al primer inicio se debe cambiar la contrasena.
+
 ## Levantar rapido
 
 Requisitos: Node.js 20+, npm y PostgreSQL.
@@ -26,6 +37,8 @@ Para datos iniciales:
 ```bash
 npm run db:seed -w apps/api
 ```
+
+Por defecto el seed crea catalogos base y el super usuario. Los datos demo solo se cargan con `SEED_DEMO=true`.
 
 ## Tecnologia
 

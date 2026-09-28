@@ -39,7 +39,10 @@ Rutas principales:
 | `/sites` | Sitios. |
 | `/categories` | Categorias/subcategorias. |
 | `/surveys` | Encuestas recibidas. |
+| `/survey-groups` | Busqueda de grupos por rango de fechas. |
 | `/scoring` | Instrumentos y ponderaciones. |
+| `/survey-settings` | Cuentas Jotform, catalogo de formularios, instrumentos sin registrar e historicos. |
+| `/jotform-accounts` | Administracion directa de cuentas Jotform. |
 | `/open-questions` | Analisis IA de preguntas abiertas. |
 | `/reports` | Reportes agregados. |
 | `/interactive-reports` | Reportes asignados interactivos. |
@@ -80,10 +83,10 @@ Ver [instalacion y despliegue](./instalacion.md).
 
 La integracion tiene dos entradas:
 
-- API de Jotform: sincroniza cuentas, formularios, preguntas y respuestas historicas.
+- API de Jotform: sincroniza formularios por cuenta conectada, preguntas y respuestas historicas.
 - Webhook: recibe respuestas nuevas en `/api/webhooks/jotform`.
 
-El JSON crudo de cada respuesta se conserva en `Submission.rawJsonData`. Si falta configuracion o ponderacion, la respuesta queda pendiente y puede reprocesarse.
+El JSON crudo de cada respuesta se conserva en `Submission.rawJsonData`. Cada submission guarda `surveyMoment` (`PRE`, `POST`, `CQS`, `UNKNOWN`). Si falta configuracion o ponderacion, la respuesta queda pendiente y puede reprocesarse.
 
 ## Documentos tecnicos detallados
 

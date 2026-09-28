@@ -60,10 +60,10 @@ Catalogos adicionales:
 
 ## Jotform
 
-En la seccion de evaluaciones/ponderaciones:
+En `/survey-settings`:
 
 1. Registrar cuenta Jotform con API key.
-2. Sincronizar formularios.
+2. Sincronizar formularios de una cuenta o de todas.
 3. Previsualizar preguntas.
 4. Registrar formulario como instrumento, asociando sitio y tipo (`LOCAL` o `VISITING`).
 5. Importar historicos si aplica.
@@ -80,6 +80,10 @@ En `/scoring`:
 5. Reprocesar pendientes.
 
 Solo respuestas `COMPLETADO` entran a reportes agregados.
+
+## Grupos
+
+En `/survey-groups` se consultan grupos por rango de fechas. La vista muestra escuela, fecha, alumnos que respondieron, conteos `PRE`, `POST`, `CQS` y mejora calculada cuando hay pre y post.
 
 ## Reportes
 

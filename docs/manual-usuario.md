@@ -15,12 +15,14 @@ En `/surveys` se consultan respuestas recibidas desde Jotform.
 
 Usos principales:
 
-- Filtrar por instrumento, sitio, tipo, estado, grupo, pre/post y fecha.
+- Filtrar por instrumento, sitio, tipo, estado, grupo, momento (`PRE`, `POST`, `CQS`) y fecha.
 - Ver respuestas pendientes de configuracion.
 - Ver errores de procesamiento.
 - Identificar posibles duplicados.
 - Reprocesar respuestas.
 - Completar grupos cuando ya existe informacion suficiente pre y post.
+
+En `/survey-groups` se buscan grupos por rango de fechas y se revisan alumnos respondientes, conteos `PRE`/`POST`/`CQS` y mejora calculada.
 
 Estados:
 

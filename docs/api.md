@@ -50,6 +50,7 @@ Todas las respuestas usan el wrapper compartido de `@epi/shared` (`apiSuccess` /
 | GET | `/api/surveys/pending` | Pendientes. |
 | GET | `/api/surveys/count` | Conteo desde fecha. |
 | GET | `/api/surveys/summary` | Resumen por grupo. |
+| GET | `/api/surveys/group-search` | Busqueda de grupos por rango de fechas. |
 | GET | `/api/surveys/groups` | Grupos. |
 | POST | `/api/surveys/groups/complete` | Marcar grupo completado. |
 | POST | `/api/surveys/:id/reprocess` | Reprocesar respuesta. |
@@ -71,7 +72,7 @@ Todas las respuestas usan el wrapper compartido de `@epi/shared` (`apiSuccess` /
 | POST | `/api/webhooks/jotform` | Webhook publico con secreto. |
 | GET | `/api/surveys/unregistered` | Formularios no registrados detectados por respuestas. |
 | GET | `/api/surveys/jotform/forms` | Catalogo sincronizado. |
-| POST | `/api/surveys/jotform/forms/sync` | Sincronizar formularios. |
+| POST | `/api/surveys/jotform/forms/sync?accountId=:id` | Sincronizar formularios de una cuenta; sin `accountId`, sincroniza todas. |
 | GET | `/api/surveys/jotform/forms/:formId/questions` | Previsualizar preguntas. |
 | GET | `/api/surveys/jotform/submissions` | Historicos disponibles. |
 | POST | `/api/surveys/jotform/submissions/import` | Importar historicos. |
