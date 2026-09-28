@@ -13,6 +13,7 @@ export function JotformAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,10 +34,12 @@ export function JotformAccountsPage() {
     if (!name.trim() || !apiKey.trim()) return;
     setSaving(true);
     setError(null);
+    setSuccess(null);
     try {
       await apiClient.post("/api/surveys/jotform/accounts", { name: name.trim(), apiKey: apiKey.trim() });
       setName("");
       setApiKey("");
+      setSuccess(t("jotformAccounts.connected"));
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.genericError"));
@@ -46,8 +49,14 @@ export function JotformAccountsPage() {
   }
 
   async function disconnect(account: JotformAccountDto) {
-    await apiClient.delete(`/api/surveys/jotform/accounts/${account.id}`);
-    await load();
+    setError(null);
+    setSuccess(null);
+    try {
+      await apiClient.delete(`/api/surveys/jotform/accounts/${account.id}`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("common.genericError"));
+    }
   }
 
   const columns: Column<JotformAccountDto>[] = [
@@ -80,6 +89,7 @@ export function JotformAccountsPage() {
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
+      {success && <p className="text-sm text-green-700">{success}</p>}
 
       <Card>
         <div className="flex flex-wrap items-end gap-2">

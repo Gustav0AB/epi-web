@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SurveyMoment } from "@prisma/client";
 import { JotformPayloadSchema, type JotformPayload } from "./surveys.schema.js";
 import { scoreAnswer, aggregate, type QuestionType } from "./scoring.js";
 import { summarizeOpenAnswers, AI_MODEL } from "./ai.js";
@@ -18,6 +18,8 @@ import {
   type HistoricalSubmissionsImportInput,
   type HistoricalSubmissionDto,
   type HistoricalImportResult,
+  type SurveyGroupSearch,
+  type SurveyGroupSearchResult,
 } from "@epi/shared";
 import { parseCsv } from "./csv.js";
 import {
@@ -50,7 +52,8 @@ export const surveysService = {
     const submission = await surveysRepository.upsertSubmission(
       payload.submissionID,
       payload as unknown as Prisma.InputJsonValue,
-      Boolean(payload.isPrePost),
+      isPreFromMoment(payload.surveyMoment),
+      payload.surveyMoment,
       receivedAtFromJotform(body)
     );
 
@@ -96,6 +99,7 @@ export const surveysService = {
   countSince: (from: Date, userId: string) =>
     resolveScope(userId).then((scope) => surveysRepository.countSince(from, scope)),
   groupSummary,
+  groupSearch,
   completeGroup,
   reportResults,
   reportFilterOptions,
@@ -259,7 +263,7 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
       subcategory: r.subcategory,
       calculatedScore: r.score,
       maxPossible: r.max,
-      isPrePost: Boolean(payload.isPrePost),
+      isPrePost: payload.surveyMoment === "PRE",
     }));
 
     const participantId = payload.participant?.id
@@ -273,7 +277,7 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
           await surveysRepository.findProcessedSibling({
             participantId,
             surveyDefinitionId: def.id,
-            isPre: submission.isPre,
+            surveyMoment: submission.surveyMoment,
             excludeSubmissionId: submissionId,
           })
         )
@@ -335,8 +339,8 @@ export async function listUnregisteredForms(): Promise<UnregisteredFormDto[]> {
 // ── catálogo de formularios de Jotform ────────────────────────────────
 
 /** GET /user/forms → guarda/actualiza el catálogo local y regresa el diff. */
-export async function syncJotformForms() {
-  const accounts = await jotformAccountsForApi();
+export async function syncJotformForms(accountId?: string) {
+  const accounts = await jotformAccountsForApi(accountId);
   const forms = (
     await Promise.all(
       accounts.map(async (account) =>
@@ -353,7 +357,12 @@ export async function listJotformForms() {
     surveysRepository.listJotformForms(),
     surveysRepository.registeredJotformFormIds(),
   ]);
-  return forms.map((f) => ({ ...f, accountName: f.account?.name ?? null, registered: registeredIds.has(f.id) }));
+  return forms.map((f) => ({
+    ...f,
+    accountName: f.account?.name ?? null,
+    registered: registeredIds.has(f.id),
+    syncedAt: f.syncedAt.toISOString(),
+  }));
 }
 
 /** GET /form/:id/questions en vivo, ya separado en preguntas ponderables vs. catálogo. */
@@ -367,16 +376,15 @@ function maskApiKey(apiKey: string) {
 }
 
 async function jotformApiKeys() {
-  const keys = (await jotformAccountsForApi()).map((a) => a.apiKey);
-  if (keys.length === 0) throw new Error("JOTFORM_API_KEY no configurada");
-  return keys;
+  return (await jotformAccountsForApi()).map((a) => a.apiKey);
 }
 
-async function jotformAccountsForApi() {
+async function jotformAccountsForApi(accountId?: string) {
   const accounts = await surveysRepository.listJotformAccounts();
-  const apiAccounts: { id: string | null; apiKey: string }[] = accounts.map((a) => ({ id: a.id, apiKey: a.apiKey }));
-  if (env.JOTFORM_API_KEY) apiAccounts.push({ id: null, apiKey: env.JOTFORM_API_KEY });
-  return apiAccounts;
+  if (accounts.length === 0) throw new Error("No hay cuentas Jotform conectadas");
+  const selected = accountId ? accounts.filter((a) => a.id === accountId) : accounts;
+  if (selected.length === 0) throw new Error("Cuenta Jotform no encontrada");
+  return selected.map((a) => ({ id: a.id, apiKey: a.apiKey }));
 }
 
 async function firstSuccessfulJotform<T>(fn: (apiKey: string) => Promise<T>) {
@@ -572,7 +580,7 @@ export async function groupSummary(userId: string) {
   const subs = await surveysRepository.listForSummary(scope);
   const groups = new Map<
     string,
-    { pre: number; post: number; students: Set<string>; blanks: number; statuses: string[] }
+    { pre: number; post: number; cqs: number; students: Set<string>; blanks: number; statuses: string[] }
   >();
 
   for (const s of subs) {
@@ -580,11 +588,12 @@ export async function groupSummary(userId: string) {
     if (!g) continue;
     let acc = groups.get(g);
     if (!acc) {
-      acc = { pre: 0, post: 0, students: new Set(), blanks: 0, statuses: [] };
+      acc = { pre: 0, post: 0, cqs: 0, students: new Set(), blanks: 0, statuses: [] };
       groups.set(g, acc);
     }
-    if (s.isPre === true) acc.pre++;
-    else if (s.isPre === false) acc.post++;
+    if (s.surveyMoment === "PRE") acc.pre++;
+    else if (s.surveyMoment === "POST") acc.post++;
+    else if (s.surveyMoment === "CQS") acc.cqs++;
     if (s.participantId) acc.students.add(s.participantId);
     acc.blanks += s._count.answers;
     acc.statuses.push(s.status);
@@ -594,11 +603,88 @@ export async function groupSummary(userId: string) {
     groupName,
     preCount: g.pre,
     postCount: g.post,
+    cqsCount: g.cqs,
     students: g.students.size,
     blanks: g.blanks,
     completed: g.statuses.length > 0 && g.statuses.every((st) => st === "COMPLETADO"),
     canComplete: g.pre > 0 && g.post > 0,
   }));
+}
+
+export async function groupSearch(input: SurveyGroupSearch, userId: string): Promise<SurveyGroupSearchResult> {
+  const scope = await resolveScope(userId);
+  const rows = await surveysRepository.groupSearchRows({
+    scope,
+    from: input.from,
+    to: input.to ? `${input.to}T23:59:59` : undefined,
+  });
+  return summarizeGroupSearchRows(rows);
+}
+
+export function summarizeGroupSearchRows(
+  rows: {
+    receivedAt: Date;
+    surveyMoment: SurveyMoment;
+    participantId: string | null;
+    participant: { school: string | null } | null;
+    results: { calculatedScore: number; maxPossible: number }[];
+  }[]
+): SurveyGroupSearchResult {
+  const groups = new Map<
+    string,
+    {
+      school: string;
+      date: string;
+      students: Set<string>;
+      preCount: number;
+      postCount: number;
+      cqsCount: number;
+      pre: number[];
+      post: number[];
+    }
+  >();
+
+  for (const row of rows) {
+    const date = row.receivedAt.toISOString().slice(0, 10);
+    const school = row.participant?.school?.trim() || "Sin escuela";
+    const key = `${date}||${school}`;
+    let acc = groups.get(key);
+    if (!acc) {
+      acc = { school, date, students: new Set(), preCount: 0, postCount: 0, cqsCount: 0, pre: [], post: [] };
+      groups.set(key, acc);
+    }
+    if (row.participantId) acc.students.add(row.participantId);
+    if (row.surveyMoment === "PRE") acc.preCount++;
+    else if (row.surveyMoment === "POST") acc.postCount++;
+    else if (row.surveyMoment === "CQS") acc.cqsCount++;
+
+    if (row.surveyMoment !== "PRE" && row.surveyMoment !== "POST") continue;
+    const scored = row.results.filter((r) => r.maxPossible > 0);
+    if (scored.length === 0) continue;
+    const pct =
+      scored.reduce((sum, r) => sum + (r.calculatedScore / r.maxPossible) * 100, 0) / scored.length;
+    (row.surveyMoment === "PRE" ? acc.pre : acc.post).push(pct);
+  }
+
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const rounded = (n: number) => Math.round(n * 10) / 10;
+  const resultRows = [...groups.entries()].map(([id, g]) => {
+    const pre = avg(g.pre);
+    const post = avg(g.post);
+    return {
+      id,
+      school: g.school,
+      date: g.date,
+      studentsResponded: g.students.size,
+      manager: null,
+      preCount: g.preCount,
+      postCount: g.postCount,
+      cqsCount: g.cqsCount,
+      improvementPercent: pre !== null && post !== null ? rounded(post - pre) : null,
+    };
+  });
+
+  return { totalGroups: resultRows.length, rows: resultRows };
 }
 
 /**
@@ -609,8 +695,8 @@ export async function groupSummary(userId: string) {
 export async function completeGroup(groupName: string, userId: string) {
   const scope = await resolveScope(userId);
   const subs = await surveysRepository.findGroupSubmissions(groupName, scope);
-  const hasPre = subs.some((s) => s.isPre === true);
-  const hasPost = subs.some((s) => s.isPre === false);
+  const hasPre = subs.some((s) => s.surveyMoment === "PRE");
+  const hasPost = subs.some((s) => s.surveyMoment === "POST");
   if (!hasPre || !hasPost) {
     throw Object.assign(
       new Error("El grupo necesita encuestas pre y post procesadas para completarse"),
@@ -774,13 +860,26 @@ export function liftIdentifiers(body: unknown): unknown {
     if (Number.isInteger(age) && age > 0) p.age = age;
   }
 
-  let isPrePost = b.isPrePost;
-  if (isPrePost === undefined) {
-    const raw = pick(RESERVED.isPre);
-    if (raw) isPrePost = /post/i.test(raw) ? false : /pre/i.test(raw) ? true : undefined;
-  }
+  const surveyMoment = momentFromRaw(b.surveyMoment ?? b.isPrePost ?? pick(RESERVED.isPre));
+  const isPrePost = surveyMoment === "PRE" ? true : surveyMoment === "POST" ? false : undefined;
 
-  return { ...b, participant: p.id ? p : b.participant, isPrePost };
+  return { ...b, participant: p.id ? p : b.participant, isPrePost, surveyMoment };
+}
+
+function momentFromRaw(value: unknown): SurveyMoment {
+  if (value === true) return "PRE";
+  if (value === false) return "POST";
+  const raw = String(value ?? "").trim();
+  if (/^pre$/i.test(raw)) return "PRE";
+  if (/^post$/i.test(raw)) return "POST";
+  if (/cqs|satisf/i.test(raw)) return "CQS";
+  return "UNKNOWN";
+}
+
+function isPreFromMoment(moment: SurveyMoment): boolean | null {
+  if (moment === "PRE") return true;
+  if (moment === "POST") return false;
+  return null;
 }
 
 // Claves del rawRequest plano que no son respuestas a preguntas.

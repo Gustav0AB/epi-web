@@ -18,6 +18,7 @@ surveysRouter.get("/", requireAuth, requireFunctionality("surveys"), surveysCont
 surveysRouter.get("/pending", requireAuth, requireFunctionality("surveys"), surveysController.listPending);
 surveysRouter.get("/count", requireAuth, requireFunctionality("surveys"), surveysController.countSince);
 surveysRouter.get("/summary", requireAuth, requireFunctionality("surveys"), surveysController.groupSummary);
+surveysRouter.get("/group-search", requireAuth, requireFunctionality("surveys"), surveysController.groupSearch);
 surveysRouter.post("/groups/complete", requireAuth, requireFunctionality("surveys"), surveysController.completeGroup);
 surveysRouter.get("/groups", requireAuth, requireFunctionality("surveys"), surveysController.listGroups);
 surveysRouter.get("/definitions", requireAuth, requireFunctionality("surveys", "scoring", "open_questions"), surveysController.listDefinitions);

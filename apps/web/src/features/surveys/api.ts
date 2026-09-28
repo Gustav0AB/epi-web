@@ -7,6 +7,7 @@ import type {
   HistoricalSubmissionDto,
   JotformFormDto,
   JotformFormsSyncResult,
+  JotformAccountDto,
   QuestionInsightDto,
   QuestionWithWeight,
   RegisterDefinitionInput,
@@ -14,6 +15,7 @@ import type {
   ReprocessPendingResult,
   SiteDto,
   SurveyDefinitionDto,
+  SurveyGroupSearchResult,
   SurveyListItem,
   UnregisteredFormDto,
   UpdateQuestionInput,
@@ -65,6 +67,7 @@ export const surveyApi = {
     }),
   sites: () => call<SiteDto[]>("/api/sites"),
   summary: () => call<GroupSummary[]>("/api/surveys/summary"),
+  groupSearch: (query: string) => call<SurveyGroupSearchResult>(`/api/surveys/group-search${query}`),
   historicalSubmissions: (query: string) =>
     call<HistoricalSubmissionDto[]>(`/api/surveys/jotform/submissions${query}`),
   importHistoricalSubmissions: (input: {
@@ -86,8 +89,11 @@ export const surveyApi = {
     }),
   unregisteredForms: () => call<UnregisteredFormDto[]>("/api/surveys/unregistered"),
   jotformForms: () => call<JotformFormDto[]>("/api/surveys/jotform/forms"),
-  syncJotformForms: () =>
-    call<JotformFormsSyncResult>("/api/surveys/jotform/forms/sync", { method: "POST" }),
+  jotformAccounts: () => call<JotformAccountDto[]>("/api/surveys/jotform/accounts"),
+  syncJotformForms: (accountId = "") =>
+    call<JotformFormsSyncResult>(`/api/surveys/jotform/forms/sync${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`, {
+      method: "POST",
+    }),
   previewFormQuestions: (formId: string) =>
     call<FormQuestionsPreviewDto>(`/api/surveys/jotform/forms/${formId}/questions`),
   registerDefinition: (input: RegisterDefinitionInput) =>

@@ -22,6 +22,7 @@ export type ReportBlockBase = {
   id: string;
   title?: string;
   description?: string;
+  required?: boolean;
 };
 
 export type KpiBlock = ReportBlockBase & {
@@ -82,6 +83,10 @@ export type ReportTemplate = {
   category: string; // libre: "operational" | "activities" | ...
   filters: ReportFilterField[];
   blocks: ReportBlock[];
+  defaults?: {
+    filters?: Record<string, string>;
+    textContent?: Record<string, string>;
+  };
 };
 
 // Datos resueltos para una plantilla dada: los bloques solo referencian
@@ -104,11 +109,17 @@ export function getFillableTextFields(template: ReportTemplate): { key: string; 
     .map((b) => ({ key: b.dataKey, label: b.title ?? b.dataKey }));
 }
 
+export function getRequiredFillableFields(template: ReportTemplate): { key: string; label: string }[] {
+  return template.blocks
+    .filter((b): b is (TextBlock | ImageBlock) & { dataKey: string } => (b.type === "text" || b.type === "image") && !!b.dataKey && b.required !== false)
+    .map((b) => ({ key: b.dataKey, label: b.title ?? b.dataKey }));
+}
+
 export function missingRequiredReportFields(template: ReportTemplate, data: ReportData, filters: Record<string, unknown> | null = null): string[] {
   const missingFilters = template.filters
     .filter((f) => f.required && !String(filters?.[f.key] ?? "").trim())
     .map((f) => f.label);
-  const missingContent = getFillableTextFields(template)
+  const missingContent = getRequiredFillableFields(template)
     .filter((f) => !String(data.texts[f.key] ?? "").trim())
     .map((f) => f.label);
   const hasData = Object.values(data.series).some((rows) => rows.length > 0) || Object.values(data.tables).some((rows) => rows.length > 0);

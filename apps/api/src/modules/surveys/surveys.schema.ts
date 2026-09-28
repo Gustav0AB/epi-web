@@ -8,7 +8,8 @@ export const JotformPayloadSchema = z
   .object({
     formID: z.string().min(1),
     submissionID: z.string().min(1),
-    isPrePost: z.coerce.boolean().optional().default(false),
+    isPrePost: z.boolean().optional(),
+    surveyMoment: z.enum(["PRE", "POST", "CQS", "UNKNOWN"]).optional().default("UNKNOWN"),
     participant: z
       .object({
         id: z.string().min(1),

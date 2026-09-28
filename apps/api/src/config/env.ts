@@ -14,9 +14,6 @@ const EnvSchema = z.object({
   // si se cambia de proveedor, esto y ai.ts son lo único que hay que tocar.
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
-  // API key de Jotform (cuenta) — para sincronizar el catálogo de
-  // formularios y descargar sus preguntas (jotform-client.ts).
-  JOTFORM_API_KEY: z.string().min(1).optional(),
   JOTFORM_API_BASE: z.string().url().default("https://api.jotform.com"),
   // Etiquetas de pregunta (tal como aparecen en Jotform, separadas por
   // coma) que se tratan como catálogo/filtro en vez de pregunta ponderable

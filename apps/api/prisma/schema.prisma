@@ -268,6 +268,7 @@ model Submission {
   participant         Participant?       @relation(fields: [participantId], references: [id])
   rawJsonData         Json // el JSON crudo — nunca se pierde
   isPre               Boolean? // true = pre-actividad, false = post; null = desconocido
+  surveyMoment        SurveyMoment      @default(UNKNOWN)
   status              SubmissionStatus   @default(PENDIENTE_CONFIGURACION)
   processingError     String? // detalle cuando status = ERROR, para revisión manual
   isDuplicate         Boolean            @default(false) // mismo participante+encuesta+momento ya procesado antes
@@ -398,6 +399,13 @@ enum ReportAssignmentStatus {
 enum SurveyType {
   LOCAL
   VISITING
+}
+
+enum SurveyMoment {
+  PRE
+  POST
+  CQS
+  UNKNOWN
 }
 
 enum QuestionType {

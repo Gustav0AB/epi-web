@@ -8,6 +8,7 @@ import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import PollOutlinedIcon from "@mui/icons-material/PollOutlined";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
@@ -17,6 +18,7 @@ import QuestionAnswerOutlinedIcon from "@mui/icons-material/QuestionAnswerOutlin
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
+import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 
 type NavItem = {
@@ -45,6 +47,13 @@ const navItems: NavItem[] = [
     kind: "functionality",
     featureKey: FEATURE_KEYS.SURVEYS,
     icon: <PollOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/survey-groups",
+    label: "nav.surveyGroups",
+    kind: "functionality",
+    featureKey: FEATURE_KEYS.SURVEYS,
+    icon: <SearchOutlinedIcon className="shrink-0" />,
   },
   {
     to: "/scoring",
@@ -96,6 +105,12 @@ const navItems: NavItem[] = [
     label: "nav.reportAssignments",
     kind: "admin_tier",
     icon: <AssignmentOutlinedIcon className="shrink-0" />,
+  },
+  {
+    to: "/survey-settings",
+    label: "nav.surveySettings",
+    kind: "admin_tier",
+    icon: <SettingsSuggestOutlinedIcon className="shrink-0" />,
   },
   {
     to: "/jotform-accounts",

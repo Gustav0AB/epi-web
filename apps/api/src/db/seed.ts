@@ -72,6 +72,13 @@ async function seedAdminUser() {
   console.log("  Password: Admin1234!");
 }
 
+async function removeDemoUsers() {
+  const { count } = await prisma.user.deleteMany({
+    where: { username: { in: ["org_admin_a", "org_admin_b", "report_viewer_demo"] } },
+  });
+  if (count) console.log(`Removed ${count} demo users.`);
+}
+
 // Fixture para probar aislamiento multiorganización en dev: dos
 // organizaciones, cada una con su sitio y su org_admin, para verificar que
 // uno no ve datos del otro sin tener que darlos de alta a mano.
@@ -309,7 +316,10 @@ async function main() {
   await seedReportTemplates();
   await seedInstitutionalPositions();
   await seedAdminUser();
-  if (process.env.NODE_ENV === "production") return;
+  if (process.env.SEED_DEMO !== "true") {
+    await removeDemoUsers();
+    return;
+  }
   await seedDemoOrganizations();
   await seedDemoReportData();
 }

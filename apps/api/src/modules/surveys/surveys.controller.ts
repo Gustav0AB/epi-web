@@ -5,6 +5,7 @@ import {
   SurveyFiltersSchema,
   WeightInputSchema,
   ReportFiltersSchema,
+  SurveyGroupSearchSchema,
   RegisterDefinitionSchema,
   UpdateQuestionSchema,
   CreateJotformAccountSchema,
@@ -144,9 +145,10 @@ export const surveysController = {
     }
   },
 
-  async syncJotformForms(_req: Request, res: Response, next: NextFunction) {
+  async syncJotformForms(req: Request, res: Response, next: NextFunction) {
     try {
-      res.json(apiSuccess(await surveysService.syncJotformForms()));
+      const accountId = typeof req.query.accountId === "string" ? req.query.accountId : undefined;
+      res.json(apiSuccess(await surveysService.syncJotformForms(accountId)));
     } catch (err) {
       const e = err as Error & { statusCode?: number; code?: string };
       if (e.statusCode) {
@@ -321,6 +323,15 @@ export const surveysController = {
   async groupSummary(req: Request, res: Response, next: NextFunction) {
     try {
       res.json(apiSuccess(await surveysService.groupSummary(req.user!.sub)));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async groupSearch(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = SurveyGroupSearchSchema.parse(req.query);
+      res.json(apiSuccess(await surveysService.groupSearch(input, req.user!.sub)));
     } catch (err) {
       next(err);
     }

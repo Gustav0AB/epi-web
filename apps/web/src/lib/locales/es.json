@@ -8,6 +8,7 @@
 
   "nav.home": "Inicio",
   "nav.surveys": "Encuestas",
+  "nav.surveyGroups": "Grupos",
   "nav.scoring": "Ponderaciones",
   "nav.users": "Usuarios",
   "nav.components": "Componentes",
@@ -18,6 +19,7 @@
   "nav.categories": "Categorías",
   "nav.auditLog": "Auditoría",
   "nav.reportAssignments": "Asignar reportes",
+  "nav.surveySettings": "Configuración de encuestas",
   "nav.jotformAccounts": "Cuentas Jotform",
   "nav.openQuestions": "Preguntas abiertas",
 
@@ -93,6 +95,22 @@
   "surveys.history.alreadyImported": "Ya importada",
   "surveys.history.ready": "Lista",
   "surveys.history.error": "Error al cargar respuestas históricas",
+  "surveys.history.updatedUntil": "Encuesta actualizada hasta",
+
+  "surveyGroups.title": "Búsqueda de grupos",
+  "surveyGroups.subtitle": "Consulta grupos por año o rango de fechas.",
+  "surveyGroups.totalGroups": "Grupos",
+  "surveyGroups.totalStudents": "Alumnos que respondieron",
+  "surveyGroups.withImprovement": "Con mejora calculada",
+  "surveyGroups.empty": "No hay grupos para este rango.",
+  "surveyGroups.table.school": "Escuela",
+  "surveyGroups.table.date": "Fecha",
+  "surveyGroups.table.students": "Alumnos",
+  "surveyGroups.table.manager": "Encargado",
+  "surveyGroups.table.improvement": "Mejora",
+
+  "surveySettings.title": "Configuración de encuestas",
+  "surveySettings.subtitle": "Sincroniza estructuras de Jotform, asocia formularios y recupera respuestas históricas cuando haga falta.",
 
   "scoring.title": "Ponderaciones",
   "scoring.subtitle": "Asigna los puntos de cada pregunta — manualmente o importando el CSV del sistema.",
@@ -162,6 +180,8 @@
   "jotformCatalog.title": "Catálogo de formularios (Jotform)",
   "jotformCatalog.body": "Formularios de la cuenta de Jotform. Sincroniza para traer los que se hayan agregado, y da de alta uno para empezar a recibir y ponderar sus respuestas antes de que lleguen.",
   "jotformCatalog.sync": "Sincronizar",
+  "jotformCatalog.account": "Cuenta",
+  "jotformCatalog.allAccounts": "Todas las cuentas",
   "jotformCatalog.syncResultPrefix": "Formularios nuevos encontrados:",
   "jotformCatalog.syncError": "Error al sincronizar con Jotform",
   "jotformCatalog.empty": "Sin formularios. Sincroniza para traer el catálogo de tu cuenta de Jotform.",
@@ -171,12 +191,14 @@
   "jotformCatalog.table.account": "Cuenta",
   "jotformCatalog.table.id": "Form ID (Jotform)",
   "jotformCatalog.table.status": "Estado",
+  "jotformCatalog.table.syncedAt": "Actualizada",
   "jotformCatalog.previewQuestions": "pregunta(s) a ponderar",
   "jotformCatalog.previewCatalog": "campo(s) de catálogo",
 
   "jotformAccounts.title": "Cuentas Jotform",
   "jotformAccounts.subtitle": "Agrega manualmente las API keys de Jotform que se usarán para sincronizar formularios.",
   "jotformAccounts.apiKey": "API key",
+  "jotformAccounts.connected": "Cuenta conectada correctamente.",
   "jotformAccounts.disconnect": "Desconectar",
   "jotformAccounts.empty": "No hay cuentas de Jotform guardadas.",
 

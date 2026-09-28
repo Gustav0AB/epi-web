@@ -4,7 +4,7 @@ import { REPORT_ASSIGNMENT_STATUSES } from "@epi/shared";
 import { Badge, Button, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
 import type { Column, DropdownOption } from "../../shared/components";
 import { apiClient } from "../../lib/api-client";
-import { REPORT_TEMPLATES, getFillableTextFields } from "./templates";
+import { REPORT_TEMPLATES, getFillableTextFields, getRequiredFillableFields } from "./templates";
 import { useI18n } from "../../lib/i18n";
 
 const STATUS_COLOR: Record<ReportAssignmentStatus, "gray" | "blue" | "green"> = {
@@ -87,13 +87,22 @@ export function ReportAssignmentsPage() {
     setModalOpen(true);
   }
 
+  function selectTemplate(templateKey: string) {
+    const template = REPORT_TEMPLATES[templateKey];
+    setForm((f) => ({ ...f, templateKey, title: f.title || template?.title || "" }));
+    if (!editing && template?.defaults) {
+      setFilters(template.defaults.filters ?? {});
+      setTextContent(template.defaults.textContent ?? {});
+    }
+  }
+
   async function handleSave() {
     if (!form.title.trim() || !form.templateKey) return;
     const selectedTemplate = REPORT_TEMPLATES[form.templateKey];
     const requiredMissing = selectedTemplate
       ? [
           ...selectedTemplate.filters.filter((f) => f.required && !filters[f.key]?.trim()).map((f) => f.label),
-          ...getFillableTextFields(selectedTemplate).filter((f) => !textContent[f.key]?.trim()).map((f) => f.label),
+          ...getRequiredFillableFields(selectedTemplate).filter((f) => !textContent[f.key]?.trim()).map((f) => f.label),
         ]
       : [];
     if (status === "published" && requiredMissing.length) {
@@ -218,7 +227,7 @@ export function ReportAssignmentsPage() {
             label={t("reportAssignments.table.template")}
             options={templateOptions}
             value={form.templateKey}
-            onChange={(v) => setForm((f) => ({ ...f, templateKey: v }))}
+            onChange={selectTemplate}
           />
           <TextField
             label={t("reportAssignments.table.title")}

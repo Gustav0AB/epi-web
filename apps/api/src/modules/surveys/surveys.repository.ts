@@ -1,5 +1,5 @@
 import { prisma } from "../../db/prisma.js";
-import type { Prisma, QuestionType } from "@prisma/client";
+import type { Prisma, QuestionType, SurveyMoment } from "@prisma/client";
 import type { SurveyFilters, WeightInput } from "@epi/shared";
 
 // Alcance de un usuario sobre encuestas: sitios permitidos (ya sin los
@@ -21,11 +21,17 @@ export function scopeToDefinitionWhere(scope?: SurveyScope): Prisma.SurveyDefini
 
 export const surveysRepository = {
   // Idempotente: reenvíos del mismo webhook no duplican la submission.
-  upsertSubmission(jotformSubmissionId: string, rawJsonData: Prisma.InputJsonValue, isPre: boolean, receivedAt?: Date) {
+  upsertSubmission(
+    jotformSubmissionId: string,
+    rawJsonData: Prisma.InputJsonValue,
+    isPre: boolean | null,
+    surveyMoment: SurveyMoment,
+    receivedAt?: Date
+  ) {
     return prisma.submission.upsert({
       where: { jotformSubmissionId },
-      create: { jotformSubmissionId, rawJsonData, isPre, ...(receivedAt ? { receivedAt } : {}) },
-      update: { rawJsonData, isPre, ...(receivedAt ? { receivedAt } : {}) },
+      create: { jotformSubmissionId, rawJsonData, isPre, surveyMoment, ...(receivedAt ? { receivedAt } : {}) },
+      update: { rawJsonData, isPre, surveyMoment, ...(receivedAt ? { receivedAt } : {}) },
     });
   },
 
@@ -100,6 +106,7 @@ export const surveysRepository = {
     if (filters.status) where.status = filters.status;
     if (filters.surveyDefinitionId) where.surveyDefinitionId = filters.surveyDefinitionId;
     if (filters.isPre !== undefined) where.isPre = filters.isPre;
+    if (filters.surveyMoment) where.surveyMoment = filters.surveyMoment;
     const participant: Prisma.ParticipantWhereInput = {};
     if (filters.groupName) participant.groupName = filters.groupName;
     if (filters.school) participant.school = filters.school;
@@ -155,6 +162,7 @@ export const surveysRepository = {
       select: {
         id: true,
         isPre: true,
+        surveyMoment: true,
         status: true,
         participantId: true,
         participant: { select: { groupName: true } },
@@ -172,7 +180,7 @@ export const surveysRepository = {
         status: { in: ["PROCESADO", "COMPLETADO"] },
         surveyDefinition: definition,
       },
-      select: { id: true, isPre: true, status: true },
+      select: { id: true, isPre: true, surveyMoment: true, status: true },
     });
   },
 
@@ -200,7 +208,7 @@ export const surveysRepository = {
     from?: string | undefined;
     to?: string | undefined;
   }) {
-    const where: Prisma.SubmissionWhereInput = { status: "COMPLETADO" };
+    const where: Prisma.SubmissionWhereInput = { status: "COMPLETADO", surveyMoment: { in: ["PRE", "POST"] } };
     const definition: Prisma.SurveyDefinitionWhereInput = {};
     if (args.scope?.siteIds) definition.siteId = { in: args.scope.siteIds };
     if (args.scope?.excludedSurveyDefinitionIds?.length) definition.id = { notIn: args.scope.excludedSurveyDefinitionIds };
@@ -226,6 +234,38 @@ export const surveysRepository = {
             calculatedScore: true,
             maxPossible: true,
             isPrePost: true,
+          },
+        },
+      },
+    });
+  },
+
+  groupSearchRows(args: { scope?: SurveyScope | undefined; from?: string | undefined; to?: string | undefined }) {
+    const definition = scopeToDefinitionWhere(args.scope) ?? {};
+    const where: Prisma.SubmissionWhereInput = {
+      status: { in: ["PROCESADO", "COMPLETADO"] },
+      participant: { isNot: null },
+      surveyDefinition: definition,
+    };
+    if (args.from || args.to) {
+      where.receivedAt = {
+        ...(args.from ? { gte: new Date(args.from) } : {}),
+        ...(args.to ? { lte: new Date(args.to) } : {}),
+      };
+    }
+    return prisma.submission.findMany({
+      where,
+      orderBy: { receivedAt: "desc" },
+      select: {
+        id: true,
+        receivedAt: true,
+        surveyMoment: true,
+        participantId: true,
+        participant: { select: { school: true } },
+        results: {
+          select: {
+            calculatedScore: true,
+            maxPossible: true,
           },
         },
       },
@@ -437,7 +477,7 @@ export const surveysRepository = {
   findProcessedSibling(args: {
     participantId: string;
     surveyDefinitionId: string;
-    isPre: boolean | null;
+    surveyMoment: SurveyMoment;
     excludeSubmissionId: string;
   }) {
     return prisma.submission.findFirst({
@@ -445,7 +485,7 @@ export const surveysRepository = {
         id: { not: args.excludeSubmissionId },
         participantId: args.participantId,
         surveyDefinitionId: args.surveyDefinitionId,
-        isPre: args.isPre,
+        surveyMoment: args.surveyMoment,
         status: { in: ["PROCESADO", "COMPLETADO"] },
       },
       select: { id: true },

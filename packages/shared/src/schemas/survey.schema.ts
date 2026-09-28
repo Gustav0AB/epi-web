@@ -9,6 +9,9 @@ export const SUBMISSION_STATUSES = [
 ] as const;
 export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
 
+export const SURVEY_MOMENTS = ["PRE", "POST", "CQS", "UNKNOWN"] as const;
+export type SurveyMoment = (typeof SURVEY_MOMENTS)[number];
+
 // Tipos de pregunta (deben coincidir con el enum QuestionType de Prisma).
 export const QUESTION_TYPES = ["LIKERT", "ONE_ANSWER", "FREQUENCY", "OPEN_TEXT"] as const;
 export type QuestionTypeValue = (typeof QUESTION_TYPES)[number];
@@ -87,6 +90,7 @@ export const SurveyFiltersSchema = z.object({
   type: z.enum(["LOCAL", "VISITING"]).optional(),
   school: z.string().trim().min(1).optional(),
   isPre: queryBool, // true = pre-actividad, false = post
+  surveyMoment: z.enum(SURVEY_MOMENTS).optional(),
   status: z.enum(SUBMISSION_STATUSES).optional(),
   from: z.string().trim().min(1).optional(), // fecha ISO (>= receivedAt)
   to: z.string().trim().min(1).optional(), // fecha ISO (<= receivedAt)
@@ -95,6 +99,12 @@ export const SurveyFiltersSchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
 });
 export type SurveyFilters = z.infer<typeof SurveyFiltersSchema>;
+
+export const SurveyGroupSearchSchema = z.object({
+  from: z.string().trim().min(1).optional(),
+  to: z.string().trim().min(1).optional(),
+});
+export type SurveyGroupSearch = z.infer<typeof SurveyGroupSearchSchema>;
 
 // Filtros del dashboard de reportes (solo encuestas COMPLETADO).
 export const ReportFiltersSchema = z.object({
@@ -162,6 +172,7 @@ export type SurveyListItem = {
   id: string;
   status: SubmissionStatus;
   isPre: boolean | null;
+  surveyMoment: SurveyMoment;
   receivedAt: string;
   processedAt: string | null;
   processingError: string | null;
@@ -186,6 +197,7 @@ export type JotformFormDto = {
   status: string;
   registered: boolean;
   accountName: string | null;
+  syncedAt: string;
 };
 
 export type JotformFormsSyncResult = { added: string[]; total: number };
@@ -254,10 +266,28 @@ export type GroupSummary = {
   groupName: string;
   preCount: number;
   postCount: number;
+  cqsCount: number;
   students: number; // participantes distintos
   blanks: number; // respuestas en blanco (no cuentan para el cálculo)
   completed: boolean; // todas sus submissions ya están COMPLETADO
   canComplete: boolean; // tiene pre y post procesados
+};
+
+export type SurveyGroupSearchRow = {
+  id: string;
+  school: string;
+  date: string;
+  studentsResponded: number;
+  manager: string | null;
+  preCount: number;
+  postCount: number;
+  cqsCount: number;
+  improvementPercent: number | null;
+};
+
+export type SurveyGroupSearchResult = {
+  totalGroups: number;
+  rows: SurveyGroupSearchRow[];
 };
 
 // Fila del dashboard de reportes: % pre, % post y cambio por subcategoría.

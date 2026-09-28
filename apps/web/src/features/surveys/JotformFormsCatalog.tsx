@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FormQuestionsPreviewDto, JotformFormDto, SiteDto } from "@epi/shared";
+import type { FormQuestionsPreviewDto, JotformAccountDto, JotformFormDto, SiteDto } from "@epi/shared";
 import { Badge, Button, Card, Dropdown, Label, Modal } from "../../shared/components";
 import type { DropdownOption } from "../../shared/components";
 import { surveyApi } from "./api";
@@ -18,6 +18,8 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
     { label: t("unregistered.typeVisiting"), value: "VISITING" },
   ];
   const [forms, setForms] = useState<JotformFormDto[]>([]);
+  const [accounts, setAccounts] = useState<JotformAccountDto[]>([]);
+  const [accountId, setAccountId] = useState("");
   const [sites, setSites] = useState<SiteDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -37,6 +39,7 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
 
   useEffect(() => {
     load();
+    void surveyApi.jotformAccounts().then(setAccounts).catch(() => {});
     void surveyApi.sites().then(setSites).catch(() => {});
   }, []);
 
@@ -44,7 +47,7 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
     setSyncing(true);
     setSyncMessage(null);
     try {
-      const result = await surveyApi.syncJotformForms();
+      const result = await surveyApi.syncJotformForms(accountId);
       setSyncMessage(`${t("jotformCatalog.syncResultPrefix")} ${result.added.length}`);
       load();
     } catch (e) {
@@ -83,14 +86,23 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
     { label: t("unregistered.selectSitePlaceholder"), value: "" },
     ...sites.map((s) => ({ label: s.name, value: s.id })),
   ];
+  const accountOptions: DropdownOption[] = [
+    { label: t("jotformCatalog.allAccounts"), value: "" },
+    ...accounts.map((a) => ({ label: a.name, value: a.id })),
+  ];
 
   return (
     <Card>
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 flex flex-wrap items-end justify-between gap-3">
         <Label variant="subtitle">{t("jotformCatalog.title")}</Label>
-        <Button size="sm" variant="secondary" loading={syncing} onClick={handleSync}>
-          {t("jotformCatalog.sync")}
-        </Button>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-52">
+            <Dropdown label={t("jotformCatalog.account")} options={accountOptions} value={accountId} onChange={setAccountId} />
+          </div>
+          <Button size="sm" variant="secondary" loading={syncing} onClick={handleSync}>
+            {t("jotformCatalog.sync")}
+          </Button>
+        </div>
       </div>
       <p className="mb-4 text-sm text-gray-500">{t("jotformCatalog.body")}</p>
       {syncMessage && <p className="mb-3 text-sm text-primary">{syncMessage}</p>}
@@ -108,6 +120,7 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
                 <th className="py-2 font-medium">{t("jotformCatalog.table.account")}</th>
                 <th className="py-2 font-medium">{t("jotformCatalog.table.id")}</th>
                 <th className="py-2 font-medium">{t("jotformCatalog.table.status")}</th>
+                <th className="py-2 font-medium">{t("jotformCatalog.table.syncedAt")}</th>
                 <th className="py-2" />
               </tr>
             </thead>
@@ -124,6 +137,7 @@ export function JotformFormsCatalog({ onRegistered }: { onRegistered: () => void
                       <Badge color="blue">{t("jotformCatalog.new")}</Badge>
                     )}
                   </td>
+                  <td className="py-2 text-gray-600">{new Date(f.syncedAt).toLocaleString()}</td>
                   <td className="py-2 text-right">
                     {!f.registered && (
                       <Button size="sm" onClick={() => openModal(f)}>

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { normalizeJotform } from "./surveys.service.js";
+import { liftIdentifiers, normalizeJotform } from "./surveys.service.js";
 
 const flatRawRequest = {
   q3_dropdown1: "Grupo 1",
@@ -57,5 +57,13 @@ assert.deepStrictEqual(
   normalizedApi.answers.find((a) => a.questionId === "q5_number3"),
   { questionId: "q5_number3", value: "20" }
 );
+
+const cqsBody = {
+  formID: "form-cqs",
+  submissionID: "sub-cqs",
+  answers: [{ questionId: "momento", value: "Satisfacción" }],
+};
+
+assert.strictEqual((liftIdentifiers(cqsBody) as typeof cqsBody & { surveyMoment: string }).surveyMoment, "CQS");
 
 console.log("✓ jotform-ingest (normalizeJotform) self-check passed");

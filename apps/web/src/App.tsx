@@ -9,7 +9,9 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { UsersPage } from "./features/users/UsersPage";
 import { SurveysPage } from "./features/surveys/SurveysPage";
+import { SurveyGroupsPage } from "./features/surveys/SurveyGroupsPage";
 import { ScoringPage } from "./features/surveys/ScoringPage";
+import { SurveySettingsPage } from "./features/surveys/SurveySettingsPage";
 import { JotformAccountsPage } from "./features/surveys/JotformAccountsPage";
 import { OpenQuestionsPage } from "./features/open-questions/OpenQuestionsPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
@@ -73,6 +75,7 @@ export default function App() {
         <Route element={<RoleGate allow="functionality" featureKey="surveys" />}>
           <Route element={<AppLayout />}>
             <Route path="/surveys" element={<SurveysPage />} />
+            <Route path="/survey-groups" element={<SurveyGroupsPage />} />
           </Route>
         </Route>
         <Route element={<RoleGate allow="functionality" featureKey="scoring" />}>
@@ -107,6 +110,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/survey-settings" element={<SurveySettingsPage />} />
             <Route path="/report-assignments" element={<ReportAssignmentsPage />} />
             <Route path="/jotform-accounts" element={<JotformAccountsPage />} />
           </Route>

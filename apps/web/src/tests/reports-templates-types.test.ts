@@ -21,7 +21,7 @@ describe("getFillableTextFields", () => {
     ]);
   });
 
-  it("treats dynamic images as required fillable fields", () => {
+  it("allows templates to make dynamic images optional", () => {
     const template: ReportTemplate = {
       key: "demo",
       title: "Demo",
@@ -29,7 +29,7 @@ describe("getFillableTextFields", () => {
       filters: [{ key: "school", label: "Escuela", kind: "text", required: true }],
       blocks: [
         { id: "quote", type: "text", title: "Quote", dataKey: "quote" },
-        { id: "photo", type: "image", title: "Photo", dataKey: "photoUrl" },
+        { id: "photo", type: "image", title: "Photo", dataKey: "photoUrl", required: false },
       ],
     };
 
@@ -39,7 +39,6 @@ describe("getFillableTextFields", () => {
     ]);
     expect(missingRequiredReportFields(template, { kpis: {}, series: {}, tables: {}, texts: { quote: "ok" } }, {})).toEqual([
       "Escuela",
-      "Photo",
       "Resultados pre/post",
     ]);
   });

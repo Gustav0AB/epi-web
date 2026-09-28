@@ -11,9 +11,6 @@ import { QUESTION_TYPES, WEIGHT_CSV_COLUMNS } from "@epi/shared";
 import { Button, Card, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
 import type { Column, DropdownOption } from "../../shared/components";
 import { surveyApi } from "./api";
-import { useAuthStore } from "../../store/auth.store";
-import { UnregisteredForms } from "./UnregisteredForms";
-import { JotformFormsCatalog } from "./JotformFormsCatalog";
 import { useI18n } from "../../lib/i18n";
 
 const QUESTION_TYPE_OPTIONS: DropdownOption[] = QUESTION_TYPES.map((t) => ({ label: t, value: t }));
@@ -55,8 +52,6 @@ export function ScoringPage() {
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [savingAll, setSavingAll] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const role = useAuthStore((s) => s.currentUser?.role);
-  const isAdmin = role === "system_admin" || role === "org_admin";
 
   const loadDefinitions = useCallback(() => {
     void surveyApi.definitions().then(setDefinitions).catch(() => {});
@@ -383,9 +378,6 @@ export function ScoringPage() {
           {t("scoring.subtitle")}
         </p>
       </div>
-
-      {isAdmin && <JotformFormsCatalog onRegistered={loadDefinitions} />}
-      {isAdmin && <UnregisteredForms onRegistered={loadDefinitions} />}
 
       <Card>
         <div className="flex flex-wrap items-end gap-4">

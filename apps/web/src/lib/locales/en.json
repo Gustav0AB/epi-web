@@ -8,6 +8,7 @@
 
   "nav.home": "Home",
   "nav.surveys": "Surveys",
+  "nav.surveyGroups": "Groups",
   "nav.scoring": "Weights",
   "nav.users": "Users",
   "nav.components": "Components",
@@ -18,6 +19,7 @@
   "nav.categories": "Categories",
   "nav.auditLog": "Audit log",
   "nav.reportAssignments": "Assign reports",
+  "nav.surveySettings": "Survey settings",
   "nav.jotformAccounts": "Jotform accounts",
   "nav.openQuestions": "Open questions",
 
@@ -93,6 +95,22 @@
   "surveys.history.alreadyImported": "Already imported",
   "surveys.history.ready": "Ready",
   "surveys.history.error": "Failed to load historical responses",
+  "surveys.history.updatedUntil": "Survey updated through",
+
+  "surveyGroups.title": "Group search",
+  "surveyGroups.subtitle": "Search groups by year or date range.",
+  "surveyGroups.totalGroups": "Groups",
+  "surveyGroups.totalStudents": "Students who responded",
+  "surveyGroups.withImprovement": "With calculated improvement",
+  "surveyGroups.empty": "No groups found for this range.",
+  "surveyGroups.table.school": "School",
+  "surveyGroups.table.date": "Date",
+  "surveyGroups.table.students": "Students",
+  "surveyGroups.table.manager": "Manager",
+  "surveyGroups.table.improvement": "Improvement",
+
+  "surveySettings.title": "Survey settings",
+  "surveySettings.subtitle": "Sync Jotform structures, link forms, and recover historical responses when needed.",
 
   "scoring.title": "Weights",
   "scoring.subtitle": "Assign points to each question — manually or by importing the system CSV.",
@@ -162,6 +180,8 @@
   "jotformCatalog.title": "Form catalog (Jotform)",
   "jotformCatalog.body": "Forms from the Jotform account. Sync to pull in any new ones, and register a form to start receiving and scoring its responses before they arrive.",
   "jotformCatalog.sync": "Sync",
+  "jotformCatalog.account": "Account",
+  "jotformCatalog.allAccounts": "All accounts",
   "jotformCatalog.syncResultPrefix": "New forms found:",
   "jotformCatalog.syncError": "Failed to sync with Jotform",
   "jotformCatalog.empty": "No forms yet. Sync to pull the catalog from your Jotform account.",
@@ -171,12 +191,14 @@
   "jotformCatalog.table.account": "Account",
   "jotformCatalog.table.id": "Form ID (Jotform)",
   "jotformCatalog.table.status": "Status",
+  "jotformCatalog.table.syncedAt": "Updated",
   "jotformCatalog.previewQuestions": "question(s) to score",
   "jotformCatalog.previewCatalog": "catalog field(s)",
 
   "jotformAccounts.title": "Jotform accounts",
   "jotformAccounts.subtitle": "Manually add the Jotform API keys used to sync forms.",
   "jotformAccounts.apiKey": "API key",
+  "jotformAccounts.connected": "Account connected successfully.",
   "jotformAccounts.disconnect": "Disconnect",
   "jotformAccounts.empty": "No Jotform accounts saved.",
 
