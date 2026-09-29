@@ -107,7 +107,7 @@ erDiagram
 | Rol de la especificación | `Role` en el código | Alcance implementado |
 |---|---|---|
 | Administrador del sistema | `system_admin` | Global. `organizationId = null`. Único que crea organizaciones y sitios. |
-| Administrador de organización | `org_admin` | Su propia organización: usuarios, reset de contraseña, sitios (lectura), catálogo compartido. |
+| Administrador de organización | `org_admin` | Su propia organización: usuarios, reset de contraseña, sitios, instrumentos y reportes asignados dentro de su alcance. No ve el catálogo global ni las cuentas Jotform. |
 | Usuario Operativo | `functionality_user` | Solo los `featureKeys` (`home`/`surveys`/`scoring`) que el admin le asignó explícitamente. |
 | Visualizador de reportes | `report_viewer` | Solo los `reportTemplateKeys` (`reports`/`interactive_reports`/...) asignados. |
 
@@ -444,22 +444,22 @@ en vez de improvisar la respuesta de negocio:
   resueltos; UI de gestión en `/report-assignments`
   (`ReportAssignmentsPage.tsx`).
   ~~**Con un límite deliberado:** `GET /:id/data` siempre devuelve vacío.~~
-  Corregido parcialmente: `modules/reports-assignment/report-data-resolvers.ts`
+  Corregido: `modules/reports-assignment/report-data-resolvers.ts`
   es un registro `templateKey → resolver` — `GET /:id/data` ahora calcula
   kpis/series/tables reales para las plantillas que tienen resolver
-  registrado (hoy: `seasonal-site-report`, una plantilla de **prueba** que
-  valida el pipeline completo con datos que sí existen). Las dos plantillas
-  de ejemplo originales (`operational-financial`, `activities-attendance`,
-  marcadas en el propio código como "Ejemplo 1"/"Ejemplo 2") siguen sin
-  resolver — piden datos (ingresos/gastos, asistencia) que no existen en el
-  modelo, y una plantilla sin resolver sigue devolviendo
+  registrado. El catálogo visible contiene solo NCSSM, Burr and Burton y
+  Templeton Academy, correspondientes a los tres PDFs de `/templates`.
+  El seed ofrece datos completos de muestra para esas tres variantes; una
+  plantilla sin resolver sigue devolviendo
   `{ kpis: {}, series: {}, tables: {} }` como antes (el `ReportRenderer` ya
   maneja bien ese caso). El alcance de sitios de cada resolver es el del
   **usuario asignado al reporte**, no el de quien lo consulta. Además:
   `AssignedReport.textContent` (Json, versionado igual que `filters`)
   guarda los campos de texto libre (logros, retos...) que cada plantilla
-  declara y que el operativo llena desde `ReportAssignmentsPage.tsx`; el
-  donante puede mover un filtro Sitio/Global acotado a su propio alcance; y
+  declara y que el operativo llena desde `ReportAssignmentsPage.tsx`; una
+  asignación puede incluir una o varias plantillas y `filters.siteIds` (vacío
+  = todos los sitios permitidos; con valores = uno o varios sitios); el
+  donante puede mover el filtro Sitio/Global solo dentro de esos sitios; y
   la descarga es un PDF real (`@react-pdf/renderer`, ya no `window.print()`).
   Detalle completo, con diagrama de secuencia, en
   [arquitectura-front-backend.md §7](./arquitectura-front-backend.md#7-reportes-dos-sistemas-distintos-conviviendo).

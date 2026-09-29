@@ -51,10 +51,23 @@ export function InteractiveReportsPage() {
     void surveyApi
       .reportFilters()
       .then((f) =>
-        setSiteOptions([{ label: t("reports.allSites"), value: "" }, ...f.sites.map((s) => ({ label: s.name, value: s.id }))])
+        setSiteOptions((current) => {
+          const allowed = selected?.filters?.siteIds;
+          const siteIds =
+            typeof allowed === "string"
+              ? allowed.split(",").filter(Boolean)
+              : [];
+          const sites = siteIds.length
+            ? f.sites.filter((site) => siteIds.includes(site.id))
+            : f.sites;
+          return [
+            { label: t("reports.allSites"), value: "" },
+            ...sites.map((s) => ({ label: s.name, value: s.id })),
+          ];
+        }),
       )
       .catch(() => {});
-  }, [t]);
+  }, [selected, t]);
 
   function openReport(report: AssignedReport) {
     setSelected(report);
@@ -62,40 +75,62 @@ export function InteractiveReportsPage() {
     setSiteId("");
     setData(null);
     if (report.status !== "published") {
-      setSelectedError("Este reporte todavia no esta aprobado para visualizarse.");
+      setSelectedError(
+        "Este reporte todavia no esta aprobado para visualizarse.",
+      );
       return;
     }
     setSelectedError(null);
-    void reportsApi.data(report.id).then(setData).catch((e: unknown) => {
-      setData(null);
-      setSelectedError(e instanceof Error ? e.message : "No se pudo cargar el reporte.");
-    });
+    void reportsApi
+      .data(report.id)
+      .then(setData)
+      .catch((e: unknown) => {
+        setData(null);
+        setSelectedError(
+          e instanceof Error ? e.message : "No se pudo cargar el reporte.",
+        );
+      });
   }
 
   function changeSite(nextSiteId: string) {
     setSiteId(nextSiteId);
     if (!selected) return;
-    void reportsApi.data(selected.id, nextSiteId).then(setData).catch((e: unknown) => {
-      setData(null);
-      setSelectedError(e instanceof Error ? e.message : "No se pudo cargar el reporte.");
-    });
+    void reportsApi
+      .data(selected.id, nextSiteId)
+      .then(setData)
+      .catch((e: unknown) => {
+        setData(null);
+        setSelectedError(
+          e instanceof Error ? e.message : "No se pudo cargar el reporte.",
+        );
+      });
   }
 
-  const template = selected ? getReportTemplate(selected.templateKey) : undefined;
-  const siteLabel = siteOptions.find((o) => o.value === siteId)?.label ?? t("reports.allSites");
-  const missingFields = selected && template && data ? missingRequiredReportFields(template, data, selected.filters) : [];
+  const template = selected
+    ? getReportTemplate(selected.templateKey)
+    : undefined;
+  const siteLabel =
+    siteOptions.find((o) => o.value === siteId)?.label ?? t("reports.allSites");
+  const missingFields =
+    selected && template && data
+      ? missingRequiredReportFields(template, data, selected.filters)
+      : [];
 
   // Detalle de un reporte: interactivo o documento oficial.
   if (selected && template && (selectedError || missingFields.length > 0)) {
     return (
       <div className="space-y-4">
-        <button onClick={() => setSelected(null)} className="text-sm font-medium text-primary hover:underline">
+        <button
+          onClick={() => setSelected(null)}
+          className="text-sm font-medium text-primary hover:underline"
+        >
           {t("interactiveReports.backToAll")}
         </button>
         <Card>
           <p className="font-medium text-gray-900">{selected.title}</p>
           <p className="mt-2 text-sm text-gray-500">
-            {selectedError ?? `Faltan datos para generar el reporte: ${missingFields.join(", ")}.`}
+            {selectedError ??
+              `Faltan datos para generar el reporte: ${missingFields.join(", ")}.`}
           </p>
         </Card>
       </div>
@@ -105,19 +140,32 @@ export function InteractiveReportsPage() {
   if (selected && template && data) {
     const appliedFilters = [
       { label: t("reports.site"), value: siteLabel },
-      { label: t("surveys.filter.status"), value: STATUS_LABELS[selected.status] },
-      { label: t("interactiveReports.updatedLabel"), value: new Date(selected.updatedAt).toLocaleDateString(locale) },
+      {
+        label: t("surveys.filter.status"),
+        value: STATUS_LABELS[selected.status],
+      },
+      {
+        label: t("interactiveReports.updatedLabel"),
+        value: new Date(selected.updatedAt).toLocaleDateString(locale),
+      },
     ];
 
     if (documentView) {
       return (
         <div className="space-y-4">
           <div className="print:hidden">
-            <button onClick={() => setDocumentView(false)} className="text-sm font-medium text-primary hover:underline">
+            <button
+              onClick={() => setDocumentView(false)}
+              className="text-sm font-medium text-primary hover:underline"
+            >
               {t("interactiveReports.backToInteractive")}
             </button>
           </div>
-          <DocumentReportPage template={template} data={data} appliedFilters={appliedFilters} />
+          <DocumentReportPage
+            template={template}
+            data={data}
+            appliedFilters={appliedFilters}
+          />
         </div>
       );
     }
@@ -126,19 +174,36 @@ export function InteractiveReportsPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <button onClick={() => setSelected(null)} className="text-sm font-medium text-primary hover:underline">
+            <button
+              onClick={() => setSelected(null)}
+              className="text-sm font-medium text-primary hover:underline"
+            >
               {t("interactiveReports.backToAll")}
             </button>
-            <Label variant="title" className="mt-1 block">{template.title}</Label>
+            <Label variant="title" className="mt-1 block">
+              {template.title}
+            </Label>
           </div>
           <div className="flex items-center gap-3">
             {siteOptions.length > 0 && (
               <div className="w-48">
-                <Dropdown label={t("reports.site")} options={siteOptions} value={siteId} onChange={changeSite} />
+                <Dropdown
+                  label={t("reports.site")}
+                  options={siteOptions}
+                  value={siteId}
+                  onChange={changeSite}
+                />
               </div>
             )}
-            <Button variant="secondary" size="sm" onClick={() => setDocumentView(true)}>
-              <ArticleOutlinedIcon style={{ fontSize: 16 }} className="mr-1.5" />
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setDocumentView(true)}
+            >
+              <ArticleOutlinedIcon
+                style={{ fontSize: 16 }}
+                className="mr-1.5"
+              />
               {t("interactiveReports.viewDocument")}
             </Button>
           </div>
@@ -152,26 +217,46 @@ export function InteractiveReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Label variant="title" className="block">{t("interactiveReports.myReports")}</Label>
-        <p className="mt-0.5 text-sm text-gray-500">{t("interactiveReports.subtitle")}</p>
+        <Label variant="title" className="block">
+          {t("interactiveReports.myReports")}
+        </Label>
+        <p className="mt-0.5 text-sm text-gray-500">
+          {t("interactiveReports.subtitle")}
+        </p>
       </div>
 
       <Card>
-        <Dropdown label={t("surveys.filter.status")} options={STATUS_FILTER_OPTIONS} value={status} onChange={setStatus} />
+        <Dropdown
+          label={t("surveys.filter.status")}
+          options={STATUS_FILTER_OPTIONS}
+          value={status}
+          onChange={setStatus}
+        />
       </Card>
 
-      {loading && <p className="text-center text-sm text-gray-400">{t("interactiveReports.loading")}</p>}
+      {loading && (
+        <p className="text-center text-sm text-gray-400">
+          {t("interactiveReports.loading")}
+        </p>
+      )}
       {!loading && reports.length === 0 && (
-        <p className="text-center text-sm text-gray-400">{t("interactiveReports.noneAssigned")}</p>
+        <p className="text-center text-sm text-gray-400">
+          {t("interactiveReports.noneAssigned")}
+        </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {reports.map((report) => (
-          <button key={report.id} onClick={() => openReport(report)} className="text-left">
+          <button
+            key={report.id}
+            onClick={() => openReport(report)}
+            className="text-left"
+          >
             <Card className="h-full transition-shadow hover:shadow-md">
               <p className="font-medium text-gray-900">{report.title}</p>
               <p className="mt-1 text-xs text-gray-500">
-                {STATUS_LABELS[report.status]} · {new Date(report.updatedAt).toLocaleDateString(locale)}
+                {STATUS_LABELS[report.status]} ·{" "}
+                {new Date(report.updatedAt).toLocaleDateString(locale)}
               </p>
             </Card>
           </button>

@@ -62,12 +62,10 @@ Catalogos adicionales:
 
 En `/survey-settings`:
 
-1. Registrar cuenta Jotform con API key.
-2. Sincronizar formularios de una cuenta o de todas.
-3. Previsualizar preguntas.
-4. Registrar formulario como instrumento, asociando sitio y tipo (`LOCAL` o `VISITING`).
-5. Importar historicos si aplica.
-6. Revisar formularios no registrados cuando lleguen respuestas por webhook.
+1. `system_admin`: registrar cuentas Jotform, sincronizar formularios y asociar un formulario a sitio y tipo (`LOCAL` o `VISITING`).
+2. `system_admin`: revisar formularios no registrados cuando lleguen respuestas por webhook.
+3. `system_admin` y `org_admin`: consultar e importar historicos de instrumentos dentro del alcance permitido.
+4. Toda asociacion valida que el sitio pertenezca al alcance del administrador.
 
 ## Ponderaciones
 
@@ -90,12 +88,16 @@ En `/survey-groups` se consultan grupos por rango de fechas. La vista muestra es
 En `/report-assignments`:
 
 - Crear reporte asignado a un usuario.
-- Elegir plantilla, titulo, filtros y textos.
+- Elegir una o varias plantillas, sitios (todos, uno o varios), filtros y textos. El titulo se toma de la plantilla.
 - Cambiar estado: `PENDING`, `IN_REVIEW`, `PUBLISHED`.
 - Consultar versiones.
 - Eliminar asignacion.
 
 En `/reports` se consultan resultados agregados y se exportan PDFs.
+Despues de revisar los filtros, **Completar plantilla dinamica** abre la asignacion con sitio, tipo, escuela, categoria y fechas precargados. La asignacion se revisa y cambia a `PUBLISHED` cuando datos y textos esten listos.
+En los campos `Hero photo` y `Course photo` puedes seleccionar una imagen JPG, PNG o WebP de hasta 2 MB; queda guardada dentro de la asignacion y aparece en la vista interactiva y en el documento.
+
+Con `SEED_DEMO=true` se crea `report_viewer_demo` (contrasena `report_viewer_demo`) con las tres plantillas Course Impacts de `/templates` publicadas. Cada una incluye fotos, textos, satisfaccion, actividades, comparativos pre/post y datos de impacto suficientes para revisar el diseño completo.
 
 ## Auditoria
 

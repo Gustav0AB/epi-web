@@ -77,7 +77,7 @@ export type ReportFilterField = {
 };
 
 export type ReportTemplate = {
-  key: string; // id único, ej. "operational-financial"
+  key: string; // id único, ej. "course-impacts-2026mx-ncssm"
   title: string;
   subtitle?: string;
   category: string; // libre: "operational" | "activities" | ...
@@ -106,6 +106,12 @@ export type ReportData = {
 export function getFillableTextFields(template: ReportTemplate): { key: string; label: string }[] {
   return template.blocks
     .filter((b): b is (TextBlock | ImageBlock) & { dataKey: string } => (b.type === "text" || b.type === "image") && !!b.dataKey)
+    .map((b) => ({ key: b.dataKey, label: b.title ?? b.dataKey }));
+}
+
+export function getFillableImageFields(template: ReportTemplate): { key: string; label: string }[] {
+  return template.blocks
+    .filter((b): b is ImageBlock => b.type === "image" && !!b.dataKey)
     .map((b) => ({ key: b.dataKey, label: b.title ?? b.dataKey }));
 }
 

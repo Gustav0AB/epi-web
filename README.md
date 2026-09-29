@@ -51,7 +51,7 @@ Por defecto el seed crea catalogos base y el super usuario. Los datos demo solo 
 | Base de datos | PostgreSQL, Prisma ORM |
 | Auth | JWT Bearer, bcrypt, roles, feature flags, revocacion de sesiones |
 | Reportes | Recharts, `@react-pdf/renderer` |
-| Integraciones | Jotform API/webhooks, Gemini para preguntas abiertas |
+| Integraciones | Jotform API/webhooks |
 
 ## Documentacion
 

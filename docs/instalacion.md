@@ -6,7 +6,6 @@
 - npm.
 - PostgreSQL.
 - Una base de datos accesible por `DATABASE_URL`.
-- Opcional: API key de Gemini.
 
 ## Instalacion local
 
@@ -34,8 +33,6 @@ API (`apps/api/.env`):
 | `CORS_ORIGIN` | Origen permitido del frontend en desarrollo. |
 | `JOTFORM_WEBHOOK_SECRET` | Secreto opcional en desarrollo; obligatorio en produccion. |
 | `JOTFORM_API_BASE` | Base URL de Jotform, por defecto `https://api.jotform.com`. |
-| `GEMINI_API_KEY` | Requerida para analizar preguntas abiertas. |
-| `GEMINI_MODEL` | Modelo Gemini, por defecto `gemini-2.5-flash`. |
 | `CATALOG_DATA` | Etiquetas Jotform tratadas como filtros/catalogo, separadas por coma. |
 
 Web (`apps/web/.env`):

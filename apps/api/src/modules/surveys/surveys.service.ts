@@ -1,8 +1,6 @@
 import type { Prisma, SurveyMoment } from "@prisma/client";
 import { JotformPayloadSchema, type JotformPayload } from "./surveys.schema.js";
 import { scoreAnswer, aggregate, type QuestionType } from "./scoring.js";
-import { summarizeOpenAnswers, AI_MODEL } from "./ai.js";
-import type { Prisma as PrismaNS } from "@prisma/client";
 import {
   WeightInputSchema,
   type SurveyFilters,
@@ -72,7 +70,6 @@ export const surveysService = {
   },
 
   reprocessSurvey,
-  analyzeOpenQuestion,
   listUnregisteredForms,
   registerDefinition,
   updateQuestion,
@@ -164,29 +161,6 @@ export const surveysService = {
   },
 };
 
-/**
- * Manda todas las respuestas de una pregunta abierta a la IA para obtener un
- * resumen + las mejores respuestas, y guarda el resultado en QuestionInsight.
- */
-export async function analyzeOpenQuestion(questionId: string, userId: string) {
-  const site = await surveysRepository.findQuestionSite(questionId);
-  await assertSiteAllowed(userId, site?.surveyDefinition?.siteId);
-
-  const q = await surveysRepository.getQuestionWithAnswers(questionId);
-  if (!q) throw new Error(`Pregunta ${questionId} no encontrada`);
-  if (q.type !== "OPEN_TEXT") throw new Error("Solo aplica a preguntas OPEN_TEXT");
-
-  const answers = q.answers.map((a) => a.value).filter((v) => v.trim().length > 0);
-  if (answers.length === 0) throw new Error("La pregunta no tiene respuestas para analizar");
-
-  const insight = await summarizeOpenAnswers(q.text, answers, q.insight?.summary);
-  return surveysRepository.upsertInsight(questionId, {
-    summary: insight.summary,
-    bestAnswers: insight.bestAnswers as unknown as PrismaNS.InputJsonValue,
-    model: AI_MODEL,
-  });
-}
-
 export async function updateOpenQuestionsSummary(
   surveyDefinitionId: string,
   input: UpdateOpenQuestionsSummaryInput,
@@ -217,7 +191,7 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
     return { status: "PENDIENTE_CONFIGURACION", reason: "sin definición configurada" };
   }
 
-  // OPEN_TEXT no se pondera (se analiza con IA aparte), así que no exige Weight.
+  // OPEN_TEXT no se pondera; se revisa manualmente y no exige Weight.
   const missing = def.questions
     .filter((q) => q.type !== "OPEN_TEXT" && !q.weight)
     .map((q) => q.externalId);

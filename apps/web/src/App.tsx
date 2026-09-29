@@ -29,7 +29,8 @@ import { getDefaultRoute } from "./router/RoleGate";
 function NoAccessPage() {
   return (
     <div className="flex h-screen items-center justify-center text-gray-500">
-      Tu cuenta no tiene ninguna función asignada todavía. Contacta a tu administrador.
+      Tu cuenta no tiene ninguna función asignada todavía. Contacta a tu
+      administrador.
     </div>
   );
 }
@@ -51,16 +52,28 @@ export default function App() {
         <Route path="/no-access" element={<NoAccessPage />} />
 
         {/* Reportes interactivos: sin sidebar, acceso exclusivo */}
-        <Route element={<RoleGate allow="report_template" templateKey="interactive_reports" />}>
+        <Route
+          element={
+            <RoleGate
+              allow="report_template"
+              templateKey="interactive_reports"
+            />
+          }
+        >
           <Route element={<ReportLayout />}>
-            <Route path="/interactive-reports" element={<InteractiveReportsPage />} />
+            <Route
+              path="/interactive-reports"
+              element={<InteractiveReportsPage />}
+            />
           </Route>
         </Route>
 
         {/* Reportes: con sidebar — herramienta interna del usuario operativo
             para ver la información de forma genérica y dar visto bueno,
             antes de que se publique como reporte asignado (interactive-reports). */}
-        <Route element={<RoleGate allow="report_template" templateKey="reports" />}>
+        <Route
+          element={<RoleGate allow="report_template" templateKey="reports" />}
+        >
           <Route element={<AppLayout />}>
             <Route path="/reports" element={<ReportsPage />} />
           </Route>
@@ -72,18 +85,26 @@ export default function App() {
             <Route path="/home" element={<HomePage />} />
           </Route>
         </Route>
-        <Route element={<RoleGate allow="functionality" featureKey="surveys" />}>
+        <Route
+          element={<RoleGate allow="functionality" featureKey="surveys" />}
+        >
           <Route element={<AppLayout />}>
             <Route path="/surveys" element={<SurveysPage />} />
             <Route path="/survey-groups" element={<SurveyGroupsPage />} />
           </Route>
         </Route>
-        <Route element={<RoleGate allow="functionality" featureKey="scoring" />}>
+        <Route
+          element={<RoleGate allow="functionality" featureKey="scoring" />}
+        >
           <Route element={<AppLayout />}>
             <Route path="/scoring" element={<ScoringPage />} />
           </Route>
         </Route>
-        <Route element={<RoleGate allow="functionality" featureKey="open_questions" />}>
+        <Route
+          element={
+            <RoleGate allow="functionality" featureKey="open_questions" />
+          }
+        >
           <Route element={<AppLayout />}>
             <Route path="/open-questions" element={<OpenQuestionsPage />} />
           </Route>
@@ -102,6 +123,7 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/organizations" element={<OrganizationsPage />} />
             <Route path="/audit-log" element={<AuditLogPage />} />
+            <Route path="/jotform-accounts" element={<JotformAccountsPage />} />
           </Route>
         </Route>
 
@@ -111,15 +133,26 @@ export default function App() {
             <Route path="/sites" element={<SitesPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/survey-settings" element={<SurveySettingsPage />} />
-            <Route path="/report-assignments" element={<ReportAssignmentsPage />} />
-            <Route path="/jotform-accounts" element={<JotformAccountsPage />} />
+            <Route
+              path="/report-assignments"
+              element={<ReportAssignmentsPage />}
+            />
           </Route>
         </Route>
       </Route>
 
       <Route
         path="*"
-        element={<Navigate to={isAuthenticated && currentUser ? getDefaultRoute(currentUser) : "/home"} replace />}
+        element={
+          <Navigate
+            to={
+              isAuthenticated && currentUser
+                ? getDefaultRoute(currentUser)
+                : "/home"
+            }
+            replace
+          />
+        }
       />
     </Routes>
   );

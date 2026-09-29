@@ -5,17 +5,24 @@ import { z } from "zod";
 // frontend (features/reports/templates) — no se valida acá porque las
 // plantillas (bloques, colores, formato) son un detalle de presentación,
 // no un dato de negocio que el backend necesite conocer.
-export const REPORT_ASSIGNMENT_STATUSES = ["pending", "in_review", "published"] as const;
-export type ReportAssignmentStatus = (typeof REPORT_ASSIGNMENT_STATUSES)[number];
+export const REPORT_ASSIGNMENT_STATUSES = [
+  "pending",
+  "in_review",
+  "published",
+] as const;
+export type ReportAssignmentStatus =
+  (typeof REPORT_ASSIGNMENT_STATUSES)[number];
 
 export const CreateAssignedReportSchema = z.object({
   userId: z.string().uuid(),
   templateKey: z.string().trim().min(1).max(100),
-  title: z.string().trim().min(2).max(150),
+  title: z.string().trim().min(2).max(150).optional(),
   filters: z.record(z.unknown()).nullable().optional(),
   textContent: z.record(z.string()).nullable().optional(),
 });
-export type CreateAssignedReportDto = z.infer<typeof CreateAssignedReportSchema>;
+export type CreateAssignedReportDto = z.infer<
+  typeof CreateAssignedReportSchema
+>;
 
 export const UpdateAssignedReportSchema = z.object({
   templateKey: z.string().trim().min(1).max(100).optional(),
@@ -24,7 +31,9 @@ export const UpdateAssignedReportSchema = z.object({
   filters: z.record(z.unknown()).nullable().optional(),
   textContent: z.record(z.string()).nullable().optional(),
 });
-export type UpdateAssignedReportDto = z.infer<typeof UpdateAssignedReportSchema>;
+export type UpdateAssignedReportDto = z.infer<
+  typeof UpdateAssignedReportSchema
+>;
 
 export type AssignedReportDto = {
   id: string;

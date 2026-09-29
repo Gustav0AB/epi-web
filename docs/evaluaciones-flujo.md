@@ -32,7 +32,6 @@ graph TD
         Repo["surveys.repository.ts"]
         Scoring["scoring.ts (motor puro)"]
         Csv["csv.ts (parser)"]
-        AI["ai.ts (Claude — preguntas abiertas)"]
     end
 
     Jotform((Jotform)) -->|"POST /api/webhooks/jotform<br/>+ secreto"| Routes
@@ -42,7 +41,6 @@ graph TD
     Routes --> Controller --> Service
     Service --> Scoring
     Service --> Csv
-    Service --> AI
     Service --> Repo --> DB[("PostgreSQL")]
 
     SurveysPage --> SurveyApi
@@ -60,7 +58,6 @@ erDiagram
     SITE ||--o{ SURVEY_DEFINITION : define
     SURVEY_DEFINITION ||--o{ QUESTION : contiene
     QUESTION ||--o| WEIGHT : pondera
-    QUESTION ||--o| QUESTION_INSIGHT : "resumen IA (open text)"
     SURVEY_DEFINITION ||--o{ SUBMISSION : recibe
     PARTICIPANT ||--o{ SUBMISSION : responde
     SUBMISSION ||--o{ ANSWER : contiene
@@ -118,10 +115,6 @@ erDiagram
         float calculatedScore
         float maxPossible
         bool isPrePost "true para PRE"
-    }
-    QUESTION_INSIGHT {
-        string summary
-        json bestAnswers
     }
 ```
 
@@ -323,7 +316,7 @@ flowchart LR
 
     Surveys -->|"filtrar por PRE/POST/CQS,<br/>reprocesar, completar grupo"| APIsurveys[("API /api/surveys/*")]
     Groups -->|"buscar grupos por fecha"| APIsurveys
-    Settings -->|"cuentas Jotform, asociar instrumento,<br/>importar históricos"| APIsurveys
+    Settings -->|"asociar instrumento/importar históricos según rol"| APIsurveys
     Scoring -->|"ponderar, importar/exportar CSV,<br/>reprocesar en bloque"| APIsurveys
     Reports -->|"resultados agregados % pre/post"| APIreports[("API /api/reports/*")]
 
@@ -343,9 +336,10 @@ flowchart LR
     FU -.->|"si tiene featureKey 'scoring'"| Scoring
 ```
 
-Dentro de `/survey-settings`, las secciones de catálogo Jotform, instrumentos
-sin configurar e importación histórica solo se muestran a `system_admin` u
-`org_admin` — son decisiones de configuración, no de ponderación diaria.
+Dentro de `/survey-settings`, el catálogo Jotform y los instrumentos sin
+configurar solo se muestran a `system_admin`, porque son globales y todavía no
+tienen sitio asociado. `system_admin` y `org_admin` pueden consultar/importar
+históricos de instrumentos dentro de su alcance.
 
 ## 8. Interacción completa: usuario configurando pesos hasta ver el reporte
 
@@ -390,10 +384,10 @@ sequenceDiagram
 | `GET` | `/api/surveys/summary` / `POST /groups/complete` | `surveys` | Resumen y cierre por grupo PRE/POST |
 | `GET` | `/api/surveys/group-search` | `surveys` | Busqueda de grupos por fecha, conteos PRE/POST/CQS y mejora |
 | `POST` | `/api/surveys/:id/reprocess` | `surveys` | Reintenta una respuesta puntual |
-| `GET` | `/api/surveys/unregistered` | `system_admin`/`org_admin` | Formularios de Jotform sin asociar (camino B, §5) |
-| `GET` | `/api/surveys/jotform/forms` | `system_admin`/`org_admin` | Catálogo local de formularios (camino A, §5) |
-| `POST` | `/api/surveys/jotform/forms/sync?accountId=:id` | `system_admin`/`org_admin` | `GET /user/forms` en Jotform por cuenta + diff |
-| `GET` | `/api/surveys/jotform/forms/:formId/questions` | `system_admin`/`org_admin` | Preview de preguntas/catálogo en vivo |
+| `GET` | `/api/surveys/unregistered` | `system_admin` | Formularios de Jotform sin asociar (camino B, §5) |
+| `GET` | `/api/surveys/jotform/forms` | `system_admin` | Catálogo local de formularios (camino A, §5) |
+| `POST` | `/api/surveys/jotform/forms/sync?accountId=:id` | `system_admin` | `GET /user/forms` en Jotform por cuenta + diff |
+| `GET` | `/api/surveys/jotform/forms/:formId/questions` | `system_admin` | Preview de preguntas/catálogo en vivo |
 | `GET` | `/api/catalog-fields` | Autenticado | Campos de catálogo (Grupo/Grado/...) — `catalogRouter` |
 | `POST` | `/api/surveys/definitions` | `system_admin`/`org_admin` | Da de alta un instrumento nuevo (§5) |
 | `GET` | `/api/surveys/definitions` / `/:id/questions` | `surveys`/`scoring` | Catálogo de encuestas y preguntas |
@@ -401,7 +395,6 @@ sequenceDiagram
 | `PATCH` | `/api/surveys/questions/:id` | `scoring` | Corrige texto/tipo de una pregunta |
 | `POST` | `/api/surveys/definitions/:id/weights/import` | `scoring` | Import CSV de ponderaciones |
 | `POST` | `/api/surveys/definitions/:id/reprocess-pending` | `scoring` | Reproceso en bloque |
-| `POST` | `/api/surveys/questions/:id/analyze` | `scoring` | Resumen IA de una pregunta abierta |
 | `GET` | `/api/reports/results` / `/filters` | Cualquier usuario autenticado (acotado) | Dashboard % pre/post |
 
 ## 10. Fuera de alcance de este documento

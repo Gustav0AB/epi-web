@@ -1,7 +1,11 @@
 import { Router } from "express";
 import multer from "multer";
 import { surveysController } from "./surveys.controller.js";
-import { requireAuth, requireFunctionality, requireRole } from "../../middlewares/auth.middleware.js";
+import {
+  requireAuth,
+  requireFunctionality,
+  requireRole,
+} from "../../middlewares/auth.middleware.js";
 
 // Público (protegido por secreto): lo que llama Jotform. El webhook real de
 // Jotform manda multipart/form-data (rawRequest + formID/submissionID como
@@ -14,43 +18,176 @@ webhooksRouter.post("/jotform", multer().none(), surveysController.webhook);
 // featureKey "surveys"/"scoring" asignado. Los resultados ya vienen acotados
 // por organización/sitio desde el service (ver site-scope.ts).
 export const surveysRouter = Router();
-surveysRouter.get("/", requireAuth, requireFunctionality("surveys"), surveysController.listSurveys);
-surveysRouter.get("/pending", requireAuth, requireFunctionality("surveys"), surveysController.listPending);
-surveysRouter.get("/count", requireAuth, requireFunctionality("surveys"), surveysController.countSince);
-surveysRouter.get("/summary", requireAuth, requireFunctionality("surveys"), surveysController.groupSummary);
-surveysRouter.get("/group-search", requireAuth, requireFunctionality("surveys"), surveysController.groupSearch);
-surveysRouter.post("/groups/complete", requireAuth, requireFunctionality("surveys"), surveysController.completeGroup);
-surveysRouter.get("/groups", requireAuth, requireFunctionality("surveys"), surveysController.listGroups);
-surveysRouter.get("/definitions", requireAuth, requireFunctionality("surveys", "scoring", "open_questions"), surveysController.listDefinitions);
-surveysRouter.get("/definitions/:id/questions", requireAuth, requireFunctionality("scoring", "open_questions"), surveysController.listQuestions);
-surveysRouter.patch("/definitions/:id/open-questions-summary", requireAuth, requireFunctionality("open_questions"), surveysController.updateOpenQuestionsSummary);
-surveysRouter.post("/definitions/:id/weights/import", requireAuth, requireFunctionality("scoring"), surveysController.importWeights);
-surveysRouter.post("/definitions/:id/reprocess-pending", requireAuth, requireFunctionality("scoring"), surveysController.reprocessPending);
-surveysRouter.put("/questions/:id/weight", requireAuth, requireFunctionality("scoring"), surveysController.setWeight);
-surveysRouter.delete("/questions/:id/weight", requireAuth, requireFunctionality("scoring"), surveysController.deleteWeight);
-surveysRouter.patch("/questions/:id", requireAuth, requireFunctionality("scoring"), surveysController.updateQuestion);
-surveysRouter.post("/:id/reprocess", requireAuth, requireFunctionality("surveys"), surveysController.reprocess);
-surveysRouter.post("/questions/:id/analyze", requireAuth, requireFunctionality("scoring", "open_questions"), surveysController.analyzeQuestion);
+surveysRouter.get(
+  "/",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.listSurveys,
+);
+surveysRouter.get(
+  "/pending",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.listPending,
+);
+surveysRouter.get(
+  "/count",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.countSince,
+);
+surveysRouter.get(
+  "/summary",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.groupSummary,
+);
+surveysRouter.get(
+  "/group-search",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.groupSearch,
+);
+surveysRouter.post(
+  "/groups/complete",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.completeGroup,
+);
+surveysRouter.get(
+  "/groups",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.listGroups,
+);
+surveysRouter.get(
+  "/definitions",
+  requireAuth,
+  requireFunctionality("surveys", "scoring", "open_questions"),
+  surveysController.listDefinitions,
+);
+surveysRouter.get(
+  "/definitions/:id/questions",
+  requireAuth,
+  requireFunctionality("scoring", "open_questions"),
+  surveysController.listQuestions,
+);
+surveysRouter.patch(
+  "/definitions/:id/open-questions-summary",
+  requireAuth,
+  requireFunctionality("open_questions"),
+  surveysController.updateOpenQuestionsSummary,
+);
+surveysRouter.post(
+  "/definitions/:id/weights/import",
+  requireAuth,
+  requireFunctionality("scoring"),
+  surveysController.importWeights,
+);
+surveysRouter.post(
+  "/definitions/:id/reprocess-pending",
+  requireAuth,
+  requireFunctionality("scoring"),
+  surveysController.reprocessPending,
+);
+surveysRouter.put(
+  "/questions/:id/weight",
+  requireAuth,
+  requireFunctionality("scoring"),
+  surveysController.setWeight,
+);
+surveysRouter.delete(
+  "/questions/:id/weight",
+  requireAuth,
+  requireFunctionality("scoring"),
+  surveysController.deleteWeight,
+);
+surveysRouter.patch(
+  "/questions/:id",
+  requireAuth,
+  requireFunctionality("scoring"),
+  surveysController.updateQuestion,
+);
+surveysRouter.post(
+  "/:id/reprocess",
+  requireAuth,
+  requireFunctionality("surveys"),
+  surveysController.reprocess,
+);
 
-// Alta de instrumentos: solo admins deciden a qué sitio/tipo se asocia un
-// formID nuevo — no es una tarea de un functionality_user con "scoring".
-surveysRouter.get("/unregistered", requireAuth, requireRole("system_admin", "org_admin"), surveysController.listUnregisteredForms);
-surveysRouter.post("/definitions", requireAuth, requireRole("system_admin", "org_admin"), surveysController.registerDefinition);
+// El catálogo global y los formularios sin sitio quedan reservados a
+// system_admin; la asociación de una definición valida el sitio permitido.
+surveysRouter.get(
+  "/unregistered",
+  requireAuth,
+  requireRole("system_admin"),
+  surveysController.listUnregisteredForms,
+);
+surveysRouter.post(
+  "/definitions",
+  requireAuth,
+  requireRole("system_admin", "org_admin"),
+  surveysController.registerDefinition,
+);
 
 // Catálogo de formularios de la cuenta de Jotform (GET /user/forms cacheado
 // localmente) — para elegir un form y darlo de alta sin esperar a que ya
 // haya enviado respuestas. El botón "sincronizar" hace el diff contra Jotform.
-surveysRouter.get("/jotform/forms", requireAuth, requireRole("system_admin", "org_admin"), surveysController.listJotformForms);
-surveysRouter.post("/jotform/forms/sync", requireAuth, requireRole("system_admin", "org_admin"), surveysController.syncJotformForms);
-surveysRouter.get("/jotform/forms/:formId/questions", requireAuth, requireRole("system_admin", "org_admin"), surveysController.previewFormQuestions);
-surveysRouter.get("/jotform/submissions", requireAuth, requireRole("system_admin", "org_admin"), surveysController.listHistoricalSubmissions);
-surveysRouter.post("/jotform/submissions/import", requireAuth, requireRole("system_admin", "org_admin"), surveysController.importHistoricalSubmissions);
-surveysRouter.get("/jotform/accounts", requireAuth, requireRole("system_admin", "org_admin"), surveysController.listJotformAccounts);
-surveysRouter.post("/jotform/accounts", requireAuth, requireRole("system_admin", "org_admin"), surveysController.createJotformAccount);
-surveysRouter.delete("/jotform/accounts/:id", requireAuth, requireRole("system_admin", "org_admin"), surveysController.deleteJotformAccount);
+surveysRouter.get(
+  "/jotform/forms",
+  requireAuth,
+  requireRole("system_admin"),
+  surveysController.listJotformForms,
+);
+surveysRouter.post(
+  "/jotform/forms/sync",
+  requireAuth,
+  requireRole("system_admin"),
+  surveysController.syncJotformForms,
+);
+surveysRouter.get(
+  "/jotform/forms/:formId/questions",
+  requireAuth,
+  requireRole("system_admin"),
+  surveysController.previewFormQuestions,
+);
+surveysRouter.get(
+  "/jotform/submissions",
+  requireAuth,
+  requireRole("system_admin", "org_admin"),
+  surveysController.listHistoricalSubmissions,
+);
+surveysRouter.post(
+  "/jotform/submissions/import",
+  requireAuth,
+  requireRole("system_admin", "org_admin"),
+  surveysController.importHistoricalSubmissions,
+);
+surveysRouter.get(
+  "/jotform/accounts",
+  requireAuth,
+  requireRole("system_admin"),
+  surveysController.listJotformAccounts,
+);
+surveysRouter.post(
+  "/jotform/accounts",
+  requireAuth,
+  requireRole("system_admin"),
+  surveysController.createJotformAccount,
+);
+surveysRouter.delete(
+  "/jotform/accounts/:id",
+  requireAuth,
+  requireRole("system_admin"),
+  surveysController.deleteJotformAccount,
+);
 
 // Reportes: cualquier usuario autenticado, restringido por su organización y
 // sitios. Solo devuelve encuestas en estado COMPLETADO.
 export const reportsRouter = Router();
 reportsRouter.get("/results", requireAuth, surveysController.reportResults);
-reportsRouter.get("/filters", requireAuth, surveysController.reportFilterOptions);
+reportsRouter.get(
+  "/filters",
+  requireAuth,
+  surveysController.reportFilterOptions,
+);

@@ -21,7 +21,7 @@ export function createApp() {
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
   app.use(morgan(env.NODE_ENV === "development" ? "dev" : "combined"));
-  app.use(express.json());
+  app.use(express.json({ limit: "8mb" }));
   app.use(express.text({ type: "text/csv", limit: "1mb" }));
   app.use(express.urlencoded({ extended: true }));
 
@@ -61,4 +61,3 @@ export function createApp() {
 
   return app;
 }
-

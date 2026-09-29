@@ -14,7 +14,7 @@ import {
   HistoricalSubmissionsImportSchema,
 } from "@epi/shared";
 import { env } from "../../config/env.js";
-import { surveysService, reprocessSurvey, analyzeOpenQuestion } from "./surveys.service.js";
+import { surveysService, reprocessSurvey } from "./surveys.service.js";
 
 export const surveysController = {
   async webhook(req: Request, res: Response, next: NextFunction) {
@@ -283,19 +283,6 @@ export const surveysController = {
     try {
       const input = UpdateOpenQuestionsSummarySchema.parse(req.body);
       res.json(apiSuccess(await surveysService.updateOpenQuestionsSummary(req.params.id!, input, req.user!.sub)));
-    } catch (err) {
-      const e = err as Error & { statusCode?: number; code?: string };
-      if (e.statusCode) {
-        res.status(e.statusCode).json(apiError(e.code ?? "ERROR", e.message));
-        return;
-      }
-      next(err);
-    }
-  },
-
-  async analyzeQuestion(req: Request, res: Response, next: NextFunction) {
-    try {
-      res.json(apiSuccess(await analyzeOpenQuestion(req.params.id!, req.user!.sub)));
     } catch (err) {
       const e = err as Error & { statusCode?: number; code?: string };
       if (e.statusCode) {

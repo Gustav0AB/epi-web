@@ -59,7 +59,8 @@ La vista de **Reportes interactivos** no tiene sidebar: solo header, contenido y
 | Reportes `/reports` | administradores o plantilla `reports` |
 | Usuarios `/users` | administrador de sistema u organización |
 | Organizaciones `/organizations`, Auditoría `/audit-log` | solo administrador de sistema |
-| Sitios `/sites`, Categorías `/categories`, Asignar reportes `/report-assignments`, Configuración de encuestas `/survey-settings`, Cuentas Jotform `/jotform-accounts` | administrador de sistema u organización |
+| Sitios `/sites`, Categorías `/categories`, Asignar reportes `/report-assignments`, Configuración de encuestas `/survey-settings` | administrador de sistema u organización, dentro de su alcance |
+| Cuentas Jotform `/jotform-accounts` | solo administrador de sistema |
 | Reportes interactivos `/interactive-reports` | plantilla `interactive_reports`; sin sidebar |
 
 Roles: **Administrador de sistema** (global), **Administrador de organización** (su organización), **Usuario operativo** (funciones asignadas) y **Ve reportes** (plantillas asignadas).
@@ -72,17 +73,17 @@ Roles: **Administrador de sistema** (global), **Administrador de organización**
 | Encuestas | Título/subtítulo; tarjeta de filtros por encuesta, sitio, tipo, estado, grupo, momento y fechas; limpiar. Tabla de respuestas con estado, posible duplicado y Reprocesar. Tarjeta “Resumen por grupo” con Completar habilitado solo si hay PRE y POST. |
 | Grupos | Tarjeta con rango de fechas y Buscar. Tres métricas (grupos, alumnos que respondieron, con mejora calculada) y tabla con escuela, fecha, alumnos, encargado y mejora. |
 | Ponderaciones | Selector de encuesta; tabla editable por pregunta (tipo, categoría, subcategoría, puntaje máximo, respuesta correcta). Acciones: descargar/importar CSV, reprocesar pendientes, guardar todas y guardar/quitar por fila. Modal para ponderar preguntas Likert al descargar. |
-| Preguntas abiertas | Selector de encuesta. Tarjeta de resumen general editable y Guardar. Una tarjeta por pregunta con Analizar/Actualizar resumen, resumen IA, mejores respuestas, fecha y número de respuestas. |
-| Configuración de encuestas | Contenedor de catálogo Jotform, instrumentos no configurados y migración histórica. El catálogo permite seleccionar cuenta, Sincronizar y asociar formularios; las asociaciones se confirman en modal con sitio y tipo Local/Visitante. Instrumentos no configurados muestra Form ID, respuestas, fecha y campos detectados. Migración busca respuestas históricas y permite seleccionar/importar. |
+| Preguntas abiertas | Selector de encuesta. Tarjeta de resumen general editable y Guardar. Cada pregunta muestra el conteo y la lista desplazable de respuestas recibidas. |
+| Configuración de encuestas | `system_admin`: catálogo Jotform, formularios no configurados, asociación a sitio y cuentas. `system_admin` y `org_admin`: migración histórica limitada a instrumentos de su alcance. |
 | Cuentas Jotform | Formulario para API key + guardar; tabla de cuentas conectadas y acción Desconectar. |
 | Usuarios | Título, Agregar usuario y tabla: nombre, usuario, correo, rol, cargo, permisos, estado y acciones (editar, activar/desactivar, restablecer contraseña, forzar cierre). Modal de creación/edición con identidad, organización, cargo, sitios de referencia/excluidos, encuestas excluidas y selección de funciones o plantillas según rol. Modales para restablecer/cambiar contraseña. |
 | Organizaciones | Tabla de organizaciones con Agregar, editar, activar/desactivar y eliminar. Modal de alta/edición; confirmación destructiva. |
 | Sitios | Igual patrón de organizaciones: nombre, organización/alcance y estado; alta/edición/eliminación con confirmación. |
 | Categorías | Tabla de categoría/subcategorías, estado y acciones. Alta/edición, activación/eliminación. Tarjeta de CSV con Descargar plantilla e Importar CSV. |
-| Asignar reportes | Tabla de asignaciones con historial, editar y eliminar. Modal de alta/edición: usuario, plantilla, título, estado (`PENDING`, `IN_REVIEW`, `PUBLISHED`), filtros y textos. Modal de historial y confirmación de eliminación. |
+| Asignar reportes | Tabla de asignaciones con historial, editar y eliminar. Modal de alta/edición: usuario, una o varias plantillas, uno/varios/todos los sitios, estado (`PENDING`, `IN_REVIEW`, `PUBLISHED`), filtros y textos. El título se deriva de la plantilla. |
 | Configuración | Gestión de plantillas de reporte: clave, título, agregar y listado. |
 | Auditoría | Tabla paginada de fecha, quién, acción, objetivo y detalles; estado vacío “Sin registros todavía.” |
-| Reportes | Constructor: filtros de reporte, secciones reordenables (título, texto, gráfica/tabla), editar texto, configurar, mover arriba/abajo, eliminar, añadir sección y descargar PDF. |
+| Reportes | Constructor: filtros de reporte, secciones reordenables (título, texto, gráfica/tabla), editar texto, configurar, mover arriba/abajo, eliminar, añadir sección, descargar PDF y continuar a completar una plantilla dinámica con filtros precargados. |
 | Reportes interactivos | Lista de reportes asignados en tarjetas, filtro de estado y acceso a cada reporte. El reporte permite cambiar filtros autorizados y abrir “vista documento” para descargar. |
 
 ## Componentes y estados reutilizables

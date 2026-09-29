@@ -370,14 +370,6 @@ export const surveysRepository = {
     });
   },
 
-  // Sitio de la definición dueña de una pregunta — idem, para setWeight/analyze.
-  findQuestionSite(questionId: string) {
-    return prisma.question.findUnique({
-      where: { id: questionId },
-      select: { surveyDefinition: { select: { siteId: true } } },
-    });
-  },
-
   async distinctGroups() {
     const rows = await prisma.participant.findMany({
       where: { groupName: { not: null } },
@@ -388,20 +380,31 @@ export const surveysRepository = {
     return rows.map((r) => r.groupName).filter((g): g is string => g !== null);
   },
 
-  getDefinitionQuestions(surveyDefinitionId: string, scope?: SurveyScope) {
+  async getDefinitionQuestions(surveyDefinitionId: string, scope?: SurveyScope) {
     const definition = scopeToDefinitionWhere(scope);
-    return prisma.question.findMany({
+    const questions = await prisma.question.findMany({
       where: {
         surveyDefinitionId,
         ...(definition ? { surveyDefinition: definition } : {}),
       },
       orderBy: { externalId: "asc" },
-      include: { weight: true, insight: true },
+      include: { weight: true, answers: { select: { value: true } } },
     });
+    return questions.map(({ answers, ...question }) => ({
+      ...question,
+      answers: answers.map(({ value }) => value).filter(Boolean),
+    }));
   },
 
   findQuestion(id: string) {
     return prisma.question.findUnique({ where: { id } });
+  },
+
+  findQuestionSite(questionId: string) {
+    return prisma.question.findUnique({
+      where: { id: questionId },
+      select: { surveyDefinition: { select: { siteId: true } } },
+    });
   },
 
   upsertWeight(questionId: string, data: WeightInput) {
@@ -414,21 +417,6 @@ export const surveysRepository = {
 
   deleteWeight(questionId: string) {
     return prisma.weight.deleteMany({ where: { questionId } });
-  },
-
-  getQuestionWithAnswers(questionId: string) {
-    return prisma.question.findUnique({
-      where: { id: questionId },
-      include: { answers: { select: { value: true } }, insight: { select: { summary: true } } },
-    });
-  },
-
-  upsertInsight(questionId: string, data: { summary: string; bestAnswers: Prisma.InputJsonValue; model: string }) {
-    return prisma.questionInsight.upsert({
-      where: { questionId },
-      create: { questionId, ...data },
-      update: { ...data, generatedAt: new Date() },
-    });
   },
 
   // Submissions PENDIENTE_CONFIGURACION que nunca matchearon ninguna

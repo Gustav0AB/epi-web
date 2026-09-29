@@ -72,7 +72,7 @@ Como admin, quiero sincronizar formularios y registrar uno como instrumento.
 
 Criterios:
 
-- La sincronizacion trae formularios de Jotform.
+- La sincronizacion puede ejecutarse para una cuenta Jotform o para todas.
 - Se puede previsualizar preguntas.
 - Al registrar se crean preguntas y campos catalogo.
 
@@ -106,6 +106,16 @@ Criterios:
 - La accion de completar cambia submissions a `COMPLETADO`.
 - El grupo aparece en reportes agregados.
 
+### US-10B Buscar grupos
+
+Como usuario operativo, quiero buscar grupos por fecha para revisar participacion y mejora.
+
+Criterios:
+
+- El filtro por fecha actualiza la tabla.
+- La tabla muestra escuela, fecha, alumnos, conteos `PRE`, `POST`, `CQS` y mejora.
+- La mejora solo aparece cuando existen datos pre y post.
+
 ## Reportes
 
 ### US-11 Consultar reporte agregado
@@ -124,7 +134,7 @@ Como admin, quiero asignar y publicar un reporte interactivo.
 
 Criterios:
 
-- Se crea asignacion con plantilla, titulo, filtros y textos.
+- Se crean una o varias asignaciones con plantilla(s), sitios (todos, uno o varios), filtros y textos; el titulo se deriva de la plantilla.
 - El estado puede cambiar a `PUBLISHED`.
 - El usuario asignado ve el reporte en `/interactive-reports`.
 

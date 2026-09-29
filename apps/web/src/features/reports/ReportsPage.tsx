@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ReportRow } from "@epi/shared";
 import {
   Bar,
@@ -27,6 +28,9 @@ import type { DropdownOption } from "../../shared/components";
 import { surveyApi } from "../surveys/api";
 import { filterSectionRows } from "./lib/section-rows";
 import { useI18n, type I18nKey } from "../../lib/i18n";
+import { useAuthStore } from "../../store/auth.store";
+import { ChartExportButtons } from "./components/ChartBlockView";
+import { ReportReveal } from "./components/ReportRenderer";
 
 const COLOR_PRE = "#2a78d6";
 const COLOR_POST = "#eb6834";
@@ -107,6 +111,8 @@ function SectionCard({
 }: SectionCardProps) {
   const { t } = useI18n();
   const isContent = section.type !== "title" && section.type !== "text";
+  const isChart = section.type === "bar" || section.type === "radar" || section.type === "change";
+  const chartRef = useRef<HTMLDivElement>(null);
 
   const filteredRows = filterSectionRows(rows, section.selectedCategories);
 
@@ -133,6 +139,7 @@ function SectionCard({
   }
 
   return (
+    <ReportReveal>
     <Card>
       <div className="mb-4 flex items-center gap-2">
         <span className="shrink-0 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
@@ -150,6 +157,7 @@ function SectionCard({
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-0.5 print:hidden">
+          {isChart && <ChartExportButtons containerRef={chartRef} filename={`report-${section.type}-${section.id}`} />}
           {isContent && (
             <button
               onClick={onToggleConfig}
@@ -256,6 +264,7 @@ function SectionCard({
       )}
 
       {/* Section content */}
+      <div ref={isChart ? chartRef : undefined}>
       {section.type === "title" && (
         <h2 className="text-2xl font-bold text-gray-900">{section.content || t("reportBuilder.section.title")}</h2>
       )}
@@ -349,7 +358,9 @@ function SectionCard({
           </table>
         </div>
       )}
+      </div>
     </Card>
+    </ReportReveal>
   );
 }
 
@@ -357,6 +368,8 @@ function SectionCard({
 
 export function ReportsPage() {
   const { t } = useI18n();
+  const navigate = useNavigate();
+  const currentUser = useAuthStore((state) => state.currentUser);
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [options, setOptions] = useState<FilterOptions>({ sites: [], schools: [], categories: [] });
   const [rows, setRows] = useState<ReportRow[]>([]);
@@ -453,6 +466,17 @@ export function ReportsPage() {
     }
   }
 
+  function continueToTemplate() {
+    const params = new URLSearchParams({ fromReport: "1" });
+    if (filters.siteId) params.set("siteIds", filters.siteId);
+    if (filters.type) params.set("type", filters.type);
+    if (filters.school) params.set("school", filters.school);
+    if (filters.category) params.set("category", filters.category);
+    if (filters.from) params.set("from", filters.from);
+    if (filters.to) params.set("to", filters.to);
+    navigate(`/report-assignments?${params.toString()}`);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -531,6 +555,18 @@ export function ReportsPage() {
               />
             ))}
           </div>
+
+          {(currentUser?.role === "system_admin" || currentUser?.role === "org_admin") && (
+            <Card className="print:hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-gray-900">{t("reportBuilder.confirmData")}</p>
+                  <p className="text-sm text-gray-500">{t("reportBuilder.confirmDataHelp")}</p>
+                </div>
+                <Button onClick={continueToTemplate}>{t("reportBuilder.completeTemplate")}</Button>
+              </div>
+            </Card>
+          )}
         </>
       )}
     </div>

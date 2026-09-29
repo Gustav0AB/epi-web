@@ -17,7 +17,6 @@ graph TD
     Web -->|"fetch /api/* + Bearer JWT"| Api
     Api --> DB[("PostgreSQL")]
     Jotform((Jotform)) -->|"webhook + API"| Api
-    Api --> Gemini((Gemini))
 ```
 
 ## Frontend
@@ -41,9 +40,9 @@ Rutas principales:
 | `/surveys` | Encuestas recibidas. |
 | `/survey-groups` | Busqueda de grupos por rango de fechas. |
 | `/scoring` | Instrumentos y ponderaciones. |
-| `/survey-settings` | Cuentas Jotform, catalogo de formularios, instrumentos sin registrar e historicos. |
+| `/survey-settings` | Instrumentos e historicos por alcance; catalogo Jotform y asociacion global para `system_admin`. |
 | `/jotform-accounts` | Administracion directa de cuentas Jotform. |
-| `/open-questions` | Analisis IA de preguntas abiertas. |
+| `/open-questions` | Consulta y edicion manual del resumen general de preguntas abiertas. |
 | `/reports` | Reportes agregados. |
 | `/interactive-reports` | Reportes asignados interactivos. |
 | `/report-assignments` | Administracion de reportes asignados. |

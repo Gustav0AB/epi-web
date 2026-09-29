@@ -45,7 +45,6 @@ sin importar en qué estado quede la respuesta.
 | `surveys.repository.ts` | Acceso a datos (Prisma) |
 | `scoring.ts` | Motor de puntuación puro (Likert, selección única, frecuencia) |
 | `csv.ts` | Parser CSV mínimo (import de ponderaciones) |
-| `ai.ts` | Resumen de preguntas abiertas vía Claude |
 
 ## Estados de una respuesta (`SubmissionStatus`)
 
@@ -67,7 +66,7 @@ operativos identificados contra el documento de especificación:
 1. **Alta de instrumentos nuevos desde la UI** (`GET /surveys/unregistered`,
    `POST /surveys/definitions`, sección "Instrumentos sin configurar" en
    `ScoringPage`). Antes había que crear la `SurveyDefinition` a mano en la
-   base de datos; ahora un `system_admin`/`org_admin` ve los formIDs
+   base de datos; ahora un `system_admin` ve los formIDs
    desconocidos que ya mandaron respuestas, con una muestra de sus campos, y
    los asocia a un sitio + tipo de encuesta. Las preguntas se crean
    automáticamente a partir de lo ya recibido (tipo inferido: valor numérico

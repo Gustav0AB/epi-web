@@ -51,10 +51,9 @@ Flujo:
 En `/open-questions`:
 
 - Seleccionar instrumento.
-- Revisar preguntas abiertas.
-- Ejecutar analisis IA.
-- Consultar resumen, mejores respuestas, justificacion, modelo y fecha.
-- Volver a analizar si hay nuevas respuestas o se requiere actualizar el resumen.
+- Revisar cada pregunta abierta y sus respuestas recibidas.
+- Consultar preguntas abiertas y editar el resumen general del instrumento.
+- Guardar el resumen manual cuando sea necesario.
 
 ## Reportes
 
@@ -63,7 +62,9 @@ En `/reports`:
 - Aplicar filtros por sitio, tipo, escuela, categoria y fecha.
 - Revisar graficas y tablas.
 - Crear secciones con texto y visualizaciones.
+- Descargar cada gráfica visible como PNG o SVG transparente, conservando los datos actuales.
 - Exportar PDF.
+- Si eres administrador, usar **Completar plantilla dinamica** para conservar sitio, escuela y fechas, elegir las plantillas y capturar sus textos manuales.
 
 En `/interactive-reports`:
 

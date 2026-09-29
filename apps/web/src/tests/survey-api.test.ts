@@ -73,7 +73,6 @@ describe("surveyApi", () => {
     await surveyApi.updateQuestion("q1", { type: "LIKERT" });
     await surveyApi.reprocessPending("def1");
     await surveyApi.categories("org1");
-    await surveyApi.analyzeQuestion("q1");
     await surveyApi.reportResults("?siteId=site1");
     await surveyApi.reportFilters();
 
@@ -93,7 +92,6 @@ describe("surveyApi", () => {
       "/api/surveys/questions/q1",
       "/api/surveys/definitions/def1/reprocess-pending",
       "/api/categories?organizationId=org1",
-      "/api/surveys/questions/q1/analyze",
       "/api/reports/results?siteId=site1",
       "/api/reports/filters",
     ]);

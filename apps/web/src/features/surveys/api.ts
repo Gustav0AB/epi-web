@@ -8,7 +8,6 @@ import type {
   JotformFormDto,
   JotformFormsSyncResult,
   JotformAccountDto,
-  QuestionInsightDto,
   QuestionWithWeight,
   RegisterDefinitionInput,
   ReportRow,
@@ -115,11 +114,6 @@ export const surveyApi = {
     }),
   categories: (organizationId: string) =>
     call<CategoryDto[]>(`/api/categories?organizationId=${organizationId}`),
-  analyzeQuestion: (questionId: string) =>
-    call<QuestionInsightDto>(`/api/surveys/questions/${questionId}/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    }),
   updateOpenQuestionsSummary: (defId: string, summary: string) =>
     call<{ openQuestionsSummary: string | null }>(`/api/surveys/definitions/${defId}/open-questions-summary`, {
       method: "PATCH",

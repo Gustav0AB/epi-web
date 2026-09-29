@@ -6,8 +6,10 @@ export function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function serializeSvg(svg: SVGSVGElement): string {
@@ -46,8 +48,7 @@ export function exportChartAsPng(container: HTMLElement, filename: string, scale
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(scale, scale);
-    ctx.fillStyle = "#ffffff"; // fondo blanco: los gráficos usan fondo transparente
-    ctx.fillRect(0, 0, width, height);
+    // No pintamos el canvas: el PNG conserva el fondo transparente.
     ctx.drawImage(img, 0, 0, width, height);
     canvas.toBlob((blob) => blob && downloadBlob(blob, `${filename}.png`), "image/png");
   };

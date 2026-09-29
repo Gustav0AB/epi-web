@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   Bar,
   BarChart,
@@ -14,7 +14,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import DownloadIcon from "@mui/icons-material/Download";
 import type { ChartBlock } from "../templates/types";
 import { exportChartAsPng, exportChartAsSvg } from "../lib/chart-export";
 import { useI18n } from "../../../lib/i18n";
@@ -28,34 +27,49 @@ type ChartBlockViewProps = {
   showExport?: boolean;
 };
 
+export function ChartExportButtons({ containerRef, filename }: { containerRef: RefObject<HTMLDivElement | null>; filename: string }) {
+  const { t } = useI18n();
+  return (
+    <div className="print:hidden flex gap-1">
+      <button
+        onClick={() => containerRef.current && exportChartAsPng(containerRef.current, filename)}
+        title={t("chart.downloadPng")}
+        className="rounded p-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+      >PNG</button>
+      <button
+        onClick={() => containerRef.current && exportChartAsSvg(containerRef.current, filename)}
+        title={t("chart.downloadSvg")}
+        className="rounded p-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+      >SVG</button>
+    </div>
+  );
+}
+
 export function ChartBlockView({ block, data, showExport = true }: ChartBlockViewProps) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
   const filename = block.id;
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) {
+        setInView(true);
+        observer.disconnect();
+      }
+    }, { threshold: 0.15 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div>
       {(block.title || showExport) && (
         <div className="mb-3 flex items-center justify-between">
           {block.title && <h3 className="text-sm font-semibold text-gray-800">{block.title}</h3>}
-          {showExport && (
-            <div className="print:hidden flex gap-1">
-              <button
-                onClick={() => containerRef.current && exportChartAsPng(containerRef.current, filename)}
-                title={t("chart.downloadPng")}
-                className="flex items-center gap-1 rounded p-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-              >
-                <DownloadIcon style={{ fontSize: 15 }} /> PNG
-              </button>
-              <button
-                onClick={() => containerRef.current && exportChartAsSvg(containerRef.current, filename)}
-                title={t("chart.downloadSvg")}
-                className="flex items-center gap-1 rounded p-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-              >
-                <DownloadIcon style={{ fontSize: 15 }} /> SVG
-              </button>
-            </div>
-          )}
+          {showExport && <ChartExportButtons containerRef={containerRef} filename={filename} />}
         </div>
       )}
       {block.description && <p className="mb-2 text-xs text-gray-500">{block.description}</p>}
@@ -70,7 +84,7 @@ export function ChartBlockView({ block, data, showExport = true }: ChartBlockVie
               <Tooltip cursor={{ fill: "rgba(0,0,0,0.04)" }} />
               <Legend />
               {block.series.map((s) => (
-                <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} />
+                <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} isAnimationActive={inView} animationBegin={150} animationDuration={900} />
               ))}
             </BarChart>
           ) : block.chartType === "line" ? (
@@ -81,14 +95,14 @@ export function ChartBlockView({ block, data, showExport = true }: ChartBlockVie
               <Tooltip />
               <Legend />
               {block.series.map((s) => (
-                <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} dot={{ r: 3 }} />
+                <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color} strokeWidth={2} dot={{ r: 3 }} isAnimationActive={inView} animationBegin={150} animationDuration={900} />
               ))}
             </LineChart>
           ) : (
             <PieChart>
               <Tooltip />
               <Legend />
-              <Pie data={data} dataKey={block.series[0]?.key ?? ""} nameKey={block.xKey} outerRadius="75%" label>
+              <Pie data={data} dataKey={block.series[0]?.key ?? ""} nameKey={block.xKey} outerRadius="75%" label isAnimationActive={inView} animationBegin={150} animationDuration={900}>
                 {data.map((_, i) => (
                   <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length] ?? "#2a78d6"} />
                 ))}

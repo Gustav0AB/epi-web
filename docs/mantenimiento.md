@@ -28,7 +28,7 @@ Rutina recomendada:
 Tareas operativas:
 
 - Validar que `JOTFORM_WEBHOOK_SECRET` este configurado en produccion.
-- Mantener al menos una cuenta Jotform conectada desde `/survey-settings` o `/jotform-accounts`.
+- Mantener al menos una cuenta Jotform conectada desde `/survey-settings` o `/jotform-accounts` como `system_admin`.
 - Revisar respuestas `PENDIENTE_CONFIGURACION` y `ERROR`.
 - Sincronizar formularios cuando se agreguen instrumentos nuevos.
 - Confirmar que `CATALOG_DATA` contenga las etiquetas correctas.

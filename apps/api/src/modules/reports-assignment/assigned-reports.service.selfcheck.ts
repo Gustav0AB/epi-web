@@ -56,6 +56,13 @@ assert.deepEqual(data.texts, { achievements: "Listo" });
 const empty = await assignedReportsService.getData(viewer, "report-no-resolver");
 assert.deepEqual(empty.kpis, {});
 
+const courseDemo = await REPORT_DATA_RESOLVERS["course-impacts-2026mx-ncssm"]!({
+  scope: { siteIds: undefined, excludedSurveyDefinitionIds: [] },
+  filters: { demo: "course-impacts-2026mx-ncssm" },
+});
+assert.equal(courseDemo.kpis.overallImprovement, 15.1);
+assert.equal(courseDemo.series.courseActivitySatisfaction!.length, 5);
+
 await assert.rejects(() => assignedReportsService.create(otherAdmin, { userId: "viewer-1", templateKey: "unit-template", title: "x" }), /own organization/);
 assert.equal((await assignedReportsService.update(orgAdmin, "report-1", { title: "Nuevo" })).version, 3);
 await assignedReportsService.remove(orgAdmin, "report-1");

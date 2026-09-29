@@ -11,7 +11,6 @@ export function OpenQuestionsPage() {
   const [selectedId, setSelectedId] = useState("");
   const [questions, setQuestions] = useState<QuestionWithWeight[]>([]);
   const [loading, setLoading] = useState(false);
-  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [summary, setSummary] = useState("");
   const [savingSummary, setSavingSummary] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,19 +50,6 @@ export function OpenQuestionsPage() {
       setError(e instanceof Error ? e.message : t("common.genericError"));
     } finally {
       setSavingSummary(false);
-    }
-  }
-
-  async function analyze(questionId: string) {
-    setAnalyzingId(questionId);
-    setError(null);
-    try {
-      await surveyApi.analyzeQuestion(questionId);
-      await loadQuestions(selectedId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("openQuestions.analyzeError"));
-    } finally {
-      setAnalyzingId(null);
     }
   }
 
@@ -125,45 +111,22 @@ export function OpenQuestionsPage() {
       <div className="space-y-4">
         {questions.map((q) => (
           <Card key={q.id}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <span className="font-mono text-xs text-gray-400">{q.externalId}</span>
-                <p className="text-gray-800">{q.text}</p>
-              </div>
-              <Button size="sm" loading={analyzingId === q.id} onClick={() => void analyze(q.id)}>
-                {q.insight ? t("openQuestions.reanalyze") : t("openQuestions.analyze")}
-              </Button>
+            <div className="min-w-0">
+              <span className="font-mono text-xs text-gray-400">{q.externalId}</span>
+              <p className="font-medium text-gray-800">{q.text}</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {q.answers.length} {t("openQuestions.answersCount")}
+              </p>
+              {q.answers.length > 0 && (
+                <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                  {q.answers.map((answer, index) => (
+                    <li key={`${q.id}-${index}`} className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                      {answer}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-
-            {q.insight ? (
-              <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                    {t("openQuestions.summary")}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-800">{q.insight.summary}</p>
-                </div>
-                {q.insight.bestAnswers.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                      {t("openQuestions.bestAnswers")}
-                    </p>
-                    <ul className="mt-1 list-inside list-disc space-y-1 text-sm text-gray-800">
-                      {q.insight.bestAnswers.map((a, i) => (
-                        <li key={i}>
-                          “{a.text}” <span className="text-gray-500">— {a.reason}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <p className="text-xs text-gray-400">
-                  {t("openQuestions.generatedAt")}: {new Date(q.insight.generatedAt).toLocaleString()} ({q.insight.model})
-                </p>
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-gray-400">{t("openQuestions.noInsightYet")}</p>
-            )}
           </Card>
         ))}
       </div>

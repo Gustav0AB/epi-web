@@ -10,10 +10,6 @@ const EnvSchema = z.object({
   CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
   // Si se define, el webhook de Jotform exige ?secret= o header x-jotform-secret.
   JOTFORM_WEBHOOK_SECRET: z.string().min(8).optional(),
-  // Requerida para analizar preguntas abiertas con IA. Hoy usamos Gemini;
-  // si se cambia de proveedor, esto y ai.ts son lo único que hay que tocar.
-  GEMINI_API_KEY: z.string().min(1).optional(),
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   JOTFORM_API_BASE: z.string().url().default("https://api.jotform.com"),
   // Etiquetas de pregunta (tal como aparecen en Jotform, separadas por
   // coma) que se tratan como catálogo/filtro en vez de pregunta ponderable

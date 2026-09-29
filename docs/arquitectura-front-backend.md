@@ -23,7 +23,6 @@ graph TD
     Web -->|"fetch /api/* (proxy Vite → :3001 en dev)"| Api
     Api --> DB[("PostgreSQL vía Prisma")]
     Jotform((Jotform)) -->|"webhook"| Api
-    Api -->|"ai.ts"| Claude(("Claude — resumen de preguntas abiertas"))
 ```
 
 `packages/shared` es la fuente única de verdad de tipos y validación (Zod):
@@ -170,13 +169,9 @@ técnica):
 2. **`/interactive-reports` (documentos institucionales, sin sidebar —
    `ReportLayout`)** — lo que ve el **donante o quien toma decisiones**:
    la única pantalla disponible para un `report_viewer` típico. Son
-   reportes por temporada/periodo (Local/Visitante, por sitio) con un
-   diseño institucional fijo que EPI está terminando de definir — hoy hay
-   **una plantilla de prueba conectada a datos reales** (`seasonal-site-report`)
-   más las dos plantillas de ejemplo originales
-   (`activities-attendance`, `operational-financial`, que piden
-   ingresos/gastos y asistencia — datos que no existen en el modelo, siguen
-   sin resolver real).
+   reportes por curso con un diseño institucional fijo. El catálogo contiene
+   únicamente las tres variantes Course Impacts respaldadas por los PDFs de
+   `/templates`: NCSSM, Burr and Burton Academy y Templeton Academy.
 
    ```mermaid
    sequenceDiagram
@@ -236,17 +231,14 @@ técnica):
      descarga.
 
    **Sigue pendiente:**
-   - `activities-attendance` y `operational-financial` siguen sin resolver
-     real — piden datos (ingresos/gastos, asistencia) que no existen en el
-     modelo. `seasonal-site-report` es una plantilla de **prueba** para
-     validar el pipeline completo, no uno de los diseños institucionales
-     finales.
-   - Los **N diseños reales** (uno por tipo de reporte que EPI necesite)
-     están por definirse — cuando existan, cada uno es una plantilla nueva
+   - Los futuros diseños reales (uno por tipo de reporte que EPI necesite)
+     se agregan como una plantilla nueva
      en `features/reports/templates/` + (si pide datos que hoy no se
      calculan) un resolver nuevo en `report-data-resolvers.ts`. La
      plomería (resolver registry, `textContent`, filtro sitio/global, PDF
-     institucional) ya está lista para recibirlos.
+     institucional) ya está lista para recibirlos. El seed demo de Course
+     Impacts usa cifras y fotos de muestra para poder inspeccionar todos sus
+     bloques sin depender de una carga real.
    - `features/reports/api.ts` sigue sin pasar por `apiClient`/`offline.ts`
      (ver [§5](#5-cliente-http-online-vs-offline-pwa)) — ninguna pantalla
      de reportes funciona sin conexión, sin cambios en esta iteración.

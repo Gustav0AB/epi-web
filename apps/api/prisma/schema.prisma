@@ -220,26 +220,12 @@ model Question {
   text               String
   type               QuestionType
   options            String[]         @default([]) // opciones de Jotform (radio/dropdown/checkbox) — solo se usa como sugerencia para ONE_ANSWER.correctAnswer
-  weight             Weight? // no aplica a OPEN_TEXT (se procesan con IA, no se ponderan)
+  weight             Weight? // no aplica a OPEN_TEXT (se revisan manualmente, no se ponderan)
   answers            Answer[]
-  insight            QuestionInsight?
   createdAt          DateTime         @default(now())
 
   @@unique([surveyDefinitionId, externalId])
   @@map("questions")
-}
-
-// Resultado del análisis con IA de las respuestas a una pregunta abierta.
-model QuestionInsight {
-  id          String   @id @default(uuid())
-  questionId  String   @unique
-  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  summary     String // resumen de los temas principales
-  bestAnswers Json // [{ text, reason }]
-  model       String // modelo de IA usado
-  generatedAt DateTime @default(now())
-
-  @@map("question_insights")
 }
 
 // El motor de ponderación: si falta un Weight para una pregunta, la

@@ -32,7 +32,7 @@ export const FEATURES_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
   [FEATURE_KEYS.OPEN_QUESTIONS]: {
     key: FEATURE_KEYS.OPEN_QUESTIONS,
     name: "Preguntas abiertas",
-    description: "Ver y analizar con IA las respuestas de las preguntas abiertas",
+    description: "Consultar respuestas abiertas y guardar su resumen manual",
   },
 };
 

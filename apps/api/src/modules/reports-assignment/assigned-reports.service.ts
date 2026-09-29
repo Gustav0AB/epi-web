@@ -12,16 +12,49 @@ import type {
 } from "@epi/shared";
 import type { JwtPayload } from "../../middlewares/auth.middleware.js";
 
-type RawReport = { id: string; userId: string; templateKey: string; title: string; status: string; filters: unknown; textContent: unknown; version: number; createdAt: Date; updatedAt: Date };
-type RawVersion = { id: string; reportId: string; version: number; title: string; status: string; filters: unknown; textContent: unknown; actorUsername: string; createdAt: Date };
-type RawReportWithUser = RawReport & { user: { organizationId: string | null; role: string; excludedSiteIds: string[] } };
+type RawReport = {
+  id: string;
+  userId: string;
+  templateKey: string;
+  title: string;
+  status: string;
+  filters: unknown;
+  textContent: unknown;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+type RawVersion = {
+  id: string;
+  reportId: string;
+  version: number;
+  title: string;
+  status: string;
+  filters: unknown;
+  textContent: unknown;
+  actorUsername: string;
+  createdAt: Date;
+};
+type RawReportWithUser = RawReport & {
+  user: {
+    organizationId: string | null;
+    role: string;
+    excludedSiteIds: string[];
+  };
+};
 
 function forbidden(message: string) {
-  return Object.assign(new Error(message), { statusCode: 403, code: "FORBIDDEN" });
+  return Object.assign(new Error(message), {
+    statusCode: 403,
+    code: "FORBIDDEN",
+  });
 }
 
 function notFound(message: string) {
-  return Object.assign(new Error(message), { statusCode: 404, code: "NOT_FOUND" });
+  return Object.assign(new Error(message), {
+    statusCode: 404,
+    code: "NOT_FOUND",
+  });
 }
 
 // El propio asignado puede leer (listar/ver datos) su reporte; gestionarlo
@@ -29,13 +62,21 @@ function notFound(message: string) {
 function assertReadAccess(requester: JwtPayload, report: RawReportWithUser) {
   if (requester.sub === report.userId) return;
   if (requester.role === "system_admin") return;
-  if (requester.role === "org_admin" && report.user.organizationId === requester.organizationId) return;
+  if (
+    requester.role === "org_admin" &&
+    report.user.organizationId === requester.organizationId
+  )
+    return;
   throw forbidden("Insufficient permissions to access this report");
 }
 
 function assertManageAccess(requester: JwtPayload, report: RawReportWithUser) {
   if (requester.role === "system_admin") return;
-  if (requester.role === "org_admin" && report.user.organizationId === requester.organizationId) return;
+  if (
+    requester.role === "org_admin" &&
+    report.user.organizationId === requester.organizationId
+  )
+    return;
   throw forbidden("Insufficient permissions to manage this report");
 }
 
@@ -75,31 +116,56 @@ async function loadOrThrow(id: string): Promise<RawReportWithUser> {
 }
 
 export const assignedReportsService = {
-  async listMine(requester: JwtPayload, status?: string): Promise<AssignedReportDto[]> {
-    const rows = await assignedReportsRepository.listForUser(requester.sub, status);
+  async listMine(
+    requester: JwtPayload,
+    status?: string,
+  ): Promise<AssignedReportDto[]> {
+    const rows = await assignedReportsRepository.listForUser(
+      requester.sub,
+      status,
+    );
     return rows.map(mapReport);
   },
 
   async listManaged(requester: JwtPayload): Promise<AssignedReportDto[]> {
-    const organizationId = requester.role === "org_admin" ? requester.organizationId! : undefined;
+    const organizationId =
+      requester.role === "org_admin" ? requester.organizationId! : undefined;
     const rows = await assignedReportsRepository.listScoped(organizationId);
     return rows.map(mapReport);
   },
 
-  async create(requester: JwtPayload, dto: CreateAssignedReportDto): Promise<AssignedReportDto> {
+  async create(
+    requester: JwtPayload,
+    dto: CreateAssignedReportDto,
+  ): Promise<AssignedReportDto> {
     const targetUser = await usersRepository.findById(dto.userId);
     if (!targetUser) throw notFound("User not found");
-    if (requester.role === "org_admin" && targetUser.organizationId !== requester.organizationId) {
-      throw forbidden("org_admin can only assign reports to users in their own organization");
+    if (
+      requester.role === "org_admin" &&
+      targetUser.organizationId !== requester.organizationId
+    ) {
+      throw forbidden(
+        "org_admin can only assign reports to users in their own organization",
+      );
     }
-    const report = await assignedReportsRepository.create(dto, { id: requester.sub, username: requester.username });
+    const report = await assignedReportsRepository.create(dto, {
+      id: requester.sub,
+      username: requester.username,
+    });
     return mapReport(report);
   },
 
-  async update(requester: JwtPayload, id: string, dto: UpdateAssignedReportDto): Promise<AssignedReportDto> {
+  async update(
+    requester: JwtPayload,
+    id: string,
+    dto: UpdateAssignedReportDto,
+  ): Promise<AssignedReportDto> {
     const existing = await loadOrThrow(id);
     assertManageAccess(requester, existing);
-    const report = await assignedReportsRepository.update(id, dto, { id: requester.sub, username: requester.username });
+    const report = await assignedReportsRepository.update(id, dto, {
+      id: requester.sub,
+      username: requester.username,
+    });
     return mapReport(report);
   },
 
@@ -109,7 +175,10 @@ export const assignedReportsService = {
     await assignedReportsRepository.delete(id);
   },
 
-  async versions(requester: JwtPayload, id: string): Promise<AssignedReportVersionDto[]> {
+  async versions(
+    requester: JwtPayload,
+    id: string,
+  ): Promise<AssignedReportVersionDto[]> {
     const existing = await loadOrThrow(id);
     assertReadAccess(requester, existing);
     const rows = await assignedReportsRepository.listVersions(id);
@@ -123,10 +192,15 @@ export const assignedReportsService = {
   // (siteId u undefined = todos) es el del USUARIO ASIGNADO al reporte, no
   // el de quien lo consulta — así un admin ve exactamente lo que vería el
   // donante/decisor dueño del reporte.
-  async getData(requester: JwtPayload, id: string, siteId?: string): Promise<ReportDataDto> {
+  async getData(
+    requester: JwtPayload,
+    id: string,
+    siteId?: string,
+  ): Promise<ReportDataDto> {
     const existing = await loadOrThrow(id);
     assertReadAccess(requester, existing);
-    if (existing.status !== "PUBLISHED") throw forbidden("Report is not approved for viewing");
+    if (existing.status !== "PUBLISHED")
+      throw forbidden("Report is not approved for viewing");
 
     const resolver = REPORT_DATA_RESOLVERS[existing.templateKey];
     const texts = (existing.textContent as Record<string, string> | null) ?? {};
@@ -137,11 +211,22 @@ export const assignedReportsService = {
       organizationId: existing.user.organizationId,
       excludedSiteIds: existing.user.excludedSiteIds,
     });
-    const filters = (existing.filters as Record<string, unknown> | null) ?? undefined;
+    const filters =
+      (existing.filters as Record<string, unknown> | null) ?? undefined;
+    const assignedSiteIds = Array.isArray(filters?.siteIds)
+      ? filters.siteIds.filter((id): id is string => typeof id === "string")
+      : typeof filters?.siteIds === "string"
+        ? filters.siteIds.split(",").filter(Boolean)
+        : undefined;
+    const scopedSiteIds = assignedSiteIds?.length
+      ? ownerSiteIds
+        ? ownerSiteIds.filter((id) => assignedSiteIds.includes(id))
+        : assignedSiteIds
+      : ownerSiteIds;
     const data = await resolver({
       siteId,
       ...(filters ? { filters } : {}),
-      scope: { siteIds: ownerSiteIds, excludedSurveyDefinitionIds: [] },
+      scope: { siteIds: scopedSiteIds, excludedSurveyDefinitionIds: [] },
     });
     return { ...data, texts };
   },

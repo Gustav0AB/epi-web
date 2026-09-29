@@ -6,7 +6,7 @@ Fecha: 21 de septiembre de 2026
 
 Desarrollar una plataforma web para administrar usuarios, organizaciones, sitios, instrumentos de evaluacion, respuestas recibidas desde Jotform, ponderaciones, resultados agregados y reportes institucionales de EPI.
 
-El sistema busca centralizar el proceso operativo de evaluaciones: recibir respuestas, validar configuracion, calcular resultados, analizar preguntas abiertas, consultar indicadores y publicar reportes para usuarios autorizados.
+El sistema busca centralizar el proceso operativo de evaluaciones: recibir respuestas, validar configuracion, calcular resultados, consultar indicadores y publicar reportes para usuarios autorizados.
 
 2. Alcance
 
@@ -17,7 +17,7 @@ Administracion de usuarios, roles, permisos, organizaciones, sitios y categorias
 Integracion con Jotform para sincronizar formularios, recibir respuestas por webhook e importar historicos.
 Configuracion de instrumentos de evaluacion y ponderaciones.
 Procesamiento de respuestas pre/post y calculo de resultados por categoria y subcategoria.
-Analisis de preguntas abiertas mediante Manual.
+Consulta y edicion manual del resumen general de preguntas abiertas.
 Consulta de resultados en dashboards y generacion de reportes.
 Asignacion y publicacion de reportes interactivos.
 Bitacora de auditoria para acciones sensibles.
@@ -41,7 +41,7 @@ Jotform : Servicio externo que envia respuestas y provee catalogo de formularios
 4. Roles y permisos
 
 system_admin`       : Acceso global al sistema. Puede gestionar organizaciones, usuarios, sitios, categorias, reportes, cuentas Jotform y auditoria.                      
-org_admin` : Acceso administrativo limitado a su organizacion. Puede gestionar usuarios, sitios, categorias, reportes asignados y cuentas Jotform segun alcance.
+org_admin` : Acceso administrativo limitado a su organizacion. Puede gestionar usuarios, sitios, categorias y reportes asignados dentro de su alcance. No ve el catalogo global ni las cuentas Jotform.
 functionality_user`: Accede solo a funcionalidades asignadas mediante`featureKeys`.                                                                                     
 report_viewer` : Accede solo a plantillas/reportes asignados mediante `reportTemplateKeys`.
 
@@ -123,10 +123,10 @@ El sistema debe reprocesar respuestas pendientes despues de completar la configu
 RF-08 Preguntas abiertas
 
 El sistema debe listar preguntas abiertas por instrumento.
+El sistema debe mostrar las respuestas recibidas debajo de cada pregunta para su analisis manual.
 El sistema debe guardar un resumen general de preguntas abiertas por instrumento.
 El sistema debe mostrar preguntas abiertas para su analisis manual.
-El sistema debe mostrar resumen, mejores respuestas, justificacion y fecha/modelo de generacion.
-El sistema debe permitir volver a analizar una pregunta.
+El sistema debe mostrar las preguntas abiertas y permitir editar el resumen general del instrumento.
 
 RF-09 Reportes agregados
 
@@ -136,11 +136,12 @@ El sistema debe mostrar graficas de barras, radar, cambios pre/post y tablas.
 El sistema debe permitir construir secciones de reporte con titulo, texto y visualizaciones.
 El sistema debe permitir configurar categorias visibles por seccion.
 El sistema debe exportar el reporte a PDF.
+El administrador debe poder continuar con los filtros aprobados hacia la asignacion de una plantilla dinamica.
 
 RF-10 Reportes asignados e interactivos
 
 El sistema debe permitir crear reportes asignados a usuarios.
-El sistema debe seleccionar plantilla, titulo y campos de texto por reporte.
+El sistema debe seleccionar una o varias plantillas, sitios asignados y campos de texto por reporte. El titulo se deriva de la plantilla.
 El sistema debe editar reportes asignados.
 El sistema debe manejar estados `pending`, `in_review` y `published`.
 El sistema debe guardar versionado de reportes asignados.
@@ -200,7 +201,7 @@ Flujo 2: Alta de usuario
 
 Flujo 3: Alta de instrumento desde Jotform
 
-1. El administrador entra a `/survey-settings`.
+1. El `system_admin` entra a `/survey-settings`.
 2. Sincroniza formularios desde una cuenta Jotform o desde todas.
 3. Selecciona un formulario no registrado.
 4. Asocia el formulario a sitio y tipo de encuesta.
@@ -237,15 +238,15 @@ Flujo 6: Cierre de grupo
 5. Las respuestas pasan a estado `COMPLETADO`.
 6. Los resultados quedan disponibles para reportes.
 
-Flujo 7: Analisis de preguntas abiertas
+Flujo 7: Consulta de preguntas abiertas
 
 1. El usuario entra a `/open-questions`.
 2. Selecciona un instrumento.
-3. Revisa preguntas abiertas.
-   //4. Ejecuta analisis de IA en una pregunta.
-   //5. El sistema guarda y muestra resumen, mejores respuestas y modelo usado.
+3. Revisa las preguntas abiertas.
+4. Edita, si corresponde, el resumen general del instrumento.
+5. Guarda el resumen manual.
 
-Flujo 8: Construccion de reporte agregado
+Flujo 8: Revision y construccion de reporte agregado
 
 1. El usuario entra a `/reports`.
 2. Configura filtros de sitio, tipo, escuela, categoria y fechas.
@@ -253,16 +254,18 @@ Flujo 8: Construccion de reporte agregado
 4. El usuario agrega secciones de titulo, texto, graficas o tablas.
 5. El usuario ordena, configura o elimina secciones.
 6. El usuario exporta el documento a PDF.
+7. Si es administrador, confirma la informacion y continua a la asignacion; sitio, tipo, escuela, categoria y fechas pasan al reporte dinamico.
 
 Flujo 9: Asignacion y consulta de reporte interactivo
 
-1. El administrador entra a `/report-assignments`.
-2. Crea un reporte para un usuario, seleccionando plantilla y titulo.
-3. Llena campos de texto requeridos por la plantilla.
-4. Cambia el estado del reporte hasta publicarlo.
-5. El visualizador entra a `/interactive-reports`.
-6. Consulta sus reportes asignados.
-7. Abre un reporte, cambia filtros permitidos y revisa la vista interactiva o documento.
+1. El administrador entra a `/report-assignments` directamente o desde los datos revisados en `/reports`.
+2. Crea una o varias asignaciones para un usuario, seleccionando una o varias plantillas.
+3. Selecciona todos, uno o varios sitios permitidos.
+4. Llena campos de texto requeridos por la plantilla.
+5. Cambia el estado del reporte hasta publicarlo.
+6. El visualizador entra a `/interactive-reports`.
+7. Consulta sus reportes asignados y solo los datos de los sitios asignados.
+8. Abre un reporte y revisa la vista interactiva o documento.
 
 Flujo 10: Auditoria
 
@@ -283,9 +286,9 @@ Flujo 10: Auditoria
 | Encuestas                  | `/surveys`             | Admin/usuarios con feature   | Revision de respuestas, filtros, reproceso y cierre de grupos.        |
 | Grupos                     | `/survey-groups`       | Admin/usuarios con feature   | Busqueda de grupos por fecha, conteos PRE/POST/CQS y mejora.          |
 | Ponderaciones              | `/scoring`             | Admin/usuarios con feature   | Configuracion de preguntas y ponderaciones.                           |
-| Configuracion de encuestas | `/survey-settings`     | System admin, org admin      | Catalogo Jotform, instrumentos sin registrar e importacion historica. |
-| Cuentas Jotform            | `/jotform-accounts`    | System admin, org admin      | Administracion de cuentas/API keys de Jotform.                        |
-| Preguntas abiertas         | `/open-questions`      | Admin/usuarios con feature   | Analisis y resumen de respuestas abiertas.                            |
+| Configuracion de encuestas | `/survey-settings`     | System admin, org admin      | Instrumentos e historicos dentro del alcance; catalogo global y asociacion de formularios para system admin. |
+| Cuentas Jotform            | `/jotform-accounts`    | System admin                 | Administracion de cuentas/API keys de Jotform.                        |
+| Preguntas abiertas         | `/open-questions`      | Admin/usuarios con feature   | Consulta y edicion manual del resumen general.                        |
 | Reportes                   | `/reports`             | Admin/usuarios con plantilla | Dashboard agregado y armado de PDF operativo.                         |
 | Asignacion de reportes     | `/report-assignments`  | System admin, org admin      | Creacion, edicion, publicacion y versionado de reportes asignados.    |
 | Reportes interactivos      | `/interactive-reports` | Visualizadores/admin         | Consulta de reportes asignados.                                       |
@@ -308,9 +311,81 @@ Submission : Respuesta recibida desde Jotform.
  Participant : Participante detectado en respuestas.  
  Answer : Respuesta individual por pregunta.  
  AggregatedResult : Resultado calculado por categoria/subcategoria.  
- AssignedReport : Reporte asignado a un usuario.  
+ AssignedReport : Reporte asignado a un usuario, plantilla y alcance de sitios.
  AssignedReportVersion : Historial de versiones de reportes asignados.  
  AuditLog : Bitacora de acciones sensibles.
+
+9.1 Relaciones entre tablas
+
+```mermaid
+erDiagram
+    ORGANIZATION ||--o{ USER : contiene
+    ORGANIZATION ||--o{ SITE : tiene
+    ORGANIZATION ||--o{ CATEGORY : define
+    USER ||--o{ USER_FEATURE : recibe
+    FEATURE ||--o{ USER_FEATURE : habilita
+    USER ||--o{ USER_REPORT_TEMPLATE : recibe
+    REPORT_TEMPLATE ||--o{ USER_REPORT_TEMPLATE : habilita
+    USER ||--o{ ASSIGNED_REPORT : recibe
+    ASSIGNED_REPORT ||--o{ ASSIGNED_REPORT_VERSION : versiona
+    SITE ||--o{ SURVEY_DEFINITION : aloja
+    JOTFORM_ACCOUNT ||--o{ JOTFORM_FORM : sincroniza
+    SURVEY_DEFINITION ||--o{ QUESTION : contiene
+    SURVEY_DEFINITION ||--o{ SUBMISSION : recibe
+    QUESTION ||--o| WEIGHT : pondera
+    QUESTION ||--o{ ANSWER : recibe
+    SUBMISSION ||--o{ ANSWER : contiene
+    PARTICIPANT ||--o{ SUBMISSION : realiza
+    SUBMISSION ||--o{ AGGREGATED_RESULT : produce
+
+    USER {
+        string id PK
+        string organizationId FK
+        enum role
+        string[] siteIds "referencia, no restriccion"
+        string[] excludedSiteIds
+        string[] excludedSurveyDefinitionIds
+    }
+    SITE {
+        string id PK
+        string organizationId FK
+    }
+    SURVEY_DEFINITION {
+        string id PK
+        string siteId FK
+        string jotformFormId "relacion logica con JotformForm.id"
+        int version
+    }
+    ASSIGNED_REPORT {
+        string id PK
+        string userId FK
+        string templateKey
+        json filters "incluye siteIds opcional"
+        enum status
+    }
+```
+
+Relaciones importantes:
+
+- `SurveyDefinition.siteId` es el vinculo que determina a que sitio pertenece una encuesta. Sus preguntas, respuestas y resultados derivados quedan debajo de ese instrumento.
+- `Organization` agrupa usuarios, sitios y categorias; un `org_admin` nunca debe operar fuera de su organizacion.
+- `UserFeature` y `UserReportTemplate` son tablas puente para permisos por funcionalidad y por plantilla.
+- `AssignedReport` pertenece a un usuario y puede guardar `filters.siteIds`: vacio significa todos los sitios permitidos del usuario asignado; con valores, limita el reporte a esos sitios.
+- `JotformForm` y `SurveyDefinition` se relacionan por `jotformFormId`; la asociacion efectiva al sitio vive en `SurveyDefinition`.
+
+9.2 Quien ve y modifica cada cosa
+
+| Recurso | `system_admin` | `org_admin` | `functionality_user` | `report_viewer` |
+| --- | --- | --- | --- | --- |
+| Organizaciones, todos los sitios y auditoria | Todo | Solo lectura/alcance propio segun ruta | No | No |
+| Encuestas, instrumentos, preguntas y resultados | Todo | Su organizacion y sitios permitidos | Solo si tiene la funcionalidad y dentro de su alcance | No, salvo datos servidos por un reporte asignado |
+| Catalogo global Jotform, cuentas y formularios sin sitio | Ver, sincronizar y asociar | No | No | No |
+| Configuracion de un instrumento asociado a un sitio | Todo | Solo si el sitio pertenece a su alcance | Ponderaciones solo con `scoring` | No |
+| Reportes agregados `/reports` | Todo | Su alcance | Solo con plantilla `reports` y su alcance | Solo si tiene esa plantilla |
+| Reportes asignados | Todos los de la organizacion/global | Los de su organizacion | No administra | Solo los asignados a su usuario |
+| Datos de un reporte interactivo publicado | Todos | Segun acceso al reporte | No salvo permiso correspondiente | Solo su reporte, limitado por sus sitios asignados |
+
+El backend calcula el alcance real con `allowedSiteIds`: `system_admin` no tiene limite; los demas roles reciben los sitios de su organizacion menos `excludedSiteIds`. Tambien se aplican `excludedSurveyDefinitionIds`. Las operaciones de asociar, editar preguntas, ponderar o reprocesar vuelven a validar el `siteId` antes de modificar datos.
 
 10. Reglas de negocio
 
@@ -324,10 +399,11 @@ Un usuario con cambio de contrasena obligatorio no debe usar funcionalidades pro
 Las exclusiones por sitio e instrumento reducen el alcance visible de un usuario.
 Una respuesta de Jotform nunca debe perder su JSON crudo.
 Una respuesta sin instrumento o sin ponderaciones completas queda pendiente.
-Las preguntas abiertas no se ponderan; se analizaran manualmente.
+Las preguntas abiertas no se ponderan; su resumen se mantiene manualmente.
 Solo respuestas completadas alimentan los reportes agregados.
 Los reportes asignados tienen estados y versionado.
-Las plantillas de reporte sin resolver de backend pueden mostrarse sin datos calculados hasta implementar su resolver.
+El catalogo contiene solo las tres plantillas Course Impacts respaldadas por los PDFs de `/templates`. El usuario demo usa datos mock identificados por `filters.demo`; una asignacion normal sigue resolviendo datos reales de encuestas.
+Los bloques de imagen se capturan desde `/report-assignments` y se guardan en `AssignedReport.textContent`, igual que las citas y textos de impacto.
 
 11. Arquitectura tecnica resumida
 

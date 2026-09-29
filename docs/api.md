@@ -63,20 +63,19 @@ Todas las respuestas usan el wrapper compartido de `@epi/shared` (`apiSuccess` /
 | PUT | `/api/surveys/questions/:id/weight` | Guardar ponderacion. |
 | DELETE | `/api/surveys/questions/:id/weight` | Eliminar ponderacion. |
 | PATCH | `/api/surveys/questions/:id` | Editar pregunta. |
-| POST | `/api/surveys/questions/:id/analyze` | Analizar pregunta abierta con IA. |
 
 ## Jotform
 
 | Metodo | Ruta | Uso |
 | --- | --- | --- |
 | POST | `/api/webhooks/jotform` | Webhook publico con secreto. |
-| GET | `/api/surveys/unregistered` | Formularios no registrados detectados por respuestas. |
-| GET | `/api/surveys/jotform/forms` | Catalogo sincronizado. |
-| POST | `/api/surveys/jotform/forms/sync?accountId=:id` | Sincronizar formularios de una cuenta; sin `accountId`, sincroniza todas. |
-| GET | `/api/surveys/jotform/forms/:formId/questions` | Previsualizar preguntas. |
+| GET | `/api/surveys/unregistered` | `system_admin` — formularios no registrados detectados por respuestas. |
+| GET | `/api/surveys/jotform/forms` | `system_admin` — catalogo sincronizado. |
+| POST | `/api/surveys/jotform/forms/sync?accountId=:id` | `system_admin` — sincronizar formularios de una cuenta; sin `accountId`, sincroniza todas. |
+| GET | `/api/surveys/jotform/forms/:formId/questions` | `system_admin` — previsualizar preguntas. |
 | GET | `/api/surveys/jotform/submissions` | Historicos disponibles. |
 | POST | `/api/surveys/jotform/submissions/import` | Importar historicos. |
-| GET/POST/DELETE | `/api/surveys/jotform/accounts` | Cuentas Jotform. |
+| GET/POST/DELETE | `/api/surveys/jotform/accounts` | `system_admin` — cuentas Jotform. |
 
 ## Reportes
 

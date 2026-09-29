@@ -34,6 +34,14 @@ function courseImpactTemplate(config: CourseImpactConfig): ReportTemplate {
         type: "text",
         content: `${config.school} - ${config.dateLabel}\n${config.country} ${config.program}`,
       },
+      {
+        id: "summary-kpis",
+        type: "kpi-group",
+        items: [
+          { key: "overallSatisfaction", label: "Overall Satisfaction", format: "percent" },
+          { key: "overallImprovement", label: "Overall Improvement", format: "percent" },
+        ],
+      },
       { id: "student-quote", type: "text", title: "Student quote", dataKey: "studentQuote" },
       { id: "recommendation", type: "text", title: "Recommendation", dataKey: "recommendationText" },
       {
@@ -72,7 +80,7 @@ function courseImpactTemplate(config: CourseImpactConfig): ReportTemplate {
           { key: "change", label: "Change", align: "right", format: "percent" },
         ],
       },
-      { id: "field-photo", type: "image", title: "Course photo", dataKey: "coursePhotoUrl", captionKey: "coursePhotoCaption", height: 220, required: false },
+      { id: "field-photo", type: "image", title: "Course photo", dataKey: "coursePhotoUrl", captionKey: "coursePhotoCaption", height: 320, required: false },
       {
         id: "most-improved",
         type: "table",

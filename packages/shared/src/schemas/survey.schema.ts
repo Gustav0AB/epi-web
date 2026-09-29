@@ -151,13 +151,6 @@ export type SurveyDefinitionDto = {
   openQuestionsSummary: string | null;
 };
 
-export type QuestionInsightDto = {
-  summary: string;
-  bestAnswers: { text: string; reason: string }[];
-  model: string;
-  generatedAt: string;
-};
-
 export type QuestionWithWeight = {
   id: string;
   externalId: string;
@@ -165,7 +158,7 @@ export type QuestionWithWeight = {
   type: string;
   options: string[];
   weight: WeightDto | null;
-  insight: QuestionInsightDto | null;
+  answers: string[];
 };
 
 export type SurveyListItem = {
