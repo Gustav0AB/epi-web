@@ -370,8 +370,8 @@ sequenceDiagram
 
     U->>FE: entra a /reports
     FE->>API: GET /reports/results (solo status=COMPLETADO)
-    API->>DB: agrega % pre/post por categoría/subcategoría
-    API-->>FE: filas del dashboard
+    API->>DB: calcula total, % por pregunta y % por categoría/subcategoría
+    API-->>FE: filas del dashboard y detalle Pre/Post
 ```
 
 ## 9. Endpoints (resumen)
@@ -383,6 +383,8 @@ sequenceDiagram
 | `GET` | `/api/surveys/pending` | `surveys` | Solo `PENDIENTE_CONFIGURACION` |
 | `GET` | `/api/surveys/summary` / `POST /groups/complete` | `surveys` | Resumen y cierre por grupo PRE/POST |
 | `GET` | `/api/surveys/group-search` | `surveys` | Busqueda de grupos por fecha, conteos PRE/POST/CQS y mejora |
+| `GET` | `/api/reports/results` | autenticado | Resultados Pre/Post agregados por categoría/subcategoría |
+| `GET` | `/api/reports/detail` | autenticado | Resultado total y detalle Pre/Post por pregunta |
 | `POST` | `/api/surveys/:id/reprocess` | `surveys` | Reintenta una respuesta puntual |
 | `GET` | `/api/surveys/unregistered` | `system_admin` | Formularios de Jotform sin asociar (camino B, §5) |
 | `GET` | `/api/surveys/jotform/forms` | `system_admin` | Catálogo local de formularios (camino A, §5) |

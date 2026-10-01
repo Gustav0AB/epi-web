@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ReportRow, SurveyListItem } from "@epi/shared";
+import type { ReportDetail, ReportRow, SurveyDefinitionDto, SurveyListItem } from "@epi/shared";
 import {
   Bar,
   BarChart,
@@ -28,20 +28,22 @@ const COLOR_POST = "#eb6834";
 const COLOR_NEG = "#e34948";
 const INK = "#52514e";
 
-type Filters = { siteId: string; type: string; school: string; category: string; prePost: string };
+type Filters = { surveyDefinitionId: string; siteId: string; type: string; school: string; category: string; prePost: string };
 type FilterOptions = {
   sites: { id: string; name: string }[];
   schools: string[];
   categories: { name: string; subcategory: string | null }[];
 };
-const EMPTY: Filters = { siteId: "", type: "", school: "", category: "", prePost: "" };
+const EMPTY: Filters = { surveyDefinitionId: "", siteId: "", type: "", school: "", category: "", prePost: "" };
 
 export function HomePage() {
   const { t } = useI18n();
 
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [options, setOptions] = useState<FilterOptions>({ sites: [], schools: [], categories: [] });
+  const [definitions, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
   const [rows, setRows] = useState<ReportRow[]>([]);
+  const [detail, setDetail] = useState<ReportDetail | null>(null);
   const [loadingRows, setLoadingRows] = useState(true);
   const [recent, setRecent] = useState<SurveyListItem[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
@@ -49,11 +51,13 @@ export function HomePage() {
   useEffect(() => {
     void surveyApi.list("?limit=8").then(setRecent).catch(() => {}).finally(() => setLoadingRecent(false));
     void surveyApi.reportFilters().then(setOptions).catch(() => {});
+    void surveyApi.definitions().then(setDefinitions).catch(() => {});
   }, []);
 
   useEffect(() => {
     const p = new URLSearchParams();
     if (filters.siteId) p.set("siteId", filters.siteId);
+    if (filters.surveyDefinitionId) p.set("surveyDefinitionId", filters.surveyDefinitionId);
     if (filters.type) p.set("type", filters.type);
     if (filters.school) p.set("school", filters.school);
     if (filters.category) p.set("category", filters.category);
@@ -64,7 +68,8 @@ export function HomePage() {
       .then(setRows)
       .catch(() => setRows([]))
       .finally(() => setLoadingRows(false));
-  }, [filters.siteId, filters.type, filters.school, filters.category]);
+    void surveyApi.reportDetail(q ? `?${q}` : "").then(setDetail).catch(() => setDetail(null));
+  }, [filters.surveyDefinitionId, filters.siteId, filters.type, filters.school, filters.category]);
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
@@ -84,6 +89,10 @@ export function HomePage() {
   const siteOptions: DropdownOption[] = [
     { label: t("reports.allSites"), value: "" },
     ...options.sites.map((s) => ({ label: s.name, value: s.id })),
+  ];
+  const surveyOptions: DropdownOption[] = [
+    { label: t("reports.allSurveys"), value: "" },
+    ...definitions.filter((d) => d.isWeighted).map((d) => ({ label: d.title, value: d.id })),
   ];
   const typeOptions: DropdownOption[] = [
     { label: t("reports.all"), value: "" },
@@ -117,6 +126,7 @@ export function HomePage() {
 
           <Card>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <Dropdown label={t("reports.survey")} options={surveyOptions} value={filters.surveyDefinitionId} onChange={(v) => set({ surveyDefinitionId: v })} />
               <Dropdown label={t("reports.site")} options={siteOptions} value={filters.siteId} onChange={(v) => set({ siteId: v })} />
               <Dropdown label={t("reports.localVisiting")} options={typeOptions} value={filters.type} onChange={(v) => set({ type: v })} />
               <Dropdown label={t("reports.school")} options={schoolOptions} value={filters.school} onChange={(v) => set({ school: v })} />
@@ -129,6 +139,26 @@ export function HomePage() {
               </button>
             )}
           </Card>
+
+          {detail && (detail.questions.length > 0 || detail.total.pre !== null || detail.total.post !== null) && (
+            <Card>
+              <Label variant="subtitle" className="mb-1 block">{t("reports.detailTitle")}</Label>
+              <p className="mb-4 text-sm text-gray-500">{t("reports.detailNote")}</p>
+              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-lg bg-blue-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("reports.total")} · {t("reports.pre")}</p><p className="mt-1 text-xl font-semibold text-gray-800">{pct(detail.total.pre)}</p></div>
+                <div className="rounded-lg bg-orange-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("reports.total")} · {t("reports.post")}</p><p className="mt-1 text-xl font-semibold text-gray-800">{pct(detail.total.post)}</p></div>
+                <div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("reports.change")}</p><p className="mt-1 text-xl font-semibold" style={{ color: detail.total.change !== null && detail.total.change < 0 ? COLOR_NEG : COLOR_PRE }}>{detail.total.change === null ? "—" : `${detail.total.change > 0 ? "+" : ""}${detail.total.change}%`}</p></div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[42rem] text-left text-sm">
+                  <thead><tr className="border-b border-gray-200 text-gray-500"><th className="py-2 font-medium">{t("reports.question")}</th><th className="py-2 text-right font-medium">{t("reports.pre")}</th><th className="py-2 text-right font-medium">{t("reports.post")}</th><th className="py-2 text-right font-medium">{t("reports.change")}</th></tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {detail.questions.map((r) => <tr key={r.questionId}><td className="max-w-xl py-2 text-gray-800">{r.text}</td><td className="py-2 text-right tabular-nums">{pct(r.pre)}</td><td className="py-2 text-right tabular-nums">{pct(r.post)}</td><td className="py-2 text-right font-medium tabular-nums" style={{ color: r.change !== null && r.change < 0 ? COLOR_NEG : COLOR_PRE }}>{r.change === null ? "—" : `${r.change > 0 ? "+" : ""}${r.change}%`}</td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
 
           <Card>
             <div className="overflow-x-auto">

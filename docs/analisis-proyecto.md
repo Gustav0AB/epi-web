@@ -131,7 +131,10 @@ El sistema debe mostrar las preguntas abiertas y permitir editar el resumen gene
 RF-09 Reportes agregados
 
 El sistema debe consultar resultados agregados de respuestas completadas.
-El sistema debe filtrar reportes por sitio, tipo, escuela, categoria y rango de fechas.
+El sistema debe filtrar reportes por encuesta, sitio, tipo, escuela, categoria y rango de fechas.
+El sistema debe mostrar el resultado total Pre vs Post y el cambio en puntos porcentuales.
+El sistema debe mostrar el porcentaje individual por pregunta y el cambio por pregunta.
+El sistema debe mostrar el resultado Pre/Post por categoria y subcategoria.
 El sistema debe mostrar graficas de barras, radar, cambios pre/post y tablas.
 El sistema debe permitir construir secciones de reporte con titulo, texto y visualizaciones.
 El sistema debe permitir configurar categorias visibles por seccion.

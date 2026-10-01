@@ -16,6 +16,7 @@ import {
   type HistoricalSubmissionsImportInput,
   type HistoricalSubmissionDto,
   type HistoricalImportResult,
+  type ReportDetail,
   type SurveyGroupSearch,
   type SurveyGroupSearchResult,
 } from "@epi/shared";
@@ -99,6 +100,7 @@ export const surveysService = {
   groupSearch,
   completeGroup,
   reportResults,
+  reportDetail,
   reportFilterOptions,
 
   /** Ponderación manual de una pregunta (upsert). */
@@ -712,6 +714,7 @@ async function assertSiteAllowed(userId: string, siteId: string | null | undefin
 
 export async function reportResults(
   filters: {
+    surveyDefinitionId?: string | undefined;
     siteId?: string | undefined;
     type?: "LOCAL" | "VISITING" | undefined;
     school?: string | undefined;
@@ -722,6 +725,7 @@ export async function reportResults(
   userId: string
 ) {
   const scope = await resolveScope(userId);
+  if (filters.surveyDefinitionId && scope.excludedSurveyDefinitionIds?.includes(filters.surveyDefinitionId)) return [];
   let siteIds = scope.siteIds;
   if (filters.siteId) {
     if (siteIds && !siteIds.includes(filters.siteId)) return []; // fuera de su alcance
@@ -730,6 +734,7 @@ export async function reportResults(
 
   const subs = await surveysRepository.completedWithResults({
     scope: { siteIds, excludedSurveyDefinitionIds: scope.excludedSurveyDefinitionIds },
+    surveyDefinitionId: filters.surveyDefinitionId,
     type: filters.type,
     school: filters.school,
     from: filters.from,
@@ -737,6 +742,55 @@ export async function reportResults(
   });
 
   return aggregateCategoryResults(subs, filters.category);
+}
+
+export async function reportDetail(filters: Parameters<typeof reportResults>[0], userId: string): Promise<ReportDetail> {
+  const scope = await resolveScope(userId);
+  if (filters.surveyDefinitionId && scope.excludedSurveyDefinitionIds?.includes(filters.surveyDefinitionId)) {
+    return { total: emptyReportRow("Total"), categories: [], questions: [] };
+  }
+  if (filters.siteId && scope.siteIds && !scope.siteIds.includes(filters.siteId)) {
+    return { total: emptyReportRow("Total"), categories: [], questions: [] };
+  }
+  const subs = await surveysRepository.completedWithAnswers({
+    scope: { siteIds: filters.siteId ? [filters.siteId] : scope.siteIds, excludedSurveyDefinitionIds: scope.excludedSurveyDefinitionIds },
+    surveyDefinitionId: filters.surveyDefinitionId,
+    type: filters.type,
+    school: filters.school,
+    from: filters.from,
+    to: filters.to,
+  });
+  const rows = subs.flatMap((s) => s.answers
+    .filter((a) => a.question.weight && a.question.type !== "OPEN_TEXT")
+    .map((a) => ({
+      submissionId: s.id,
+      questionId: a.question.id,
+      text: a.question.text,
+      category: a.question.weight!.category,
+      score: scoreAnswer({ type: a.question.type as QuestionType, value: a.value, maxScore: a.question.weight!.maxScore, correctAnswer: a.question.weight!.correctAnswer }),
+      max: a.question.weight!.maxScore,
+      pre: s.surveyMoment === "PRE",
+    })));
+  const filteredRows = filters.category ? rows.filter((r) => r.category === filters.category) : rows;
+  const categorySubs = subs.map((s) => ({ results: s.answers
+    .filter((a) => a.question.weight && a.question.type !== "OPEN_TEXT")
+    .filter((a) => !filters.category || a.question.weight!.category === filters.category)
+    .map((a) => ({ category: a.question.weight!.category, subcategory: a.question.weight!.subcategory, calculatedScore: scoreAnswer({ type: a.question.type as QuestionType, value: a.value, maxScore: a.question.weight!.maxScore, correctAnswer: a.question.weight!.correctAnswer }), maxPossible: a.question.weight!.maxScore, isPrePost: s.surveyMoment === "PRE" })) }));
+  const totalRows = [...filteredRows.reduce((map, r) => {
+    const existing = map.get(r.submissionId) ?? { pre: r.pre, score: 0, max: 0 };
+    existing.score += r.score; existing.max += r.max; map.set(r.submissionId, existing); return map;
+  }, new Map<string, { pre: boolean; score: number; max: number }>()).values()];
+  const questions = [...new Map(filteredRows.map((r) => [r.questionId, r])).values()].map((r) => ({
+    ...makeDetailRow(r.text, filteredRows.filter((x) => x.questionId === r.questionId)), questionId: r.questionId, text: r.text,
+  }));
+  return { total: makeDetailRow("Total", totalRows), categories: aggregateCategoryResults(categorySubs), questions };
+}
+
+function emptyReportRow(name: string) { return { category: name, subcategory: null, pre: null, post: null, change: null }; }
+function makeDetailRow(name: string, rows: { pre: boolean; score: number; max: number }[]) {
+  const average = (pre: boolean) => { const values = rows.filter((r) => r.pre === pre); return values.length ? Math.round(values.reduce((sum, r) => sum + (r.score / r.max) * 100, 0) / values.length * 10) / 10 : null; };
+  const pre = average(true), post = average(false);
+  return { category: name, subcategory: null, pre, post, change: pre !== null && post !== null ? Math.round((post - pre) * 10) / 10 : null };
 }
 
 // % por (categoría, subcategoría): promedio de score/maxPossible por submission,

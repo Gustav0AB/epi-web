@@ -59,12 +59,19 @@ En `/open-questions`:
 
 En `/reports`:
 
-- Aplicar filtros por sitio, tipo, escuela, categoria y fecha.
+- Aplicar filtros por encuesta, sitio, tipo, escuela, categoria y fecha.
+- Consultar el resultado total Pre vs Post de la encuesta seleccionada.
+- Ver el porcentaje Pre, Post y el cambio por cada pregunta.
+- Consultar el cambio por categoria/subcategoria.
 - Revisar graficas y tablas.
 - Crear secciones con texto y visualizaciones.
 - Descargar cada gráfica visible como PNG o SVG transparente, conservando los datos actuales.
 - Exportar PDF.
 - Si eres administrador, usar **Completar plantilla dinamica** para conservar sitio, escuela y fechas, elegir las plantillas y capturar sus textos manuales.
+
+El cambio Pre/Post se calcula como `Post - Pre` en puntos porcentuales. Las
+respuestas en blanco y las preguntas abiertas no entran al calculo; solo las
+encuestas en estado `COMPLETADO` aparecen en el reporte.
 
 En `/interactive-reports`:
 

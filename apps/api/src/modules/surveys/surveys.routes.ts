@@ -186,6 +186,7 @@ surveysRouter.delete(
 // sitios. Solo devuelve encuestas en estado COMPLETADO.
 export const reportsRouter = Router();
 reportsRouter.get("/results", requireAuth, surveysController.reportResults);
+reportsRouter.get("/detail", requireAuth, surveysController.reportDetail);
 reportsRouter.get(
   "/filters",
   requireAuth,

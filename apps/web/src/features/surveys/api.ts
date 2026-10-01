@@ -11,6 +11,7 @@ import type {
   QuestionWithWeight,
   RegisterDefinitionInput,
   ReportRow,
+  ReportDetail,
   ReprocessPendingResult,
   SiteDto,
   SurveyDefinitionDto,
@@ -121,6 +122,7 @@ export const surveyApi = {
       body: JSON.stringify({ summary }),
     }),
   reportResults: (query: string) => call<ReportRow[]>(`/api/reports/results${query}`),
+  reportDetail: (query: string) => call<ReportDetail>(`/api/reports/detail${query}`),
   reportFilters: () =>
     call<{
       sites: { id: string; name: string }[];

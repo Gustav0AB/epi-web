@@ -32,6 +32,8 @@
   "reportAssignments.allSites": "Sin selección = todos los sitios permitidos.",
 
   "reports.globalTitle": "Resultados globales",
+  "reports.survey": "Encuesta",
+  "reports.allSurveys": "Todas las encuestas",
   "reports.site": "Sitio",
   "reports.allSites": "Todos los sitios",
   "reports.localVisiting": "Local / Visitante",
@@ -50,6 +52,10 @@
   "reports.barsTitle": "Comparativo pre vs post",
   "reports.spiderTitle": "Perfil por categoría",
   "reports.columnsTitle": "Cambio por categoría",
+  "reports.detailTitle": "Detalle por pregunta",
+  "reports.detailNote": "Porcentaje promedio por pregunta. El cambio es post menos pre, en puntos porcentuales.",
+  "reports.total": "Resultado total",
+  "reports.question": "Pregunta",
 
   "surveys.title": "Encuestas",
   "surveys.subtitle": "Visualiza y busca las encuestas recibidas.",

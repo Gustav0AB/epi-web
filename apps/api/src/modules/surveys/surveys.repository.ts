@@ -202,6 +202,7 @@ export const surveysRepository = {
 
   completedWithResults(args: {
     scope?: SurveyScope | undefined;
+    surveyDefinitionId?: string | undefined;
     type?: "LOCAL" | "VISITING" | undefined;
     school?: string | undefined;
     groupName?: string | undefined;
@@ -210,6 +211,7 @@ export const surveysRepository = {
   }) {
     const where: Prisma.SubmissionWhereInput = { status: "COMPLETADO", surveyMoment: { in: ["PRE", "POST"] } };
     const definition: Prisma.SurveyDefinitionWhereInput = {};
+    if (args.surveyDefinitionId) definition.id = args.surveyDefinitionId;
     if (args.scope?.siteIds) definition.siteId = { in: args.scope.siteIds };
     if (args.scope?.excludedSurveyDefinitionIds?.length) definition.id = { notIn: args.scope.excludedSurveyDefinitionIds };
     if (args.type) definition.type = args.type;
@@ -236,6 +238,36 @@ export const surveysRepository = {
             isPrePost: true,
           },
         },
+      },
+    });
+  },
+
+  completedWithAnswers(args: {
+    scope?: SurveyScope | undefined;
+    surveyDefinitionId?: string | undefined;
+    type?: "LOCAL" | "VISITING" | undefined;
+    school?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+  }) {
+    const definition: Prisma.SurveyDefinitionWhereInput = {};
+    if (args.surveyDefinitionId) definition.id = args.surveyDefinitionId;
+    if (args.scope?.siteIds) definition.siteId = { in: args.scope.siteIds };
+    if (args.scope?.excludedSurveyDefinitionIds?.length) definition.id = { notIn: args.scope.excludedSurveyDefinitionIds };
+    if (args.type) definition.type = args.type;
+    const where: Prisma.SubmissionWhereInput = {
+      status: "COMPLETADO",
+      surveyMoment: { in: ["PRE", "POST"] },
+      ...(Object.keys(definition).length ? { surveyDefinition: definition } : {}),
+      ...(args.school ? { participant: { school: args.school } } : {}),
+      ...(args.from || args.to ? { receivedAt: { ...(args.from ? { gte: new Date(args.from) } : {}), ...(args.to ? { lte: new Date(args.to) } : {}) } } : {}),
+    };
+    return prisma.submission.findMany({
+      where,
+      select: {
+        id: true,
+        surveyMoment: true,
+        answers: { where: { value: { not: "" } }, select: { questionId: true, value: true, question: { select: { id: true, text: true, type: true, weight: true } } } },
       },
     });
   },

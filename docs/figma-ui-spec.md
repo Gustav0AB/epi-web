@@ -69,7 +69,7 @@ Roles: **Administrador de sistema** (global), **Administrador de organización**
 
 | Pantalla | Estructura y acciones a prototipar |
 | --- | --- |
-| Inicio | Filtros: sitio, local/visitante, escuela, categoría, pre/post; enlace Limpiar filtros. Tabla de resultados y, con datos, barras horizontales pre/post, radar por categoría y barras de cambio. Columna lateral “Actividad reciente” con participante, grupo/fecha y estado. |
+| Inicio | Filtros: encuesta, sitio, local/visitante, escuela, categoría, pre/post; enlace Limpiar filtros. Resumen total Pre/Post, detalle por pregunta con porcentaje individual y cambio, tabla por categoría y, con datos, barras horizontales pre/post, radar por categoría y barras de cambio. Columna lateral “Actividad reciente” con participante, grupo/fecha y estado. |
 | Encuestas | Título/subtítulo; tarjeta de filtros por encuesta, sitio, tipo, estado, grupo, momento y fechas; limpiar. Tabla de respuestas con estado, posible duplicado y Reprocesar. Tarjeta “Resumen por grupo” con Completar habilitado solo si hay PRE y POST. |
 | Grupos | Tarjeta con rango de fechas y Buscar. Tres métricas (grupos, alumnos que respondieron, con mejora calculada) y tabla con escuela, fecha, alumnos, encargado y mejora. |
 | Ponderaciones | Selector de encuesta; tabla editable por pregunta (tipo, categoría, subcategoría, puntaje máximo, respuesta correcta). Acciones: descargar/importar CSV, reprocesar pendientes, guardar todas y guardar/quitar por fila. Modal para ponderar preguntas Likert al descargar. |

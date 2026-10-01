@@ -108,6 +108,7 @@ export type SurveyGroupSearch = z.infer<typeof SurveyGroupSearchSchema>;
 
 // Filtros del dashboard de reportes (solo encuestas COMPLETADO).
 export const ReportFiltersSchema = z.object({
+  surveyDefinitionId: z.string().trim().min(1).optional(),
   siteId: z.string().trim().min(1).optional(),
   type: z.enum(["LOCAL", "VISITING"]).optional(),
   school: z.string().trim().min(1).optional(),
@@ -290,4 +291,10 @@ export type ReportRow = {
   pre: number | null; // % promedio (0-100) de encuestas pre
   post: number | null; // % promedio (0-100) de encuestas post
   change: number | null; // post - pre
+};
+
+export type ReportDetail = {
+  total: ReportRow;
+  categories: ReportRow[];
+  questions: (ReportRow & { questionId: string; text: string })[];
 };

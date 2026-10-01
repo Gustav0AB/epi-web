@@ -67,7 +67,7 @@ real`, ver `apps/api/src/modules/catalog/catalog.routes.ts`).
 | `/api/features`                                                                  | `featuresRouter`                    | `requireAuth`                                        | Catálogo de `featureKeys`                                                |
 | `/api/webhooks/jotform`                                                          | `webhooksRouter`                    | Secreto compartido (no JWT)                          | Ingesta de respuestas                                                    |
 | `/api/surveys`                                                                   | `surveysRouter`                     | `requireAuth` + `requireFunctionality`/`requireRole` | Ver [evaluaciones-flujo.md](./evaluaciones-flujo.md)                     |
-| `/api/reports`                                                                   | `reportsRouter`                     | `requireAuth`                                        | Resultados agregados pre/post (`/results`, `/filters`)                   |
+| `/api/reports`                                                                   | `reportsRouter`                     | `requireAuth`                                        | Resultados agregados pre/post (`/results`, `/detail`, `/filters`)        |
 | `/api/reports`                                                                   | `assignedReportsRouter` (mismo prefijo) | `requireAuth` (+ `requireRole` en gestión)        | Reportes asignados/documento — ver [§7](#7-reportes-dos-sistemas-distintos-conviviendo) |
 | `/api/organizations`, `/api/sites`, `/api/categories*`, `/api/report-templates*` | `catalogRouter` (montado en `/api`) | `requireAuth` (+ `requireRole` en altas)             | Ver [administracion-accesos-flujo.md](./administracion-accesos-flujo.md) |
 
@@ -136,7 +136,7 @@ flowchart LR
     Config -->|sí| Calc["scoring.ts → AggregatedResult"]
     Calc --> Procesado["status PROCESADO"]
     Procesado --> Completo["admin junta Pre+Post → COMPLETADO"]
-    Completo --> Reportes["/reports — % agregado por categoría/subcategoría"]
+    Completo --> Reportes["/reports — total, preguntas y categorías Pre/Post"]
 ```
 
 ## 7. Reportes: dos sistemas distintos conviviendo
@@ -147,10 +147,11 @@ piezas separadas del código, con **propósitos de negocio distintos**
 técnica):
 
 1. **`/reports` (dashboard agregado, con sidebar — `AppLayout`)** —
-   herramienta **interna** para el usuario operativo: ve los resultados %
-   pre/post crudos por categoría/subcategoría/sitio/escuela/fecha (filtros
+   herramienta **interna** para el usuario operativo: ve el resultado total y
+   los resultados % pre/post por pregunta y categoría/subcategoría, sitio,
+   escuela y fecha (filtros
    en vivo — `ReportsPage.tsx` llama `GET /api/reports/results` y
-   `/filters`, parte del módulo de encuestas) y arma un documento libre por
+   `/detail`, `/results` y `/filters`, parte del módulo de encuestas) y arma un documento libre por
    secciones (título/texto/barra/araña/cambio/tabla) para **dar visto
    bueno** a la información antes de que salga como reporte oficial. No es
    lo que ve el donante — es el paso de revisión previo.

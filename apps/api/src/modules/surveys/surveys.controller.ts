@@ -89,6 +89,12 @@ export const surveysController = {
     }
   },
 
+  async reportDetail(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json(apiSuccess(await surveysService.reportDetail(ReportFiltersSchema.parse(req.query), req.user!.sub)));
+    } catch (err) { next(err); }
+  },
+
   async setWeight(req: Request, res: Response, next: NextFunction) {
     try {
       const input = WeightInputSchema.parse(req.body);

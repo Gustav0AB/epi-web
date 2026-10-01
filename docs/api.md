@@ -81,7 +81,8 @@ Todas las respuestas usan el wrapper compartido de `@epi/shared` (`apiSuccess` /
 
 | Metodo | Ruta | Uso |
 | --- | --- | --- |
-| GET | `/api/reports/results` | Resultados agregados. |
+| GET | `/api/reports/results` | Resultados agregados por categoria/subcategoria; acepta filtros de encuesta, sitio, tipo, escuela, categoria y fechas. |
+| GET | `/api/reports/detail` | Resultado total Pre/Post y detalle porcentual por pregunta; acepta los mismos filtros. |
 | GET | `/api/reports/filters` | Filtros disponibles. |
 | GET | `/api/reports/assigned` | Mis reportes asignados. |
 | GET/POST/PATCH/DELETE | `/api/reports/assignments` | Administrar asignaciones. |

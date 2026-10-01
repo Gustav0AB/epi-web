@@ -32,6 +32,8 @@
   "reportAssignments.allSites": "No selection = all permitted sites.",
 
   "reports.globalTitle": "Global results",
+  "reports.survey": "Survey",
+  "reports.allSurveys": "All surveys",
   "reports.site": "Site",
   "reports.allSites": "All sites",
   "reports.localVisiting": "Local / Visiting",
@@ -50,6 +52,10 @@
   "reports.barsTitle": "Pre vs post comparison",
   "reports.spiderTitle": "Category profile",
   "reports.columnsTitle": "Change by category",
+  "reports.detailTitle": "Detail by question",
+  "reports.detailNote": "Average percentage by question. Change is post minus pre, in percentage points.",
+  "reports.total": "Total result",
+  "reports.question": "Question",
 
   "surveys.title": "Surveys",
   "surveys.subtitle": "View and search received surveys.",
