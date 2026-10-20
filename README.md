@@ -63,6 +63,16 @@ Por defecto el seed crea catalogos base y el super usuario. Los datos demo solo 
 - [Mantenimiento](./docs/mantenimiento.md)
 - [User stories para QA](./docs/user-stories/README.md)
 
+## Paquetes compartidos
+
+- `@epi/ui` contiene controles visuales genéricos, tablas y modales. La app web conserva envolturas delgadas para inyectar sus traducciones; navegación y componentes conectados a funciones de EPI se quedan en la app.
+- `@epi/auth` contiene el store, el adaptador JSON API, el formulario de login y las guardias de acceso. Cada app configura endpoints, usuario, textos y permisos en su propio código. Tiene una guía de integración en [`packages/auth/README.md`](./packages/auth/README.md).
+- `@epi/api-client` envía solicitudes JSON, adjunta el token que le entrega la app y convierte errores de la API en `ApiError`. La app conserva la capa offline y decide cómo obtener el token y qué hacer ante un 401.
+- `apps/shared` conserva los contratos, tipos y esquemas propios de EPI usados por el frontend y la API.
+- La configuración de idiomas y sus diccionarios viven en `apps/web/src/lib/i18n.tsx` y `apps/web/src/lib/locales/` porque son propios de EPI.
+
+Los paquetes se compilan antes de iniciar o compilar el frontend. `@epi/auth` aún no integra un proveedor SSO; si se adopta OIDC/SAML, se conectará el adaptador de la app con ese proveedor y cada app conservará sus permisos.
+
 Documentos tecnicos existentes reutilizados como anexos:
 
 - [Analisis del proyecto](./docs/analisis-proyecto.md)

@@ -1,69 +1,34 @@
-import type { ApiResponse } from "@epi/shared";
+import { ApiError, createApiClient } from "@epi/api-client";
 import { useAuthStore } from "../store/auth.store";
 import { resolveOfflineGet, applyOptimisticWrite } from "./offline";
 
-const BASE_URL = import.meta.env["VITE_API_URL"] ?? "";
-
-class ApiError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public details?: unknown
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+const onlineClient = createApiClient({
+  baseUrl: import.meta.env["VITE_API_URL"] ?? "",
+  getToken: () => useAuthStore.getState().token,
+  onUnauthorized: () => useAuthStore.getState().logout(),
+});
 
 type WriteMethod = "POST" | "PATCH" | "DELETE";
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const method = (options.method ?? "GET").toUpperCase();
-
+async function request<T>(method: "GET" | WriteMethod, path: string, body?: unknown): Promise<T> {
   if (!navigator.onLine) {
-    if (method === "GET") {
-      return resolveOfflineGet(path) as Promise<T>;
-    }
-    const body = options.body ? JSON.parse(options.body as string) : undefined;
-    return applyOptimisticWrite(method as WriteMethod, path, body) as Promise<T>;
+    if (method === "GET") return resolveOfflineGet(path) as Promise<T>;
+    const serialized = body === undefined ? undefined : JSON.stringify(body);
+    const offlineBody = serialized === undefined ? undefined : JSON.parse(serialized);
+    return applyOptimisticWrite(method, path, offlineBody) as Promise<T>;
   }
 
-  const token = useAuthStore.getState().token;
-
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-
-  const json = (await response.json()) as ApiResponse<T>;
-
-  if (!json.success) {
-    // Token inválido/expirado, cuenta desactivada o sesión revocada
-    // (ver requireAuth) — cierra sesión localmente; ProtectedRoute
-    // redirige a /login en el siguiente render.
-    if (json.error.code === "UNAUTHORIZED") {
-      useAuthStore.getState().logout();
-    }
-    throw new ApiError(json.error.code, json.error.message, json.error.details);
-  }
-
-  return json.data;
+  if (method === "GET") return onlineClient.get<T>(path);
+  if (method === "POST") return onlineClient.post<T>(path, body);
+  if (method === "PATCH") return onlineClient.patch<T>(path, body);
+  return onlineClient.delete<T>(path);
 }
 
 export const apiClient = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
-  patch: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  get: <T>(path: string) => request<T>("GET", path),
+  post: <T>(path: string, body: unknown) => request<T>("POST", path, body),
+  patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
+  delete: <T>(path: string) => request<T>("DELETE", path),
 };
 
 export { ApiError };

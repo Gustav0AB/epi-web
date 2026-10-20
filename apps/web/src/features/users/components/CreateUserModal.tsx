@@ -3,7 +3,6 @@ import { FEATURES_REGISTRY } from "@epi/shared";
 import { Button, Dropdown, Modal, TextField } from "../../../shared/components";
 import type { DropdownOption } from "../../../shared/components";
 import type {
-  ApiResponse,
   CreateUserDto,
   InstitutionalPositionDto,
   OrganizationDto,
@@ -12,6 +11,7 @@ import type {
   Role,
   SurveyDefinitionDto,
 } from "@epi/shared";
+import type { ApiResponse } from "@epi/shared";
 import { useAuthStore } from "../../../store/auth.store";
 import { useI18n } from "../../../lib/i18n";
 

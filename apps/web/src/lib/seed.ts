@@ -1,5 +1,5 @@
 import { db } from "./db";
-import type { User, PaginationMeta } from "@epi/shared";
+import type { PaginationMeta, User } from "@epi/shared";
 
 const PAGE_SIZE = 200;
 

@@ -1,5 +1,4 @@
 import type {
-  ApiResponse,
   CategoryDto,
   FormQuestionsPreviewDto,
   GroupSummary,
@@ -22,6 +21,7 @@ import type {
   WeightImportResult,
   WeightInput,
 } from "@epi/shared";
+import type { ApiResponse } from "@epi/shared";
 import { useAuthStore } from "../../store/auth.store";
 
 // fetch crudo con token (mismo patrón que UsersPage): el apiClient global

@@ -7,7 +7,7 @@
     "lib": ["ES2022"]
   },
   "references": [
-    { "path": "../../packages/shared" }
+    { "path": "../shared" }
   ],
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

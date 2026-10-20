@@ -12,9 +12,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@epi/auth": "*",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@epi/api-client": "*",
     "@epi/shared": "*",
+    "@epi/ui": "*",
     "@mui/icons-material": "^9.2.0",
     "@mui/material": "^9.2.0",
     "@react-pdf/renderer": "^4.5.1",
