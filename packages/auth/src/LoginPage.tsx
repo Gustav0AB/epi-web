@@ -47,10 +47,21 @@ export function LoginPage<Credentials>({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        {logo && <img src={logo} alt={labels.logoAlt ?? title} className="mx-auto mb-4 h-16" />}
-        <h1 className="mb-6 text-center text-2xl font-semibold text-primary">{title}</h1>
+    <div className="flex h-screen items-center justify-center bg-gray-50 p-4">
+      <div
+        className="w-full max-w-[400px] rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8"
+        style={{ maxWidth: "400px" }}
+      >
+        {logo && (
+          <img
+            src={logo}
+            alt={labels.logoAlt ?? title}
+            style={{ maxWidth: "100px", height: "100px" }}
+          />
+        )}
+        <h1 className="mb-6 text-center text-2xl font-semibold text-primary">
+          {title}
+        </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <TextField
             label={labels.username}
@@ -72,8 +83,14 @@ export function LoginPage<Credentials>({
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          {error && <p className="rounded-md bg-danger-muted px-3 py-2 text-sm text-danger">{error}</p>}
-          <Button type="submit" loading={loading} className="w-full">{labels.signIn}</Button>
+          {error && (
+            <p className="rounded-md bg-danger-muted px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <Button type="submit" loading={loading} className="w-full">
+            {labels.signIn}
+          </Button>
         </form>
       </div>
     </div>

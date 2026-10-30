@@ -5,25 +5,17 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 export type DatePickerProps = {
   label?: string;
-  value: string; // YYYY-MM-DD or ""
-  onChange: (value: string) => void;
+  value: Date | null;
+  onChange: (value: Date | null) => void;
   placeholder?: string;
   locale?: string;
   clearLabel?: string;
+  displayFormat?: "numeric" | "long";
+  mode?: "date" | "datetime" | "long";
 };
 
 // Domingo 2023-01-01 .. Sábado 2023-01-07: semana de referencia para nombres de día.
 const WEEK_REF = new Date(2023, 0, 1);
-
-function parseLocal(iso: string): Date {
-  // Avoids timezone shifts from new Date("YYYY-MM-DD")
-  const parts = iso.split("-").map(Number);
-  return new Date(parts[0]!, parts[1]! - 1, parts[2]);
-}
-
-function toISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -36,6 +28,8 @@ export function DatePicker({
   placeholder = "Select a date",
   locale = "en-US",
   clearLabel = "Clear date",
+  displayFormat = "numeric",
+  mode = displayFormat === "long" ? "long" : "date",
 }: DatePickerProps) {
   const MONTHS = useMemo(
     () => Array.from({ length: 12 }, (_, m) => new Date(2023, m, 1).toLocaleDateString(locale, { month: "long" })),
@@ -53,7 +47,7 @@ export function DatePicker({
   const today = new Date();
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(() => {
-    if (value) return parseLocal(value);
+    if (value) return new Date(value);
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const ref = useRef<HTMLDivElement>(null);
@@ -78,19 +72,25 @@ export function DatePicker({
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const sel = value ? parseLocal(value) : null;
+  const sel = value;
   const isSelected = (day: number) =>
     sel !== null && day === sel.getDate() && month === sel.getMonth() && year === sel.getFullYear();
   const isToday = (day: number) =>
     day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
   function select(day: number) {
-    onChange(toISO(new Date(year, month, day)));
+    const selected = new Date(year, month, day, mode === "datetime" ? value?.getHours() ?? 0 : 0, mode === "datetime" ? value?.getMinutes() ?? 0 : 0, mode === "datetime" ? value?.getSeconds() ?? 0 : 0);
+    onChange(selected);
     setOpen(false);
   }
 
-  const displayValue = value
-    ? parseLocal(value).toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" })
+  const selectedDate = value;
+  const displayValue = selectedDate
+    ? ((mode === "long" || displayFormat === "long")
+      ? locale.startsWith("es")
+        ? `${String(selectedDate.getDate()).padStart(2, "0")} del mes ${selectedDate.toLocaleDateString(locale, { month: "long" })} del año ${selectedDate.getFullYear()}`
+        : selectedDate.toLocaleDateString(locale, { day: "2-digit", month: "long", year: "numeric" })
+      : selectedDate.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" })) + (mode === "datetime" ? ` ${selectedDate.toLocaleTimeString(locale, { hour12: false })}` : "")
     : "";
 
   return (
@@ -164,10 +164,15 @@ export function DatePicker({
             ))}
           </div>
 
+          {mode === "datetime" && (
+            <label className="mt-3 block text-xs font-medium text-gray-600">Time
+              <input type="time" step={1} value={value ? `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}:${String(value.getSeconds()).padStart(2, "0")}` : "00:00:00"} onChange={(e) => { const [h, m, sec] = e.target.value.split(":").map(Number); const next = value ? new Date(value) : new Date(year, month, 1); next.setHours(h ?? 0, m ?? 0, sec ?? 0, 0); onChange(next); }} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+            </label>
+          )}
           {value && (
             <button
               type="button"
-              onClick={() => { onChange(""); setOpen(false); }}
+              onClick={() => { onChange(null); setOpen(false); }}
               className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600"
             >
               {clearLabel}

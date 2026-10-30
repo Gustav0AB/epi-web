@@ -1,10 +1,8 @@
-import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { SidebarMenu, type SidebarMenuGroup } from "./SidebarMenu";
 import { FEATURE_KEYS } from "@epi/shared";
 import { useAuthStore } from "../store/auth.store";
-import { useI18n, type I18nKey } from "../lib/i18n";
-import MenuIcon from "@mui/icons-material/Menu";
-import MenuOpenIcon from "@mui/icons-material/MenuOpen";
+import type { I18nKey } from "../lib/i18n";
+
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import PollOutlinedIcon from "@mui/icons-material/PollOutlined";
@@ -19,8 +17,6 @@ import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import VpnKeyOutlinedIcon from "@mui/icons-material/VpnKeyOutlined";
 import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
-import LogoutIcon from "@mui/icons-material/Logout";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 type NavItem = {
   to: string;
@@ -34,11 +30,7 @@ type NavItem = {
   | { kind: "admin_tier" }
 );
 
-type NavGroup = {
-  label: I18nKey;
-  collapsible: boolean;
-  items: NavItem[];
-};
+type NavGroup = SidebarMenuGroup & { items: NavItem[] };
 
 const navGroups: NavGroup[] = [
   {
@@ -170,31 +162,13 @@ const navGroups: NavGroup[] = [
 ];
 
 export function Sidebar() {
-  const [expanded, setExpanded] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Set<I18nKey>>(
-    () => new Set(["navGroup.main"]),
-  );
-  const location = useLocation();
   const logout = useAuthStore((s) => s.logout);
   const currentUser = useAuthStore((s) => s.currentUser);
-  const { t } = useI18n();
 
   const isAdminTier =
     currentUser?.role === "system_admin" || currentUser?.role === "org_admin";
   const featureKeys = currentUser?.featureKeys ?? [];
   const reportTemplateKeys = currentUser?.reportTemplateKeys ?? [];
-
-  useEffect(() => {
-    const activeGroup = navGroups.find((group) =>
-      group.items.some((item) => item.to === location.pathname),
-    );
-    if (!activeGroup || !activeGroup.collapsible) return;
-    setOpenGroups((current) =>
-      current.has(activeGroup.label)
-        ? current
-        : new Set([...current, activeGroup.label]),
-    );
-  }, [location.pathname]);
 
   const canSee = (item: NavItem) => {
     if (item.kind === "system_admin")
@@ -209,101 +183,5 @@ export function Sidebar() {
     .map((group) => ({ ...group, items: group.items.filter(canSee) }))
     .filter((group) => group.items.length > 0);
 
-  return (
-    <aside
-      className={[
-        "flex h-screen flex-col border-r border-gray-200 bg-white transition-all duration-200",
-        expanded ? "w-56" : "w-16",
-      ].join(" ")}
-    >
-      <div className="flex h-14 shrink-0 items-center border-b border-gray-200 px-3">
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          title={expanded ? "Collapse sidebar" : "Expand sidebar"}
-          className="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
-        >
-          {expanded ? <MenuOpenIcon /> : <MenuIcon />}
-        </button>
-        {expanded && (
-          <span className="ml-3 text-base font-semibold text-gray-900">
-            EPI
-          </span>
-        )}
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-2 py-4">
-        <ul className="space-y-4">
-          {visibleGroups.map((group) => (
-            <li key={group.label}>
-              {expanded && group.collapsible && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenGroups((current) => {
-                      const next = new Set(current);
-                      next.has(group.label)
-                        ? next.delete(group.label)
-                        : next.add(group.label);
-                      return next;
-                    })
-                  }
-                  aria-expanded={openGroups.has(group.label)}
-                  className="flex w-full items-center justify-between px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600"
-                >
-                  {t(group.label)}
-                  <ExpandMoreIcon
-                    className={openGroups.has(group.label) ? "rotate-180" : ""}
-                    fontSize="small"
-                  />
-                </button>
-              )}
-              <ul
-                className={[
-                  "overflow-hidden space-y-1 transition-all duration-200 ease-in-out",
-                  !group.collapsible || !expanded || openGroups.has(group.label)
-                    ? "max-h-96 opacity-100"
-                    : "max-h-0 opacity-0",
-                ].join(" ")}
-              >
-                {group.items.map((item) => (
-                  <li key={item.to}>
-                    <NavLink
-                      to={item.to}
-                      title={!expanded ? t(item.label) : undefined}
-                      className={({ isActive }) =>
-                        [
-                          "flex items-center rounded-md px-2.5 py-2.5 text-base font-medium transition-colors",
-                          expanded ? "gap-3" : "justify-center",
-                          isActive
-                            ? "bg-primary-muted text-primary"
-                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-                        ].join(" ")
-                      }
-                    >
-                      {item.icon}
-                      {expanded && <span>{t(item.label)}</span>}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      <div className="shrink-0 border-t border-gray-200 p-2">
-        <button
-          onClick={logout}
-          title={!expanded ? t("header.logout") : undefined}
-          className={[
-            "flex w-full items-center rounded-md px-2.5 py-2.5 text-base font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900",
-            expanded ? "gap-3" : "justify-center",
-          ].join(" ")}
-        >
-          <LogoutIcon className="shrink-0" />
-          {expanded && <span>{t("header.logout")}</span>}
-        </button>
-      </div>
-    </aside>
-  );
+  return <SidebarMenu groups={visibleGroups as SidebarMenuGroup[]} onLogout={logout} />;
 }

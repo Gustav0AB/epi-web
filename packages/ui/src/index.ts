@@ -9,6 +9,7 @@ export { ConfirmModal } from "./ConfirmModal.js";
 export { Label } from "./Label.js";
 export { List } from "./List.js";
 export { TextField } from "./TextField.js";
+export { Field } from "./Field.js";
 
 export type { DropdownOption } from "./Dropdown.js";
 export type { DatePickerProps } from "./DatePicker.js";

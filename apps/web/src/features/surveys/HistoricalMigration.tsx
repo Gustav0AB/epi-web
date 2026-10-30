@@ -1,3 +1,4 @@
+import { Field } from "@epi/ui";
 import { useState } from "react";
 import type { HistoricalImportResult, HistoricalSubmissionDto, SurveyDefinitionDto } from "@epi/shared";
 import { Button, Card, DatePicker, Label } from "../../shared/components";
@@ -83,7 +84,7 @@ export function HistoricalMigration({ definitions, onImported }: { definitions: 
           <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-gray-200 p-2">
             {definitions.map((d) => (
               <label key={d.id} className="flex items-center gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={definitionIds.includes(d.id)} onChange={() => toggleDefinition(d.id)} />
+                <Field as="checkbox" checked={definitionIds.includes(d.id)} onChange={() => toggleDefinition(d.id)} />
                 <span>{d.title}{d.accountName ? ` · ${d.accountName}` : ""}</span>
               </label>
             ))}
@@ -122,8 +123,7 @@ export function HistoricalMigration({ definitions, onImported }: { definitions: 
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium">
-                    <input
-                      type="checkbox"
+                    <Field as="checkbox"
                       checked={selectedIds.length > 0 && selectedIds.length === importable.length}
                       onChange={(e) => setSelectedIds(e.target.checked ? importable.map((r) => r.id) : [])}
                     />
@@ -138,8 +138,7 @@ export function HistoricalMigration({ definitions, onImported }: { definitions: 
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
+                      <Field as="checkbox"
                         disabled={r.alreadyImported}
                         checked={selectedIds.includes(r.id)}
                         onChange={(e) =>

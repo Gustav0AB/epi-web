@@ -1,3 +1,4 @@
+import { Field } from "@epi/ui";
 import { useEffect, useState } from "react";
 import { FEATURES_REGISTRY } from "@epi/shared";
 import { Button, Dropdown, Modal, TextField } from "../../../shared/components";
@@ -299,8 +300,7 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
                 <div className="space-y-1 rounded-lg border border-gray-200 p-3">
                   {sites.map((s) => (
                     <label key={s.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
+                      <Field as="checkbox"
                         className="h-4 w-4 rounded border-gray-300 accent-primary"
                         checked={form.siteIds.includes(s.id)}
                         onChange={() =>
@@ -338,8 +338,7 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
                 <div className="space-y-1 rounded-lg border border-gray-200 p-3">
                   {sites.map((s) => (
                     <label key={s.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
+                      <Field as="checkbox"
                         className="h-4 w-4 rounded border-gray-300 accent-danger"
                         checked={form.excludedSiteIds.includes(s.id)}
                         onChange={() =>
@@ -366,8 +365,7 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
                 <div className="space-y-1 rounded-lg border border-gray-200 p-3">
                   {orgScopedSurveyDefinitions.map((d) => (
                     <label key={d.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
+                      <Field as="checkbox"
                         className="h-4 w-4 rounded border-gray-300 accent-danger"
                         checked={form.excludedSurveyDefinitionIds.includes(d.id)}
                         onChange={() =>
@@ -397,8 +395,7 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
                   key={feature.key}
                   className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-1.5 hover:bg-gray-50"
                 >
-                  <input
-                    type="checkbox"
+                  <Field as="checkbox"
                     className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-primary"
                     checked={form.featureKeys.includes(feature.key)}
                     onChange={() => toggleFeature(feature.key)}
@@ -422,8 +419,7 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
                   key={template.key}
                   className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-1.5 hover:bg-gray-50"
                 >
-                  <input
-                    type="checkbox"
+                  <Field as="checkbox"
                     className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-primary"
                     checked={form.reportTemplateKeys.includes(template.key)}
                     onChange={() => toggleReportTemplate(template.key)}

@@ -1,3 +1,4 @@
+import { Field } from "@epi/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CategoryDto,
@@ -237,7 +238,7 @@ export function ScoringPage() {
       key: "type",
       header: t("scoring.table.type"),
       render: (q) => (
-        <select
+        <Field as="select"
           className={inputCls}
           value={q.type}
           onChange={(e) => void changeType(q, e.target.value)}
@@ -247,7 +248,7 @@ export function ScoringPage() {
               {o.label}
             </option>
           ))}
-        </select>
+        </Field>
       ),
     },
     {
@@ -259,7 +260,7 @@ export function ScoringPage() {
         // texto libre) se conserva como opción extra en vez de desaparecer.
         const options = current && !categoryNames.includes(current) ? [current, ...categoryNames] : categoryNames;
         return (
-          <select
+          <Field as="select"
             className={inputCls}
             value={current}
             onChange={(e) => setEdit(q.id, { category: e.target.value, subcategory: "" })}
@@ -272,7 +273,7 @@ export function ScoringPage() {
                 {name}
               </option>
             ))}
-          </select>
+          </Field>
         );
       },
     },
@@ -284,7 +285,7 @@ export function ScoringPage() {
         const forCategory = subcategoriesByCategory.get(edits[q.id]?.category ?? "") ?? [];
         const options = current && !forCategory.includes(current) ? [current, ...forCategory] : forCategory;
         return (
-          <select
+          <Field as="select"
             className={inputCls}
             value={current}
             onChange={(e) => setEdit(q.id, { subcategory: e.target.value })}
@@ -296,7 +297,7 @@ export function ScoringPage() {
                 {s}
               </option>
             ))}
-          </select>
+          </Field>
         );
       },
     },
@@ -304,7 +305,7 @@ export function ScoringPage() {
       key: "maxScore",
       header: t("scoring.table.maxScore"),
       render: (q) => (
-        <input
+        <Field
           type="number"
           min={0}
           className={inputCls}
@@ -323,7 +324,7 @@ export function ScoringPage() {
         // dónde armar el dropdown — se cae a texto libre para esas.
         if (q.options.length === 0) {
           return (
-            <input
+            <Field
               className={inputCls}
               value={current}
               onChange={(e) => setEdit(q.id, { correctAnswer: e.target.value })}
@@ -332,7 +333,7 @@ export function ScoringPage() {
         }
         const options = current && !q.options.includes(current) ? [current, ...q.options] : q.options;
         return (
-          <select
+          <Field as="select"
             className={inputCls}
             value={current}
             onChange={(e) => setEdit(q.id, { correctAnswer: e.target.value })}
@@ -345,7 +346,7 @@ export function ScoringPage() {
                 {o}
               </option>
             ))}
-          </select>
+          </Field>
         );
       },
     },
@@ -401,9 +402,8 @@ export function ScoringPage() {
               >
                 {t("scoring.importCsv")}
               </Button>
-              <input
+              <Field as="file"
                 ref={fileRef}
-                type="file"
                 accept=".csv,text/csv"
                 className="hidden"
                 onChange={onFile}

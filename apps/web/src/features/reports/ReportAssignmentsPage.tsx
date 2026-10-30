@@ -1,3 +1,4 @@
+import { Field } from "@epi/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type {
@@ -390,8 +391,7 @@ export function ReportAssignmentsPage() {
                   key={option.value}
                   className="flex items-center gap-2 text-sm text-gray-700"
                 >
-                  <input
-                    type="checkbox"
+                  <Field as="checkbox"
                     checked={form.templateKeys.includes(option.value)}
                     onChange={() => toggleTemplate(option.value)}
                   />
@@ -413,8 +413,7 @@ export function ReportAssignmentsPage() {
                   key={site.id}
                   className="flex items-center gap-2 text-sm text-gray-700"
                 >
-                  <input
-                    type="checkbox"
+                  <Field as="checkbox"
                     checked={selectedSites.includes(site.id)}
                     onChange={() =>
                       setFilters((current) => ({
@@ -453,8 +452,7 @@ export function ReportAssignmentsPage() {
               </label>
               {field.kind === "image" ? (
                 <>
-                  <input
-                    type="file"
+                  <Field as="file"
                     accept="image/*"
                     onChange={(e) => attachImage(field.key, e.target.files?.[0])}
                     className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:text-white"
@@ -465,7 +463,7 @@ export function ReportAssignmentsPage() {
                   <p className="text-xs text-gray-500">{t("reportAssignments.imageHelp")}</p>
                 </>
               ) : (
-                <textarea
+                <Field as="textarea"
                   rows={3}
                   value={textContent[field.key] ?? ""}
                   onChange={(e) =>

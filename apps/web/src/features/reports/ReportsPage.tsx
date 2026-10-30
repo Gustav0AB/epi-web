@@ -1,3 +1,4 @@
+import { Field } from "@epi/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ReportRow } from "@epi/shared";
@@ -148,7 +149,7 @@ function SectionCard({
 
         {/* Inline text edit for title / text sections */}
         {!isContent && (
-          <input
+          <Field
             value={section.content}
             onChange={(e) => onUpdate({ content: e.target.value })}
             className="flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-gray-700 transition-colors hover:border-gray-200 focus:border-gray-300 focus:outline-none"
@@ -203,8 +204,7 @@ function SectionCard({
           {section.type !== "change" && (
             <div className="flex flex-wrap gap-4">
               <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
+                <Field as="checkbox"
                   checked={section.showPre}
                   onChange={(e) => onUpdate({ showPre: e.target.checked })}
                   className="h-4 w-4 rounded border-gray-300 accent-primary"
@@ -212,8 +212,7 @@ function SectionCard({
                 {t("reportBuilder.showPre")}
               </label>
               <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
+                <Field as="checkbox"
                   checked={section.showPost}
                   onChange={(e) => onUpdate({ showPost: e.target.checked })}
                   className="h-4 w-4 rounded border-gray-300 accent-primary"
@@ -248,8 +247,7 @@ function SectionCard({
                     key={cat}
                     className="flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
                   >
-                    <input
-                      type="checkbox"
+                    <Field as="checkbox"
                       checked={section.selectedCategories.length === 0 || section.selectedCategories.includes(cat)}
                       onChange={() => toggleCategory(cat)}
                       className="h-3 w-3 rounded border-gray-300 accent-primary"

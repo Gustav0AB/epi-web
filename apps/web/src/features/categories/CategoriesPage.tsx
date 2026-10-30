@@ -1,3 +1,4 @@
+import { Field } from "@epi/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CategoryDto, CategoryImportResult, OrganizationDto } from "@epi/shared";
 import { CATEGORY_CSV_COLUMNS } from "@epi/shared";
@@ -265,9 +266,8 @@ export function CategoriesPage() {
             >
               {t("scoring.importCsv")}
             </Button>
-            <input
+            <Field as="file"
               ref={fileRef}
-              type="file"
               accept=".csv,text/csv"
               className="hidden"
               onChange={onCategoriesFile}
@@ -326,7 +326,7 @@ export function CategoriesPage() {
           )}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-gray-700">{t("scoring.table.subcategory")}</label>
-            <textarea
+            <Field as="textarea"
               className={textareaCls}
               value={subcategoryText}
               onChange={(e) => setSubcategoryText(e.target.value)}
