@@ -1,17 +1,18 @@
+import { useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import type { SurveyDefinitionDto } from "@epi/shared";
 import { Label } from "../../shared/components";
 import { JotformFormsCatalog } from "./JotformFormsCatalog";
 import { UnregisteredForms } from "./UnregisteredForms";
-import { HistoricalMigration } from "./HistoricalMigration";
 import { surveyApi } from "./api";
 import { useI18n } from "../../lib/i18n";
 import { useAuthStore } from "../../store/auth.store";
 
 export function SurveySettingsPage() {
   const { t } = useI18n();
+  const [search] = useSearchParams();
   const currentUser = useAuthStore((s) => s.currentUser);
-  const [definitions, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
+  const [, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
 
   const loadDefinitions = useCallback(() => {
     void surveyApi
@@ -37,14 +38,11 @@ export function SurveySettingsPage() {
 
       {currentUser?.role === "system_admin" && (
         <>
-          <JotformFormsCatalog onRegistered={loadDefinitions} />
+          <JotformFormsCatalog onRegistered={loadDefinitions} configureFormId={search.get("configureForm") ?? undefined} />
           <UnregisteredForms onRegistered={loadDefinitions} />
         </>
       )}
-      <HistoricalMigration
-        definitions={definitions}
-        onImported={loadDefinitions}
-      />
+
     </div>
   );
 }

@@ -46,3 +46,26 @@ export function aggregate(scored: Scored[]): Scored[] {
   }
   return [...buckets.values()];
 }
+
+export function overallImprovement(questions: { pre: number | null; post: number | null; excluded: boolean }[]): number | null {
+  const comparable = questions.filter((q) => !q.excluded && q.pre !== null && q.post !== null);
+  return comparable.length ? Math.round(comparable.reduce((sum, q) => sum + q.post! - q.pre!, 0) / comparable.length * 10) / 10 : null;
+}
+
+export function categoryQuestionResults(questions: { category: string; subcategory: string | null; pre: number | null; post: number | null; excluded: boolean }[]) {
+  const groups = new Map<string, typeof questions>();
+  for (const question of questions) {
+    if (question.excluded || (question.pre === null && question.post === null)) continue;
+    const key = JSON.stringify([question.category, question.subcategory]);
+    const group = groups.get(key) ?? [];
+    group.push(question);
+    groups.set(key, group);
+  }
+  return [...groups.values()].map((group) => {
+    const average = (moment: "pre" | "post") => {
+      const values = group.flatMap((q) => q[moment] === null ? [] : [q[moment]!]);
+      return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length * 10) / 10 : null;
+    };
+    return { category: group[0]!.category, subcategory: group[0]!.subcategory, pre: average("pre"), post: average("post"), change: overallImprovement(group) };
+  }).sort((a, b) => a.category.localeCompare(b.category) || (a.subcategory ?? "").localeCompare(b.subcategory ?? ""));
+}

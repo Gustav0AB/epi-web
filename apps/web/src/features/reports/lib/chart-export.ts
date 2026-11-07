@@ -32,24 +32,33 @@ export function exportChartAsSvg(container: HTMLElement, filename: string) {
   downloadBlob(blob, `${filename}.svg`);
 }
 
-export function exportChartAsPng(container: HTMLElement, filename: string, scale = 2) {
+export function exportChartAsPng(container: HTMLElement, filename: string, scale = 2, legend: { label: string; color: string }[] = []) {
   const svg = findChartSvg(container);
   if (!svg) return;
 
   const svgString = serializeSvg(svg);
   const width = svg.clientWidth;
   const height = svg.clientHeight;
+  if (width <= 0 || height <= 0) return;
 
   const img = new Image();
   img.onload = () => {
     const canvas = document.createElement("canvas");
     canvas.width = width * scale;
-    canvas.height = height * scale;
+    canvas.height = (height + legend.length * 22) * scale;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(scale, scale);
     // No pintamos el canvas: el PNG conserva el fondo transparente.
     ctx.drawImage(img, 0, 0, width, height);
+    ctx.font = "12px sans-serif";
+    legend.forEach((item, index) => {
+      const y = height + index * 22 + 4;
+      ctx.fillStyle = item.color;
+      ctx.fillRect(12, y, 12, 12);
+      ctx.fillStyle = "#374151";
+      ctx.fillText(item.label, 32, y + 11, Math.max(1, width - 44));
+    });
     canvas.toBlob((blob) => blob && downloadBlob(blob, `${filename}.png`), "image/png");
   };
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;

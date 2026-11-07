@@ -1,3 +1,5 @@
+import { useSearchParams } from "react-router-dom";
+import { SchoolCatalog } from "./SchoolCatalog";
 import { useCallback, useEffect, useState } from "react";
 import type { OrganizationDto, SiteDto } from "@epi/shared";
 import { Badge, Button, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
@@ -11,6 +13,8 @@ export function SitesPage() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const isSystemAdmin = currentUser?.role === "system_admin";
 
+  const [params, setParams] = useSearchParams();
+  const filterOrganization = isSystemAdmin ? params.get("organizationId") ?? "" : "";
   const [sites, setSites] = useState<SiteDto[]>([]);
   const [orgs, setOrgs] = useState<OrganizationDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +22,8 @@ export function SitesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleting, setDeleting] = useState<SiteDto | null>(null);
   const [name, setName] = useState("");
+  const [programs, setPrograms] = useState("Local, Visiting, Otro");
+  const [activityTypes, setActivityTypes] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,14 +56,16 @@ export function SitesPage() {
 
   function openCreate() {
     setEditing(null);
+    setPrograms("Local, Visiting, Otro"); setActivityTypes("");
     setName("");
-    setOrganizationId("");
+    setOrganizationId(filterOrganization);
     setError(null);
     setModalOpen(true);
   }
 
   function openEdit(site: SiteDto) {
     setEditing(site);
+    setPrograms((site.programs ?? []).join(", ")); setActivityTypes((site.activityTypes ?? []).join(", "));
     setName(site.name);
     setOrganizationId(site.organizationId ?? "");
     setError(null);
@@ -74,9 +82,10 @@ export function SitesPage() {
     setSaving(true);
     setError(null);
     try {
+      const catalog = { programs: programs.split(",").map(value => value.trim()).filter(Boolean), activityTypes: activityTypes.split(",").map(value => value.trim()).filter(Boolean) };
       const body = isSystemAdmin
-        ? { name: name.trim(), organizationId: organizationId || null }
-        : { name: name.trim() };
+        ? { name: name.trim(), organizationId: organizationId || null, ...catalog }
+        : { name: name.trim(), ...catalog };
       if (editing) {
         await apiClient.patch(`/api/sites/${editing.id}`, body);
       } else {
@@ -139,14 +148,17 @@ export function SitesPage() {
         <Button onClick={openCreate}>{t("sites.add")}</Button>
       </div>
 
+      {isSystemAdmin && <Dropdown label="Filtrar sitios por organización" value={filterOrganization} options={[{ value: "", label: "Todas las organizaciones" }, ...orgs.map(org => ({ value: org.id, label: org.name }))]} onChange={id => setParams(id ? { organizationId: id } : {})} />}
       <Table
         columns={columns}
-        rows={sites}
+        rows={filterOrganization ? sites.filter(site => site.organizationId === filterOrganization) : sites}
         keyExtractor={(s) => s.id}
         loading={loading}
         emptyText={t("settings.sites.empty")}
         pageSize={25}
       />
+
+      <SchoolCatalog />
 
       <Modal
         open={modalOpen}
@@ -170,6 +182,9 @@ export function SitesPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Baja California Sur"
           />
+          <TextField label="Programas (separados por coma; incluir Otro)" value={programs} onChange={event => setPrograms(event.target.value)} />
+          <TextField label="Tipos de actividad (separados por coma)" value={activityTypes} onChange={event => setActivityTypes(event.target.value)} />
+          <p className="text-sm text-gray-500">Estas opciones estarán disponibles únicamente en este sitio. Cambiar el catálogo no modifica instrumentos ya registrados.</p>
           {isSystemAdmin && (
             <Dropdown
               label={t("createUserModal.organization")}

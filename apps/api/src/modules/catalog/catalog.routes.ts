@@ -14,12 +14,15 @@ import {
   CreateInstitutionalPositionSchema,
   type CategoryImportResult,
 } from "@epi/shared";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db/prisma.js";
 import { requireAuth, requireRole } from "../../middlewares/auth.middleware.js";
 import { validate } from "../../middlewares/validate.middleware.js";
-import { parseCsv } from "../surveys/csv.js";
+import { previewCategoryRows } from "./category-import.js";
 import { surveysService } from "../surveys/surveys.service.js";
 import { auditService } from "../audit/audit.service.js";
+import { allowedSiteIds } from "../../shared/site-scope.js";
+import { usersRepository } from "../users/users.repository.js";
 import { catalogService } from "./catalog.service.js";
 
 // catalog-fields y report-templates son CRUD simple sin autorización por
@@ -40,6 +43,18 @@ const wrap =
       }
       next(err);
     });
+
+async function previewCategoryImport(csv: string, organizationId: string, db: Pick<Prisma.TransactionClient, "category"> = prisma) {
+  const existing = await db.category.findMany({
+    where: { organizationId },
+    select: { name: true, subcategory: true },
+  });
+  try {
+    return previewCategoryRows(csv, existing);
+  } catch (error) {
+    throw Object.assign(error instanceof Error ? error : new Error("Invalid CSV"), { statusCode: 400 });
+  }
+}
 
 // ── Organizaciones ─────────────────────────────────────────────────────
 
@@ -87,7 +102,7 @@ catalogRouter.delete(
 
 // system_admin ve todos los sitios, o los de una org puntual si manda
 // ?organizationId= (ej. al crear un usuario de esa organización); el resto
-// siempre ve solo los de su propia organización, sin importar el query param.
+// siempre ve solo sus sitios asignados, sin importar el query param.
 catalogRouter.get(
   "/sites",
   requireAuth,
@@ -98,7 +113,13 @@ catalogRouter.get(
           ? { organizationId: req.query.organizationId as string }
           : {}
         : { organizationId: req.user!.organizationId };
-    res.json(apiSuccess(await prisma.site.findMany({ where, orderBy: { name: "asc" } })));
+    const user = await usersRepository.findById(req.user!.sub);
+    if (!user) { res.status(403).json(apiError("FORBIDDEN", "User not found")); return; }
+    const siteIds = await allowedSiteIds({ ...user, role: user.role.toLowerCase() });
+    res.json(apiSuccess(await prisma.site.findMany({
+      where: { ...where, ...(siteIds !== undefined ? { id: { in: siteIds } } : {}) },
+      orderBy: { name: "asc" },
+    })));
   })
 );
 
@@ -188,9 +209,26 @@ catalogRouter.delete(
   })
 );
 
-// El CSV es la fuente de verdad del catálogo de UNA organización: importarlo
-// reemplaza completo solo ese catálogo, no el de las demás. org_admin siempre
-// importa a la suya; system_admin debe indicar ?organizationId=.
+// La importación de categorías es aditiva: los duplicados se reportan y nunca
+// se eliminan ni se desactivan categorías existentes.
+catalogRouter.post(
+  "/categories/import/preview",
+  requireAuth,
+  requireRole("system_admin", "org_admin"),
+  wrap(async (req, res) => {
+    const csv = typeof req.body === "string" ? req.body : "";
+    if (!csv.trim()) {
+      res.status(400).json(apiError("BAD_REQUEST", "CSV vacío o Content-Type no es text/csv"));
+      return;
+    }
+    const organizationId = catalogService.resolveCategoryImportOrg(
+      req.user!,
+      req.query.organizationId as string | undefined
+    );
+    res.json(apiSuccess(await previewCategoryImport(csv, organizationId)));
+  })
+);
+
 catalogRouter.post(
   "/categories/import",
   requireAuth,
@@ -205,45 +243,31 @@ catalogRouter.post(
       req.user!,
       req.query.organizationId as string | undefined
     );
-    const rows = parseCsv(csv);
-    const result: CategoryImportResult = { applied: 0, skipped: 0, errors: [] };
-    const seen = new Set<string>();
-    const data: { name: string; subcategory: string | null; organizationId: string }[] = [];
-
-    for (let i = 0; i < rows.length; i++) {
-      const name = (rows[i]!.category ?? "").trim();
-      const subcategory = (rows[i]!.subcategory ?? "").trim() || null;
-      if (!name) {
-        result.errors.push({ row: i + 2, message: "category vacío" });
-        continue;
+    const result = await prisma.$transaction(async (tx) => {
+      const preview = await previewCategoryImport(csv, organizationId, tx);
+      const result: CategoryImportResult = {
+        applied: 0,
+        skipped: preview.duplicates.length + preview.errors.length,
+        duplicates: preview.duplicates.length,
+        errors: preview.errors,
+      };
+      for (const item of preview.additions) {
+        await tx.category.create({ data: { name: item.category, subcategory: item.subcategory, organizationId } });
+        result.applied++;
       }
-      const key = `${name}||${subcategory ?? ""}`;
-      if (seen.has(key)) continue; // duplicado en el archivo → se ignora
-      seen.add(key);
-      data.push({ name, subcategory, organizationId });
-    }
-
-    // Reemplazo fantasma: desactiva todo lo previo de esta organización y
-    // luego reactiva/crea lo que trae el CSV — nunca se borra una fila real.
-    // findFirst (no upsert por clave compuesta): Postgres no trata dos NULL
-    // como iguales para unicidad, así que subcategory=null no es una clave
-    // de upsert válida — se busca y se decide a mano.
-    await prisma.$transaction(async (tx) => {
-      await tx.category.updateMany({ where: { organizationId }, data: { isActive: false } });
-      for (const d of data) {
-        const existing = await tx.category.findFirst({
-          where: { organizationId: d.organizationId, name: d.name, subcategory: d.subcategory },
-        });
-        if (existing) {
-          await tx.category.update({ where: { id: existing.id }, data: { isActive: true } });
-        } else {
-          await tx.category.create({ data: { ...d, isActive: true } });
-        }
+      return result;
+    }, { isolationLevel: "Serializable" }).catch((error: unknown) => {
+      if (typeof error === "object" && error !== null && "code" in error && (error.code === "P2034" || error.code === "P2002")) {
+        throw Object.assign(new Error("Category catalog changed; preview and retry the import"), { statusCode: 409 });
       }
+      throw error;
     });
-    result.applied = data.length;
-    result.skipped = result.errors.length;
-    await auditService.record(req.user!, "CATEGORY_IMPORT", { type: "Organization", id: organizationId }, { applied: result.applied, skipped: result.skipped });
+    await auditService.record(
+      req.user!,
+      "CATEGORY_IMPORT",
+      { type: "Organization", id: organizationId },
+      { applied: result.applied, skipped: result.skipped, duplicates: result.duplicates }
+    );
     res.json(apiSuccess(result));
   })
 );

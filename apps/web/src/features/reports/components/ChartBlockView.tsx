@@ -62,7 +62,9 @@ export function ChartBlockView({ block, data, showExport = true }: ChartBlockVie
     }, { threshold: 0.15 });
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [data.length]);
+
+  if (!data.length) return <div>{block.title && <h3 className="text-sm font-semibold">{block.title}</h3>}<p className="my-3 text-sm text-gray-500">{t("reportRenderer.noData")}</p></div>;
 
   return (
     <div>

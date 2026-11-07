@@ -1,11 +1,21 @@
+import type { CourseReportDraftDto, CourseReportDraft, CourseResultsDto, CourseOptionsDto, CourseEditionsPage, CourseEditionDto, CourseEditionDetailDto, CourseResponsePage, CreateCourseEditionInput, CourseMembershipInput, SubmissionContextReviewInput } from "@epi/shared";
+import type { AssistantMigrationProgress } from "@epi/shared";
 import type {
   ApiResponse,
+  JotformLabelDto,
+  CourseExpectationInput,
+  CourseDetailQuery,
+  CourseSubmissionDto,
+  SurveyFilterField,
+  SurveySetupDto,
+  SaveSurveySetupInput,
   CategoryDto,
   FormQuestionsPreviewDto,
   GroupSummary,
   HistoricalImportResult,
   HistoricalSubmissionDto,
-  JotformFormDto,
+  JotformFormsPage,
+  JotformFormsQuery,
   JotformFormsSyncResult,
   JotformAccountDto,
   QuestionWithWeight,
@@ -41,9 +51,39 @@ async function call<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const surveyApi = {
+  publishedCourseReports: (page = 1) => call<import("@epi/shared").CourseReportPublicationsPage>(`/api/surveys/published-courses?page=${page}`),
+  publishedCourseReport: (id: string) => call<import("@epi/shared").CourseReportPublication>(`/api/surveys/published-courses/${encodeURIComponent(id)}`),
+  courseReportHistory: (id: string, page = 1) => call<import("@epi/shared").CourseReportPublicationsPage>(`/api/surveys/courses/${encodeURIComponent(id)}/publications?page=${page}`),
+  publishCourseEdition: (id: string, expectedRevision: number, expectedVersion: number) => call<import("@epi/shared").CourseReportPublication>(`/api/surveys/courses/${encodeURIComponent(id)}/publications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision, expectedVersion }) }),
+  courseReportDraft: (id: string) => call<CourseReportDraftDto>(`/api/surveys/courses/${encodeURIComponent(id)}/report-draft`),
+  saveCourseReportDraft: (id: string, expectedRevision: number, draft: CourseReportDraft) => call<CourseReportDraftDto>(`/api/surveys/courses/${encodeURIComponent(id)}/report-draft`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision, draft }) }),
+  setCourseExpectedParticipants: (id: string, expectedRevision: number, expectedParticipantsPre: number | null, expectedParticipantsPost: number | null) => call<{ saved: boolean; revision: number }>(`/api/surveys/courses/${encodeURIComponent(id)}/expected-participants`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision, expectedParticipantsPre, expectedParticipantsPost }) }),
+  courseComplementResults: (courseId: string, definitionId: string) => call<import("@epi/shared").CourseComplementResultsDto>(`/api/surveys/courses/${encodeURIComponent(courseId)}/complements/${encodeURIComponent(definitionId)}/results`),
+  courseResults: (id: string, query = "") => call<CourseResultsDto>(`/api/surveys/courses/${encodeURIComponent(id)}/results${query}`),
+  courseOptions: () => call<CourseOptionsDto>("/api/surveys/courses/options"),
+  courseEditions: (query = "") => call<CourseEditionsPage>(`/api/surveys/courses${query}`),
+  createCourseEdition: (input: CreateCourseEditionInput) => call<CourseEditionDto>("/api/surveys/courses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
+  courseEdition: (id: string, page = 1) => call<CourseEditionDetailDto>(`/api/surveys/courses/${encodeURIComponent(id)}?page=${page}`),
+  courseResponseCandidates: (id: string, query = "") => call<CourseResponsePage>(`/api/surveys/courses/${encodeURIComponent(id)}/candidates${query}`),
+  setCourseInstrument: (id: string, expectedRevision: number, definitionId: string, linked: boolean) => call<{ saved: boolean; revision: number }>(`/api/surveys/courses/${encodeURIComponent(id)}/instruments`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision, definitionId, linked }) }),
+  completeCourse: (id: string, expectedRevision: number, expectedVersion: number, categories?: string[]) => call<import("@epi/shared").CourseReportPublication>(`/api/surveys/courses/${encodeURIComponent(id)}/complete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision, expectedVersion, categories }) }),
+  confirmCourseSelection: (participants: number, responses: { id: string; contextRevision: number }[]) => call<{ saved: boolean; courseId: string }>("/api/surveys/course-selection/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ participants, responses }) }),
+  splitCourseApplication: (id: string, applicationId: string, expectedRevision: number) => call<{ saved: boolean; courseId: string }>(`/api/surveys/courses/${encodeURIComponent(id)}/applications/${encodeURIComponent(applicationId)}/split`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision }) }),
+  setCourseMembership: (id: string, input: CourseMembershipInput) => call<{ saved: boolean; revision: number }>(`/api/surveys/courses/${encodeURIComponent(id)}/responses`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
+  setSubmissionContext: (id: string, expectedRevision: number, context: SubmissionContextReviewInput["context"]) => call<{ saved: boolean }>(`/api/surveys/${encodeURIComponent(id)}/review-context`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision, context }) }),
+  setSubmissionMoment: (id: string, moment: "PRE" | "POST" | "POST_POST" | "CQS" | null, expectedRevision?: number) => call<{ saved: boolean }>(`/api/surveys/${encodeURIComponent(id)}/review-moment`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ moment, expectedRevision }) }),
+  setSubmissionExclusion: (id: string, excluded: boolean, expectedRevision?: number) => call<{ saved: boolean }>(`/api/surveys/${encodeURIComponent(id)}/review-exclusion`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ excluded, expectedRevision }) }),
+  courseDetail: (input: CourseDetailQuery) => {
+    const params = new URLSearchParams({ siteId: input.siteId, school: input.school, date: input.date });
+    if (input.groupId) params.set("groupId", input.groupId);
+    if (input.surveyDefinitionId) params.set("surveyDefinitionId", input.surveyDefinitionId);
+    return call<CourseSubmissionDto[]>(`/api/surveys/course-detail?${params}`);
+  },
+  saveCourseExpectation: (input: CourseExpectationInput) => call<{ saved: boolean }>("/api/surveys/group-expectation", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
   list: (query: string) => call<SurveyListItem[]>(`/api/surveys${query}`),
   definitions: () => call<SurveyDefinitionDto[]>("/api/surveys/definitions"),
   groups: () => call<string[]>("/api/surveys/groups"),
+  filterFields: (defId: string) => call<SurveyFilterField[]>(`/api/surveys/definitions/${defId}/filters`),
   questions: (defId: string) =>
     call<QuestionWithWeight[]>(`/api/surveys/definitions/${defId}/questions`),
   setWeight: (questionId: string, input: WeightInput) =>
@@ -88,11 +128,29 @@ export const surveyApi = {
       body: JSON.stringify({ groupName }),
     }),
   unregisteredForms: () => call<UnregisteredFormDto[]>("/api/surveys/unregistered"),
-  jotformForms: () => call<JotformFormDto[]>("/api/surveys/jotform/forms"),
+  jotformLabels: (accountId: string) => call<JotformLabelDto[]>(`/api/surveys/jotform/labels?accountId=${encodeURIComponent(accountId)}`),
+  jotformForms: (filters: Partial<JotformFormsQuery> = {}) => {
+    const query = new URLSearchParams();
+    if (filters.accountId) query.set("accountId", filters.accountId);
+    if (filters.labelId) query.set("labelId", filters.labelId);
+    if (filters.withoutLabels) query.set("withoutLabels", filters.withoutLabels);
+    if (filters.search) query.set("search", filters.search);
+    if (filters.page) query.set("page", String(filters.page));
+    return call<JotformFormsPage>(`/api/surveys/jotform/forms${query.size ? `?${query}` : ""}`);
+  },
   jotformAccounts: () => call<JotformAccountDto[]>("/api/surveys/jotform/accounts"),
   syncJotformForms: (accountId = "") =>
     call<JotformFormsSyncResult>(`/api/surveys/jotform/forms/sync${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`, {
       method: "POST",
+    }),
+  responseCount: (formId: string) => call<{ total: number }>(`/api/surveys/jotform/forms/${encodeURIComponent(formId)}/response-count`),
+  setMigrationAutoSync: (definitionId: string, autoSync: boolean) => call<{ autoSync: boolean }>(`/api/surveys/definitions/${encodeURIComponent(definitionId)}/migration-settings`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoSync }) }),
+  migrationStatus: (formId: string) => call<AssistantMigrationProgress>(`/api/surveys/jotform/forms/${encodeURIComponent(formId)}/migration`),
+  migrateResponses: (definitionId: string) => call<{ total: number; updated: number; pending: number; errors: number; skipped: number }>(`/api/surveys/definitions/${encodeURIComponent(definitionId)}/migrate`, { method: "POST" }),
+  formSetup: (formId: string) => call<SurveySetupDto>(`/api/surveys/jotform/forms/${encodeURIComponent(formId)}/setup`),
+  saveFormSetup: (formId: string, input: SaveSurveySetupInput) =>
+    call<Pick<SurveySetupDto, "draft" | "revision">>(`/api/surveys/jotform/forms/${encodeURIComponent(formId)}/setup`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
     }),
   previewFormQuestions: (formId: string) =>
     call<FormQuestionsPreviewDto>(`/api/surveys/jotform/forms/${formId}/questions`),

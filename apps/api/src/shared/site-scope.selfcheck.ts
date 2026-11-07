@@ -1,30 +1,17 @@
-import assert from "node:assert";
+import assert from "node:assert/strict";
 import { prisma } from "../db/prisma.js";
 import { allowedSiteIds } from "./site-scope.js";
 
-const ORG_A = "org-a";
-const SITES = [{ id: "site-1" }, { id: "site-2" }, { id: "site-3" }];
-
-prisma.site.findMany = (async () => SITES) as typeof prisma.site.findMany;
-
-assert.strictEqual(
-  await allowedSiteIds({ role: "system_admin", organizationId: null, excludedSiteIds: [] }),
-  undefined
-);
-
-assert.deepStrictEqual(
-  await allowedSiteIds({ role: "org_admin", organizationId: ORG_A, excludedSiteIds: [] }),
-  ["site-1", "site-2", "site-3"]
-);
-
-assert.deepStrictEqual(
-  await allowedSiteIds({ role: "functionality_user", organizationId: ORG_A, excludedSiteIds: ["site-2"] }),
-  ["site-1", "site-3"]
-);
-
-assert.deepStrictEqual(
-  await allowedSiteIds({ role: "report_viewer", organizationId: null, excludedSiteIds: [] }),
-  []
-);
-
+prisma.site.findMany = (async (args: { where: { organizationId: string; id: { in: string[] } } }) => {
+  assert.equal(args.where.organizationId, "org-a");
+  return ["a1", "a2"].filter((id) => args.where.id.in.includes(id)).map((id) => ({ id }));
+}) as unknown as typeof prisma.site.findMany;
+assert.equal(await allowedSiteIds({ role: "system_admin", organizationId: null, siteIds: [] }), undefined);
+for (const role of ["org_admin", "functionality_user", "report_viewer"]) {
+  assert.deepEqual(await allowedSiteIds({ role, organizationId: "org-a", siteIds: ["a1"] }), ["a1"]);
+  assert.deepEqual(await allowedSiteIds({ role, organizationId: "org-a", siteIds: ["a1", "a2", "foreign"] }), ["a1", "a2"]);
+  assert.deepEqual(await allowedSiteIds({ role, organizationId: "org-a", siteIds: [] }), []);
+  assert.deepEqual(await allowedSiteIds({ role, organizationId: null, siteIds: ["a1"] }), []);
+  assert.deepEqual(await allowedSiteIds({ role, organizationId: "org-a", siteIds: ["deleted"] }), []);
+}
 console.log("✓ site-scope self-check passed");

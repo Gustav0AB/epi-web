@@ -19,7 +19,7 @@ export const assignedReportsRepository = {
       where: { id },
       include: {
         user: {
-          select: { organizationId: true, role: true, excludedSiteIds: true },
+          select: { organizationId: true, role: true, siteIds: true },
         },
       },
     });

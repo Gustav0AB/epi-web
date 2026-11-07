@@ -19,6 +19,7 @@ function validateUserFields<
     role?: Role | undefined;
     organizationId?: string | null | undefined;
     reportTemplateKeys?: string[] | undefined;
+    siteIds?: string[] | undefined;
   },
 >(data: T, ctx: z.RefinementCtx) {
   if (data.role && data.role !== "system_admin" && !data.organizationId) {
@@ -27,6 +28,9 @@ function validateUserFields<
       path: ["organizationId"],
       message: "organizationId is required for this role",
     });
+  }
+  if (data.role && data.role !== "system_admin" && !data.siteIds?.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["siteIds"], message: "At least one site is required" });
   }
   if (data.reportTemplateKeys?.includes("reports") && data.reportTemplateKeys.includes("interactive_reports")) {
     ctx.addIssue({
@@ -48,8 +52,8 @@ export const UserSchema = z.object({
   featureKeys: z.array(z.string()).default([]),
   reportTemplateKeys: z.array(z.string()).default([]),
   organizationId: z.string().uuid().nullable().default(null),
-  siteIds: z.array(z.string()).default([]), // sitio(s) de referencia (vista por defecto, no restringe)
-  excludedSiteIds: z.array(z.string()).default([]), // sitios de su organización que NO puede ver
+  siteIds: z.array(z.string()).default([]), // asignaciones explícitas de acceso
+  excludedSiteIds: z.array(z.string()).default([]), // histórico; no concede ni restringe acceso
   excludedSurveyDefinitionIds: z.array(z.string()).default([]), // encuestas que NO puede ver
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -67,7 +71,7 @@ export const CreateUserSchema = z
     reportTemplateKeys: z.array(z.string()).default([]),
     organizationId: z.string().uuid().nullable().optional(),
     siteIds: z.array(z.string()).optional(),
-    excludedSiteIds: z.array(z.string()).optional(),
+    excludedSiteIds: z.array(z.string()).max(0, "Use siteIds to assign access").optional(),
     excludedSurveyDefinitionIds: z.array(z.string()).optional(),
   })
   .superRefine(validateUserFields);
@@ -84,10 +88,10 @@ export const UpdateUserSchema = z
     reportTemplateKeys: z.array(z.string()).optional(),
     organizationId: z.string().uuid().nullable().optional(),
     siteIds: z.array(z.string()).optional(),
-    excludedSiteIds: z.array(z.string()).optional(),
+    excludedSiteIds: z.array(z.string()).max(0, "Use siteIds to assign access").optional(),
     excludedSurveyDefinitionIds: z.array(z.string()).optional(),
   })
-  .superRefine(validateUserFields);
+  .superRefine((data, ctx) => validateUserFields({ reportTemplateKeys: data.reportTemplateKeys }, ctx));
 
 export const ResetPasswordSchema = z.object({
   password: z.string().min(8).max(72),

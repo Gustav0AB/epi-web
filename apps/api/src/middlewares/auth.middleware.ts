@@ -54,7 +54,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   try {
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { isActive: true, mustChangePassword: true, sessionValidAfter: true },
+      select: { isActive: true, mustChangePassword: true, sessionValidAfter: true, role: true, organizationId: true },
     });
     if (!user || !user.isActive) {
       res.status(401).json(apiError("UNAUTHORIZED", "Account is inactive"));
@@ -64,6 +64,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       res.status(401).json(apiError("UNAUTHORIZED", "Session was revoked, please log in again"));
       return;
     }
+    // Role and organization changes must also apply to already issued tokens.
+    payload = { ...payload, role: user.role.toLowerCase(), organizationId: user.organizationId };
     const url = req.originalUrl.split("?")[0];
     const canChangePassword = req.method === "POST" && url === "/api/users/me/change-password";
     const canReadSelf = req.method === "GET" && url === `/api/users/${payload.sub}`;

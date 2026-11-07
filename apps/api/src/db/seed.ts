@@ -102,7 +102,7 @@ async function seedDemoOrganizations() {
       create: { name: orgName },
       update: {},
     });
-    await prisma.site.upsert({
+    const site = await prisma.site.upsert({
       where: { name: siteName },
       create: { name: siteName, organizationId: org.id },
       update: { organizationId: org.id },
@@ -118,6 +118,7 @@ async function seedDemoOrganizations() {
           password,
           role: "ORG_ADMIN",
           organizationId: org.id,
+          siteIds: [site.id],
         },
       });
       console.log(`Created ${admin.username} (org_admin of "${orgName}"), password: ${admin.password}`);
@@ -134,7 +135,7 @@ async function seedDemoOrganizations() {
 // Idempotente: si ya hay submissions para estos sitios, no repite la carga.
 
 const DEMO_REPORT_ORG = "Programa EPI Costa Rica";
-const DEMO_SITES: { name: string; type: "LOCAL" | "VISITING" }[] = [
+const DEMO_SITES: { name: string; type: "LOCAL" | "VISITING" | "OTHER" }[] = [
   { name: "Corcovado", type: "LOCAL" },
   { name: "Golfo Dulce", type: "LOCAL" },
   { name: "Talamanca", type: "VISITING" },
@@ -308,6 +309,7 @@ async function seedDemoReportData() {
         password: await bcrypt.hash(rvPassword, 10),
         role: "REPORT_VIEWER",
         organizationId: org.id,
+        siteIds: sites.map((site) => site.id),
       } as const;
   const rv = existingViewer
     ? await prisma.user.update({ where: { id: existingViewer.id }, data: viewerData })
@@ -321,9 +323,9 @@ async function seedDemoReportData() {
   const siteIds = sites.map((site) => site.id).join(",");
   const assignments = [
     {
-      templateKey: "course-impacts-2026mx-ncssm",
-      title: "NCSSM - Course Impacts",
-      filters: { demo: "course-impacts-2026mx-ncssm", siteIds, school: "NCSSM" },
+      templateKey: "course-impacts-general",
+      title: "Reporte general de curso",
+      filters: { siteIds },
       textContent: {
         heroPhotoUrl: "/report-demo/ncssm-hero.jpg",
         studentQuote: '"This experience gave me a deep appreciation for La Paz, the Spanish language, the natural world around me, and the community I share these with."',
@@ -331,34 +333,6 @@ async function seedDemoReportData() {
         coursePhotoUrl: "/report-demo/ncssm-course.jpg",
         coursePhotoCaption: "Students observing wildlife during the Baja Marine Science course.",
         spotlightText: "Impact Spotlight: Scientific Method\n\nStudents investigate a research question in small groups on course with guidance from EPI instructors. During this project they engage in each step of the scientific process and each student builds confidence in their ability to conduct research and communicate results.\n\nThe students on this trip improved most in their self-reported ability to Construct Explanations and Analyze and Interpret.",
-      },
-    },
-    {
-      templateKey: "course-impacts-2026cr-burton",
-      title: "Burr and Burton Academy - Course Impacts",
-      filters: { demo: "course-impacts-2026cr-burton", siteIds, school: "Burr and Burton Academy" },
-      textContent: {
-        heroPhotoUrl: "/report-demo/burton-hero.jpg",
-        studentQuote: "I feel like this experience changed me in the best way possible. I have never been so sad to leave a place and leave people that I have so strongly connected with in just the span of nine days. I will try my hardest to come back next year. This was an experience that cannot be traded for anything.",
-        recommendationText: "100% of participants indicated that they would recommend our Costa Rica course to other students.",
-        conservationImpacts: "8 nests monitored\n9 turtles worked\n3 nights of work on the field",
-        coursePhotoUrl: "/report-demo/burton-course.jpg",
-        coursePhotoCaption: "Students participating in conservation fieldwork in Costa Rica.",
-        spotlightText: "Impact Spotlight: Scientific Process\n\nStudents investigate a research question in small groups on course with guidance from EPI instructors. During this project they engage in each step of the scientific process and each student builds confidence in their ability to conduct research and communicate results.\n\nThe students on this trip improved most in their self-reported ability to design a methodology, collect data, and analyze and interpret it.",
-      },
-    },
-    {
-      templateKey: "course-impacts-2026mx-templeton",
-      title: "Templeton Academy - Course Impacts",
-      filters: { demo: "course-impacts-2026mx-templeton", siteIds, school: "Templeton Academy" },
-      textContent: {
-        heroPhotoUrl: "/report-demo/templeton-hero.jpg",
-        studentQuote: '"Something I learned throughout this trip... I am realizing how interested I am in marine biology, and while I cannot see it being a career, I can see it becoming a passion in my future." - Liam',
-        recommendationText: "94% of participants indicated that they would recommend our Baja course to other students.",
-        conservationImpacts: "2 groups of humpback whales observed.\n1 group (~18) of common dolphins observed.\n3.7 kg of waste collected (mainly plastics and cigarette butts).\n17 fish species identified.",
-        coursePhotoUrl: "/report-demo/templeton-course.jpg",
-        coursePhotoCaption: "Students recording field observations during the Baja course.",
-        spotlightText: "Impact Spotlight: Scientific Method\n\nStudents investigate a research question in small groups on course with guidance from EPI instructors. During this project they engage in each step of the scientific process and each student builds confidence in their ability to conduct research and communicate results.\n\nThe students on this trip improved most in their self-reported ability to Construct Explanations, collect data, and Analyze and Interpret it.",
       },
     },
   ];

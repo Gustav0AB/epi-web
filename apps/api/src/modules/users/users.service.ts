@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { allowedSiteIds } from "../../shared/site-scope.js";
 import { usersRepository } from "./users.repository.js";
 import { auditService } from "../audit/audit.service.js";
 import type { CreateUserDto, UpdateUserDto, User, PaginationMeta, Role } from "@epi/shared";
@@ -71,18 +72,10 @@ export class UsersService {
       }
     }
 
-    if (dto.organizationId) {
-      const siteIds = [...new Set([...(dto.siteIds ?? []), ...(dto.excludedSiteIds ?? [])])];
-      if (siteIds.length) {
-        const ok = await usersRepository.sitesBelongToOrg(siteIds, dto.organizationId);
-        if (!ok) throw badRequest("siteIds/excludedSiteIds must belong to the user's organization");
-      }
-      if (dto.excludedSurveyDefinitionIds?.length) {
-        const ok = await usersRepository.surveyDefinitionsBelongToOrg(dto.excludedSurveyDefinitionIds, dto.organizationId);
-        if (!ok) throw badRequest("excludedSurveyDefinitionIds must belong to the user's organization");
-      }
-    }
+    await this.#validateAssignments(dto.role, dto.organizationId ?? null, dto.siteIds ?? [], dto.excludedSurveyDefinitionIds ?? []);
+    if (dto.excludedSiteIds?.length) throw badRequest("Use siteIds to assign access");
 
+    await this.#assertAssignableSites(requester, dto.siteIds ?? []);
     const byEmail = await usersRepository.findByEmail(dto.email);
     if (byEmail) throw Object.assign(new Error("Email already in use"), { statusCode: 409, code: "EMAIL_CONFLICT" });
 
@@ -115,24 +108,26 @@ export class UsersService {
     }
 
     const targetOrgId = dto.organizationId !== undefined ? dto.organizationId : existing.organizationId;
-    if (targetOrgId) {
-      const siteIds = [...new Set([...(dto.siteIds ?? []), ...(dto.excludedSiteIds ?? [])])];
-      if (siteIds.length) {
-        const ok = await usersRepository.sitesBelongToOrg(siteIds, targetOrgId);
-        if (!ok) throw badRequest("siteIds/excludedSiteIds must belong to the user's organization");
-      }
-      if (dto.excludedSurveyDefinitionIds?.length) {
-        const ok = await usersRepository.surveyDefinitionsBelongToOrg(dto.excludedSurveyDefinitionIds, targetOrgId);
-        if (!ok) throw badRequest("excludedSurveyDefinitionIds must belong to the user's organization");
-      }
-    }
+    await this.#validateAssignments(
+      dto.role ?? existing.role.toLowerCase(), targetOrgId,
+      dto.siteIds ?? existing.siteIds,
+      dto.excludedSurveyDefinitionIds ?? existing.excludedSurveyDefinitionIds,
+    );
+    if (dto.excludedSiteIds?.length) throw badRequest("Use siteIds to assign access");
 
+    if (dto.siteIds !== undefined) await this.#assertAssignableSites(requester, dto.siteIds);
     const user = await usersRepository.update(id, dto);
 
     if (dto.role !== undefined && dto.role !== existing.role.toLowerCase()) {
       await auditService.record(requester, "USER_ROLE_CHANGE", { type: "User", id }, { from: existing.role.toLowerCase(), to: dto.role });
     }
 
+    if (dto.siteIds !== undefined || dto.organizationId !== undefined) {
+      await auditService.record(requester, "USER_SITE_ACCESS_CHANGE", { type: "User", id }, {
+        from: { organizationId: existing.organizationId, siteIds: existing.siteIds },
+        to: { organizationId: user.organizationId, siteIds: user.siteIds },
+      });
+    }
     return this.#mapToDto(user);
   }
 
@@ -163,6 +158,27 @@ export class UsersService {
     const valid = await bcrypt.compare(currentPassword, hash);
     if (!valid) throw Object.assign(new Error("Current password is incorrect"), { statusCode: 400, code: "INVALID_PASSWORD" });
     await usersRepository.updatePassword(id, newPassword);
+  }
+
+  async #assertAssignableSites(requester: JwtPayload, siteIds: string[]) {
+    if (requester.role === "system_admin") return;
+    const actor = await this.#loadOrThrow(requester.sub);
+    const allowed = await allowedSiteIds({ ...actor, role: actor.role.toLowerCase() });
+    if (allowed !== undefined && siteIds.some((id) => !allowed.includes(id))) {
+      throw forbidden("Cannot assign sites outside your own assigned sites");
+    }
+  }
+
+  async #validateAssignments(role: string, organizationId: string | null, siteIds: string[], surveyIds: string[]) {
+    if (role !== "system_admin" && (!organizationId || siteIds.length === 0)) {
+      throw badRequest("An organization and at least one site are required");
+    }
+    if (siteIds.length && (!organizationId || !(await usersRepository.sitesBelongToOrg([...new Set(siteIds)], organizationId)))) {
+      throw badRequest("siteIds must belong to the user's organization");
+    }
+    if (surveyIds.length && (!organizationId || !(await usersRepository.surveyDefinitionsBelongToOrg([...new Set(surveyIds)], organizationId)))) {
+      throw badRequest("excludedSurveyDefinitionIds must belong to the user's organization");
+    }
   }
 
   async #loadOrThrow(id: string): Promise<RawUser> {

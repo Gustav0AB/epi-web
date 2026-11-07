@@ -39,7 +39,7 @@ type RawReportWithUser = RawReport & {
   user: {
     organizationId: string | null;
     role: string;
-    excludedSiteIds: string[];
+    siteIds: string[];
   };
 };
 
@@ -120,9 +120,11 @@ export const assignedReportsService = {
     requester: JwtPayload,
     status?: string,
   ): Promise<AssignedReportDto[]> {
+    const managesReports = requester.role === "system_admin" || requester.role === "org_admin";
+    if (!managesReports && status && status.toUpperCase() !== "PUBLISHED") return [];
     const rows = await assignedReportsRepository.listForUser(
       requester.sub,
-      status,
+      managesReports ? status : "published",
     );
     return rows.map(mapReport);
   },
@@ -181,17 +183,14 @@ export const assignedReportsService = {
   ): Promise<AssignedReportVersionDto[]> {
     const existing = await loadOrThrow(id);
     assertReadAccess(requester, existing);
+    const managesReports = requester.role === "system_admin" || requester.role === "org_admin";
+    if (!managesReports && existing.status !== "PUBLISHED") throw forbidden("Report is not approved for viewing");
     const rows = await assignedReportsRepository.listVersions(id);
-    return rows.map(mapVersion);
+    return rows.filter((row) => managesReports || row.status === "PUBLISHED").map(mapVersion);
   },
 
-  // Data real vía REPORT_DATA_RESOLVERS (por templateKey); plantillas sin
-  // resolver registrado devuelven kpis/series/tables vacíos — el shape
-  // correcto basta para que el renderer del frontend funcione (valores
-  // ausentes se muestran como "—"/vacío, no rompen). El alcance de sitios
-  // (siteId u undefined = todos) es el del USUARIO ASIGNADO al reporte, no
-  // el de quien lo consulta — así un admin ve exactamente lo que vería el
-  // donante/decisor dueño del reporte.
+  // Intersect the owner's assignments, report filters and reader's assignments.
+  // Global administrators may inspect the owner's full permitted scope.
   async getData(
     requester: JwtPayload,
     id: string,
@@ -209,7 +208,7 @@ export const assignedReportsService = {
     const ownerSiteIds = await allowedSiteIds({
       role: existing.user.role.toLowerCase(),
       organizationId: existing.user.organizationId,
-      excludedSiteIds: existing.user.excludedSiteIds,
+      siteIds: existing.user.siteIds,
     });
     const filters =
       (existing.filters as Record<string, unknown> | null) ?? undefined;
@@ -218,11 +217,20 @@ export const assignedReportsService = {
       : typeof filters?.siteIds === "string"
         ? filters.siteIds.split(",").filter(Boolean)
         : undefined;
-    const scopedSiteIds = assignedSiteIds?.length
+    const ownerAndFilterSiteIds = assignedSiteIds?.length
       ? ownerSiteIds
         ? ownerSiteIds.filter((id) => assignedSiteIds.includes(id))
         : assignedSiteIds
       : ownerSiteIds;
+    const reader = await usersRepository.findById(requester.sub);
+    if (!reader) throw forbidden("User not found");
+    const readerSiteIds = await allowedSiteIds({ ...reader, role: reader.role.toLowerCase() });
+    const scopedSiteIds = readerSiteIds === undefined ? ownerAndFilterSiteIds
+      : ownerAndFilterSiteIds === undefined ? readerSiteIds
+      : ownerAndFilterSiteIds.filter((id) => readerSiteIds.includes(id));
+    if (siteId && scopedSiteIds !== undefined && !scopedSiteIds.includes(siteId)) {
+      throw forbidden("Site is outside your assigned sites");
+    }
     const data = await resolver({
       siteId,
       ...(filters ? { filters } : {}),

@@ -1,4 +1,6 @@
 import assert from "node:assert";
+import { prisma } from "../../db/prisma.js";
+import { CreateUserSchema, UpdateUserSchema } from "@epi/shared";
 import { usersService } from "./users.service.js";
 import { usersRepository } from "./users.repository.js";
 import { auditService } from "../audit/audit.service.js";
@@ -19,7 +21,7 @@ function rawUser(overrides: Partial<Record<string, unknown>> = {}) {
     isActive: true,
     mustChangePassword: false,
     organizationId: ORG_A,
-    siteIds: [],
+    siteIds: [SITE_A],
     excludedSiteIds: [],
     excludedSurveyDefinitionIds: [],
     createdAt: new Date(),
@@ -30,6 +32,7 @@ function rawUser(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+prisma.site.findMany = (async () => [{ id: SITE_A }]) as typeof prisma.site.findMany;
 usersRepository.findById = (async () => rawUser()) as typeof usersRepository.findById;
 usersRepository.sitesBelongToOrg = (async (siteIds: string[], organizationId: string) =>
   siteIds.every((id) => (organizationId === ORG_A ? id === SITE_A : id === SITE_B))) as typeof usersRepository.sitesBelongToOrg;
@@ -49,16 +52,15 @@ await usersService.update(orgAdminA, "u1", { organizationId: ORG_A, name: "Nuevo
 
 await assert.rejects(
   () => usersService.update(orgAdminA, "u1", { siteIds: [SITE_B] }),
-  /siteIds\/excludedSiteIds must belong/
+  /siteIds must belong/
 );
 
 await usersService.update(orgAdminA, "u1", { siteIds: [SITE_A] });
 
 await assert.rejects(
   () => usersService.update(orgAdminA, "u1", { excludedSiteIds: [SITE_B] }),
-  /siteIds\/excludedSiteIds must belong/
+  /Use siteIds/
 );
-await usersService.update(orgAdminA, "u1", { excludedSiteIds: [SITE_A] });
 
 await assert.rejects(
   () => usersService.update(orgAdminA, "u1", { excludedSurveyDefinitionIds: ["survey-b"] }),
@@ -66,4 +68,26 @@ await assert.rejects(
 );
 await usersService.update(orgAdminA, "u1", { excludedSurveyDefinitionIds: ["survey-a"] });
 
+const systemAdmin = { ...orgAdminA, role: "system_admin" };
+await assert.rejects(() => usersService.update(systemAdmin, "u1", { siteIds: [] }), /at least one site/);
+await assert.rejects(() => usersService.update(systemAdmin, "u1", { organizationId: null }), /at least one site/);
+await assert.rejects(() => usersService.update(systemAdmin, "u1", { organizationId: ORG_B }), /siteIds must belong/);
+await usersService.update(systemAdmin, "u1", { organizationId: ORG_B, siteIds: [SITE_B] });
+await assert.rejects(() => usersService.update({ ...orgAdminA, sub: "u1", role: "functionality_user" }, "u1", { siteIds: [SITE_A] }), /own role or permissions/);
+prisma.site.findMany = (async () => []) as typeof prisma.site.findMany;
+await assert.rejects(() => usersService.update(orgAdminA, "u1", { siteIds: [SITE_A] }), /outside your own/);
+usersRepository.findByEmail = (async () => null) as typeof usersRepository.findByEmail;
+usersRepository.findByUsername = (async () => null) as typeof usersRepository.findByUsername;
+usersRepository.create = (async (dto) => rawUser(dto)) as typeof usersRepository.create;
+const dto = { name: "Test", username: "test", email: "test@example.com", password: "password123", role: "functionality_user" as const,
+  organizationId: ORG_A, siteIds: [SITE_A], featureKeys: [], reportTemplateKeys: [] };
+await usersService.create(systemAdmin, dto);
+await assert.rejects(() => usersService.create(systemAdmin, { ...dto, siteIds: [] }), /at least one site/);
+await assert.rejects(() => usersService.create(systemAdmin, { ...dto, siteIds: [SITE_B] }), /siteIds must belong/);
+const schemaDto = { ...dto, organizationId: "00000000-0000-4000-8000-000000000001" };
+assert.equal(CreateUserSchema.safeParse(schemaDto).success, true);
+assert.equal(CreateUserSchema.safeParse({ ...schemaDto, siteIds: [] }).success, false);
+assert.equal(CreateUserSchema.safeParse({ ...schemaDto, excludedSiteIds: [SITE_A] }).success, false);
+assert.equal(UpdateUserSchema.safeParse({ role: "report_viewer" }).success, true);
+assert.equal(UpdateUserSchema.safeParse({ name: "New name" }).success, true);
 console.log("✓ users.service self-check passed");

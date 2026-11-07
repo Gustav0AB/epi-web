@@ -1,0 +1,106 @@
+import { publishCourse } from "./course-publications.service.js";
+import assert from "node:assert/strict";
+import jwt from "jsonwebtoken";
+import { prisma } from "../../db/prisma.js";
+import { createApp } from "../../app.js";
+import { env } from "../../config/env.js";
+import { setCourseExpectedParticipants, getCourseReportDraft, saveCourseReportDraft, courseResults, createCourseEdition, setCourseMembership } from "./course-editions.service.js";
+import { surveysService, setSubmissionContext, setSubmissionExclusion } from "./surveys.service.js";
+assert.equal(process.env.NODE_ENV,"test"); assert.equal(new URL(process.env.DATABASE_URL!).pathname,"/epi_setup_test");
+try {
+ const admin = await prisma.user.create({ data: { username: "results_admin", name: "Results admin", email: "results-admin@example.test", password: "unused", role: "SYSTEM_ADMIN" } });
+ const organization = await prisma.organization.create({ data: { name: "Results integration" } });
+ const site = await prisma.site.create({ data: { organizationId: organization.id, name: "Results site" } });
+ const other = await prisma.site.create({ data: { organizationId: organization.id, name: "Other results site" } });
+ const restricted = await prisma.user.create({ data: { username: "results_restricted", name: "Restricted", email: "results-restricted@example.test", password: "unused", role: "FUNCTIONALITY_USER", organizationId: organization.id, siteIds: [other.id] } });
+ const participation = [{ analysisType: "pre_post", enabled: true }, { analysisType: "pre_post_post", enabled: false }];
+ const policy = { blank: "exclude", invalid: "review" };
+ const definition = await prisma.surveyDefinition.create({ data: { jotformFormId: "results-e5", siteId: site.id, instrumentKind: "LEARNING", instrumentName: "Aprendizaje E5", activityName: "Visita", programName: "EPI", configurationVersion: 4, questions: { create: [
+  { externalId: "school", text: "Escuela", type: "OPEN_TEXT", role: "SCHOOL_GROUP" },
+  { externalId: "scale", text: "Escala", type: "LIKERT", role: "SCORED", options: ["Alto","Bajo"], classification: { category: "Learning", subcategory: "Knowledge" }, analysisParticipation: participation, analysisScoring: [{ analysisType: "pre_post", maxScore: 10, correctAnswer: null, scoringMode: "ordered_scale", inverse: false, scaleOptions: ["Alto","Bajo"], responsePolicy: policy }] },
+  { externalId: "choice", text: "Correcta", type: "ONE_ANSWER", role: "SCORED", options: ["A","B"], classification: { category: "Learning", subcategory: "Knowledge" }, analysisParticipation: participation, analysisScoring: [{ analysisType: "pre_post", maxScore: 2, correctAnswer: "A", scoringMode: "standard", responsePolicy: policy }] },
+ ] } } });
+ const ingest = async (id: string, moment: "PRE" | "POST", scale: unknown, choice: unknown) => surveysService.ingest({ formID: definition.jotformFormId, submissionID: id, surveyMoment: moment, answers: [{ questionId: "school", value: `${moment === "PRE" ? "01" : "05"}/11/2026 - Escuela E5` },{ questionId: "scale", value: scale },{ questionId: "choice", value: choice }] });
+ const pre = await ingest("results-pre","PRE","Alto","A"); const incomplete = await ingest("results-incomplete","PRE",null,"B"); const post = await ingest("results-post","POST","Bajo","A");
+ const course = await createCourseEdition({ siteId: site.id, primaryDefinitionId: definition.id, name: "Curso E5", school: "Escuela E5", activity: "Visita" },admin.id);
+ const empty = await courseResults(course.id,{},admin.id); assert.equal(empty.questions.length,2); assert.equal(empty.questions[0]!.pre.points,null);
+ await setCourseMembership(course.id,{ expectedRevision: 0, linked: true, responses: [pre,incomplete,post].map(row => ({ id: row.submissionId, contextRevision: 0 })) },admin.id);
+ const before = await prisma.submission.findMany({ where: { surveyDefinitionId: definition.id }, include: { answers: { orderBy: { id: "asc" } }, results: true }, orderBy: { id: "asc" } });
+ let result = await courseResults(course.id,{},admin.id);
+ assert.deepEqual(result.schoolDistribution, [{ school: "Escuela E5", count: 3 }]);
+ assert.equal(result.methodology,"approved_pre_post_v1"); assert.equal(result.coverageThreshold,80); assert.equal(result.preReceipts,2); assert.equal(result.postReceipts,1);
+ const scale = result.questions.find(q => q.text === "Escala")!; const choice = result.questions.find(q => q.text === "Correcta")!;
+ assert.deepEqual(scale.pre,{ valid: 1, blank: 1, nonScorable: 0, invalid: 0, configurationPending: 0, zeroMaximum: 0, points: 10, applicableMaximum: 10 });
+ assert.equal(scale.post.points,5); assert.equal(choice.pre.points,2); assert.equal(choice.pre.applicableMaximum,4);
+ assert.deepEqual(result.groups[0]!.pre,{ receipts: 2, complete: 1, incomplete: 1, withoutData: 0, validAnswers: 3 });
+ const filtered = await courseResults(course.id,{ from: "2026-11-05", to: "2026-11-05" },admin.id); assert.deepEqual(filtered.schoolDistribution, [{ school: "Escuela E5", count: 1 }]); assert.equal(filtered.preReceipts,0); assert.equal(filtered.postReceipts,1); assert.equal(filtered.questions[0]!.pre.points,null);
+ assert.deepEqual(await prisma.submission.findMany({ where: { surveyDefinitionId: definition.id }, include: { answers: { orderBy: { id: "asc" } }, results: true }, orderBy: { id: "asc" } }),before,"Read-only results must not mutate raw answers, revisions or historical derivatives");
+ await assert.rejects(() => courseResults(course.id,{},restricted.id),{ statusCode: 404 });
+ await prisma.user.update({ where: { id: restricted.id }, data: { siteIds: [site.id], excludedSurveyDefinitionIds: [definition.id] } });
+ await assert.rejects(() => courseResults(course.id,{},restricted.id),{ statusCode: 404 });
+ let row = await prisma.submission.findUniqueOrThrow({ where: { id: pre.submissionId } });
+ await setSubmissionExclusion(row.id,true,admin.id,row.contextRevision); result = await courseResults(course.id,{},admin.id); assert.equal(result.excludedReceipts,1); assert.equal(result.questions.find(q => q.text === "Escala")!.pre.points,null);
+ row = await prisma.submission.findUniqueOrThrow({ where: { id: pre.submissionId } }); await setSubmissionExclusion(row.id,false,admin.id,row.contextRevision);
+ row = await prisma.submission.findUniqueOrThrow({ where: { id: post.submissionId } }); await setSubmissionContext(row.id,{ expectedRevision: row.contextRevision, context: { school: "Escuela E5", date: "2026-11-06", activity: "Visita" } },admin.id);
+ result = await courseResults(course.id,{},admin.id); assert.equal(result.contextPendingReceipts,1); assert.equal(result.postReceipts,0); assert.equal(result.questions[0]!.post.points,null);
+ // New definitions never rewrite rules used by responses pinned to v1.
+ await prisma.surveyDefinition.create({ data: { jotformFormId: definition.jotformFormId, siteId: site.id, version: 2, configurationVersion: 4, instrumentKind: "LEARNING", instrumentName: "Nueva versión", activityName: "Visita" } });
+ result = await courseResults(course.id,{},admin.id); assert.equal(result.questions.find(q => q.text === "Escala")!.pre.points,10); assert.ok(result.questions.every(q => q.version === 1));
+ const server = createApp().listen(0,"127.0.0.1"); await new Promise<void>(resolve => server.once("listening",resolve));
+ try {
+  const address = server.address(); assert.ok(address && typeof address !== "string"); const url = `http://127.0.0.1:${address.port}/api/surveys/courses/${course.id}/results`;
+  const token = jwt.sign({ sub: admin.id, role: "system_admin", username: admin.username, organizationId: null, featureKeys: [] },env.JWT_SECRET);
+  const headers = { Authorization: `Bearer ${token}` };
+  assert.equal((await fetch(url)).status,401); assert.equal((await fetch(url,{ headers })).status,200); assert.equal((await fetch(url+"?from=2026-12-01&to=2026-01-01",{ headers })).status,400);
+  const restrictedToken = jwt.sign({ sub: restricted.id, role: "functionality_user", username: restricted.username, organizationId: organization.id, featureKeys: ["surveys"] },env.JWT_SECRET);
+  assert.equal((await fetch(url,{ headers: { Authorization: `Bearer ${restrictedToken}` } })).status,404);
+  const viewer = await prisma.user.create({ data: { username: "results_viewer", name: "Viewer", email: "results-viewer@example.test", password: "unused", role: "REPORT_VIEWER", siteIds: [site.id], organizationId: organization.id } });
+  const viewerToken = jwt.sign({ sub: viewer.id, role: "report_viewer", username: viewer.username, organizationId: organization.id, featureKeys: ["surveys"] },env.JWT_SECRET);
+  assert.equal((await fetch(url,{ headers: { Authorization: `Bearer ${viewerToken}` } })).status,403);
+  const expectationUrl = url.replace(/\/results$/, "/expected-participants");
+  const expectationRequest = (body: unknown, authorization = token) => fetch(expectationUrl,{ method: "PUT", headers: { Authorization: `Bearer ${authorization}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  assert.equal((await expectationRequest({})).status,400);
+  assert.equal((await expectationRequest({ expectedRevision: 999, expectedParticipantsPre: 50, expectedParticipantsPost: 40 })).status,409);
+  assert.equal((await expectationRequest({ expectedRevision: 1, expectedParticipantsPre: 50, expectedParticipantsPost: 40 },viewerToken)).status,403);
+  assert.equal((await expectationRequest({ expectedRevision: 1, expectedParticipantsPre: 50, expectedParticipantsPost: 40 },restrictedToken)).status,404);
+  const draftUrl = url.replace(/\/results$/, "/report-draft");
+  assert.equal((await fetch(draftUrl,{ headers })).status,200);
+  assert.equal((await fetch(draftUrl,{ headers: { Authorization: `Bearer ${viewerToken}` } })).status,403);
+  assert.equal((await fetch(draftUrl,{ headers: { Authorization: `Bearer ${restrictedToken}` } })).status,404);
+  assert.equal((await fetch(draftUrl,{ method: "PUT", headers: { ...headers, "Content-Type": "application/json" }, body: "{}" })).status,400);
+  const dto = await (await fetch(url,{ headers })).json() as { data: unknown };
+  assert.equal(JSON.stringify(dto.data).includes("results-pre"),false); assert.equal(JSON.stringify(dto.data).includes("rawJsonData"),false); assert.equal(/"participant(?:Id|Name|Email)?":/.test(JSON.stringify(dto.data)),false);
+ } finally { await new Promise<void>((resolve,reject) => server.close(error => error ? reject(error) : resolve())); }
+ const initialDraft = await getCourseReportDraft(course.id,admin.id);
+ assert.deepEqual(initialDraft.draft,{ templateKey: "course-impacts-general", textContent: {} });
+ const content = { templateKey: "course-impacts-general", textContent: { studentQuote: "Observación manual", conservationImpacts: "Sin indicadores calculados" }, from: "2026-11-01", to: "2026-11-05" };
+ const rawBeforeDraft = await prisma.submission.findMany({ where: { surveyDefinitionId: definition.id }, orderBy: { id: "asc" } });
+ const savedDraft = await saveCourseReportDraft(course.id,{ expectedRevision: initialDraft.revision, draft: content },admin.id);
+ assert.equal(savedDraft.revision,initialDraft.revision+1); assert.deepEqual((await getCourseReportDraft(course.id,admin.id)).draft,content);
+ await assert.rejects(() => saveCourseReportDraft(course.id,{ expectedRevision: initialDraft.revision, draft: content },admin.id),{ statusCode: 409 });
+ await assert.rejects(() => getCourseReportDraft(course.id,restricted.id),{ statusCode: 404 });
+ await assert.rejects(() => saveCourseReportDraft(course.id,{ expectedRevision: savedDraft.revision, draft: content },restricted.id),{ statusCode: 404 });
+ const writes = await Promise.allSettled([1,2].map(() => saveCourseReportDraft(course.id,{ expectedRevision: savedDraft.revision, draft: content },admin.id)));
+ assert.equal(writes.filter(value => value.status === "fulfilled").length,1);
+ assert.deepEqual(await prisma.submission.findMany({ where: { surveyDefinitionId: definition.id }, orderBy: { id: "asc" } }),rawBeforeDraft);
+ assert.equal(await prisma.auditLog.count({ where: { action: "COURSE_REPORT_DRAFT_SAVE", targetId: course.id } }),2);
+ await assert.rejects(() => publishCourse({ siteId: site.id, school: "Sin escuela", date: rawBeforeDraft[0]!.receivedAt.toISOString().slice(0,10), expectedVersion: 0, excludedQuestionIds: [] },admin.id), error => error instanceof Error && error.message.includes("instrumentos versionados"));
+ const expectationRevision = (await courseResults(course.id,{},admin.id)).revision;
+ assert.equal((await courseResults(course.id,{},admin.id)).expectedParticipantsPre,null);
+ await assert.rejects(() => setCourseExpectedParticipants(course.id,{ expectedRevision: expectationRevision, expectedParticipantsPre: 50, expectedParticipantsPost: 50 },restricted.id),{ statusCode: 404 });
+ await assert.rejects(() => setCourseExpectedParticipants(course.id,{ expectedRevision: expectationRevision, expectedParticipantsPre: 0, expectedParticipantsPost: 0 },admin.id));
+ await setCourseExpectedParticipants(course.id,{ expectedRevision: expectationRevision, expectedParticipantsPre: 50, expectedParticipantsPost: 40 },admin.id);
+ assert.equal((await courseResults(course.id,{},admin.id)).expectedParticipantsPre,50);
+ assert.equal((await courseResults(course.id,{},admin.id)).expectedParticipantsPost,40);
+ assert.equal((await courseResults(course.id,{ from: "2026-11-05" },admin.id)).expectedParticipantsPre,50);
+ await assert.rejects(() => setCourseExpectedParticipants(course.id,{ expectedRevision: expectationRevision, expectedParticipantsPre: 60, expectedParticipantsPost: 60 },admin.id),{ statusCode: 409 });
+ const concurrentExpectation = await Promise.allSettled([60,70].map(expectedParticipants => setCourseExpectedParticipants(course.id,{ expectedRevision: expectationRevision + 1, expectedParticipantsPre: expectedParticipants, expectedParticipantsPost: expectedParticipants },admin.id)));
+ assert.equal(concurrentExpectation.filter(value => value.status === "fulfilled").length,1);
+ await setCourseExpectedParticipants(course.id,{ expectedRevision: expectationRevision + 2, expectedParticipantsPre: null, expectedParticipantsPost: null },admin.id);
+ assert.equal((await courseResults(course.id,{},admin.id)).expectedParticipantsPre,null);
+ assert.equal(await prisma.auditLog.count({ where: { action: "COURSE_EXPECTED_PARTICIPANTS_SAVE", targetId: course.id } }),3);
+ assert.deepEqual(await prisma.submission.findMany({ where: { surveyDefinitionId: definition.id }, orderBy: { id: "asc" } }),rawBeforeDraft);
+ console.log("Expected participants integration passed: missing base, save, scope, validation, CAS, concurrency, clear, audit and unchanged originals");
+ console.log("E6 integration passed: draft reopen, atomic revisions, scoped writes, unchanged responses and legacy publication blocked");
+ console.log("E5 integration passed: source scoring, null/zero, incomplete bases, read-only history, frozen versions, dates and scoped HTTP");
+} finally { await prisma.$disconnect(); }

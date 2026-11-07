@@ -29,14 +29,15 @@ describe("getDefaultRoute", () => {
 
   it("sends functionality users to their first available feature", () => {
     expect(getDefaultRoute(user({ featureKeys: ["home"] }))).toBe("/home");
-    expect(getDefaultRoute(user({ featureKeys: ["surveys"] }))).toBe("/surveys");
-    expect(getDefaultRoute(user({ featureKeys: ["scoring"] }))).toBe("/scoring");
-    expect(getDefaultRoute(user({ featureKeys: [] }))).toBe("/no-access");
+    expect(getDefaultRoute(user({ featureKeys: ["surveys"] }))).toBe("/courses");
+    expect(getDefaultRoute(user({ featureKeys: ["scoring"] }))).toBe("/instruments/scoring");
+    expect(getDefaultRoute(user({ featureKeys: ["open_questions"] }))).toBe("/courses/open-questions");
+    expect(getDefaultRoute(user({ featureKeys: [] }))).toBe("/published-courses");
   });
 
-  it("sends report viewers to their assigned report surface", () => {
-    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["reports"] }))).toBe("/reports");
-    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["interactive_reports"] }))).toBe("/interactive-reports");
-    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: [] }))).toBe("/no-access");
+  it("sends every report viewer to site publications without template assignments", () => {
+    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["reports"] }))).toBe("/published-courses");
+    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["interactive_reports"] }))).toBe("/published-courses");
+    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: [] }))).toBe("/published-courses");
   });
 });

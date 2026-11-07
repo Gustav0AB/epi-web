@@ -1,8 +1,30 @@
-import type { Prisma, SurveyMoment } from "@prisma/client";
-import { JotformPayloadSchema, type JotformPayload } from "./surveys.schema.js";
-import { scoreAnswer, aggregate, type QuestionType } from "./scoring.js";
+import { assertSubmissionCourseEditable } from "./surveys.repository.js";
+import { normalizeFormQuestions } from "./jotform-client.js";
+import { questionVisibility } from "./question-visibility.js";
+import { schoolCatalog } from "./school-catalog.js";
+import { configuredActivityContext } from "./activity-context.js";
+import { prisma } from "../../db/prisma.js";
+import { schoolContext, configuredSchoolContext, originalSubmissionDay, schoolGroupingContext } from "./school-context.js";
+import { resolveSurveyMoment } from "./survey-moment.js";
+import { resolveParticipantIdentifier } from "./participant-identifier.js";
+import { applySetupQuestions } from "./jotform-questions.js";
+import { Prisma, type SurveyMoment } from "@prisma/client";
+import { JotformPayloadSchema, type JotformPayload, type AnswerJson } from "./surveys.schema.js";
+import { scoreAnswer, aggregate, overallImprovement, categoryQuestionResults, type QuestionType } from "./scoring.js";
 import {
+  instrumentQuestion,
+  validScoringWeights,
+  applyMatrixDefaults,
+  analysisScoringReady,
+  assistantScoringReady,
+  analysisWeightsReady,
   WeightInputSchema,
+  SchoolContextSchema,
+  ActivityContextSchema,
+  SubmissionContextReviewSchema,
+  type SubmissionContextReviewInput,
+  type JotformFormsQuery,
+  type JotformFormsPage,
   type SurveyFilters,
   type WeightInput,
   type WeightImportResult,
@@ -17,12 +39,18 @@ import {
   type HistoricalSubmissionDto,
   type HistoricalImportResult,
   type ReportDetail,
+  type ReportFilters,
   type SurveyGroupSearch,
+  type CourseExpectationInput,
+  type CourseDetailQuery,
+  type SubmissionStatus,
+  type CourseSubmissionDto,
   type SurveyGroupSearchResult,
 } from "@epi/shared";
 import { parseCsv } from "./csv.js";
 import {
   surveysRepository,
+  scopeToDefinitionWhere,
   catalogFieldsRepository,
   persistResults,
   markPending,
@@ -32,6 +60,9 @@ import {
 import { allowedSiteIds } from "../../shared/site-scope.js";
 import { jotformClient } from "./jotform-client.js";
 import { mapJotformQuestions, parseCatalogLabels } from "./jotform-questions.js";
+import { configuredDemographics, responseFingerprint } from "./response-context.js";
+import { expandMatrixAnswers } from "./matrix-answers.js";
+import { getSurveySetup, validateSiteSetup, validateSetupQuestionCatalog } from "./survey-setup.service.js";
 import { env } from "../../config/env.js";
 
 type ProcessOutcome =
@@ -40,6 +71,9 @@ type ProcessOutcome =
   | { status: "ERROR"; reason: string };
 
 export const surveysService = {
+  async schoolCatalog(userId: string) {
+    return schoolCatalog(await surveysRepository.schoolCatalogRows(await resolveScope(userId)));
+  },
   /**
    * Entrada del webhook. Valida, guarda el crudo pase lo que pase y dispara
    * el procesamiento. Nunca lanza por "faltan reglas": eso es un pendiente,
@@ -78,6 +112,7 @@ export const surveysService = {
   syncJotformForms,
   listJotformForms,
   previewFormQuestions,
+  definitionSourceContract,
   listJotformAccounts,
   createJotformAccount,
   deleteJotformAccount,
@@ -91,13 +126,20 @@ export const surveysService = {
     resolveScope(userId).then((scope) => surveysRepository.listSubmissions(filters, scope)),
   listDefinitions: (userId: string) =>
     resolveScope(userId).then((scope) => surveysRepository.listDefinitions(scope)),
-  listGroups: () => surveysRepository.distinctGroups(),
+  listGroups: (userId: string) => resolveScope(userId).then((scope) => surveysRepository.distinctGroups(scope)),
+  getDefinitionFilters: (id: string, userId: string) =>
+    resolveScope(userId).then((scope) => surveysRepository.getDefinitionFilters(id, scope)),
   getDefinitionQuestions: (id: string, userId: string) =>
     resolveScope(userId).then((scope) => surveysRepository.getDefinitionQuestions(id, scope)),
   countSince: (from: Date, userId: string) =>
     resolveScope(userId).then((scope) => surveysRepository.countSince(from, scope)),
   groupSummary,
   groupSearch,
+  saveCourseExpectation,
+  courseDetail,
+  setSubmissionExclusion,
+  setSubmissionMoment,
+  setSubmissionContext,
   completeGroup,
   reportResults,
   reportDetail,
@@ -109,12 +151,16 @@ export const surveysService = {
     if (!question) throw new Error(`Pregunta ${questionId} no encontrada`);
     const site = await surveysRepository.findQuestionSite(questionId);
     await assertSiteAllowed(userId, site?.surveyDefinition?.siteId);
+    await assertLegacyConfigurationEditable(question.surveyDefinitionId);
+    if ((question.role ?? "SCORED") !== "SCORED") throw Object.assign(new Error("Non-assessment questions cannot be weighted"), { statusCode: 400, code: "BAD_REQUEST" });
     return surveysRepository.upsertWeight(questionId, input);
   },
 
   async deleteWeight(questionId: string, userId: string) {
     const site = await surveysRepository.findQuestionSite(questionId);
     await assertSiteAllowed(userId, site?.surveyDefinition?.siteId);
+    const question = await surveysRepository.findQuestion(questionId);
+    if (question) await assertLegacyConfigurationEditable(question.surveyDefinitionId);
     return surveysRepository.deleteWeight(questionId);
   },
 
@@ -128,8 +174,9 @@ export const surveysService = {
     if (!def) throw new Error(`Encuesta ${surveyDefinitionId} no encontrada`);
     await assertSiteAllowed(userId, def.siteId);
 
+    await assertLegacyConfigurationEditable(surveyDefinitionId);
     const questions = await surveysRepository.getDefinitionQuestions(surveyDefinitionId);
-    const byExternalId = new Map(questions.map((q) => [q.externalId, q.id]));
+    const byExternalId = new Map(questions.filter((q) => (q.role ?? "SCORED") === "SCORED").map((q) => [q.externalId, q.id]));
 
     const rows = parseCsv(csvText);
     const result: WeightImportResult = { applied: 0, skipped: 0, errors: [] };
@@ -173,6 +220,16 @@ export async function updateOpenQuestionsSummary(
   return surveysRepository.updateOpenQuestionsSummary(surveyDefinitionId, input.summary);
 }
 
+const savedForCourseReason = "Envío guardado. Los resultados se calculan desde la edición en Cursos.";
+
+const categoryPendingReason = "La configuración de ponderaciones por categorías está guardada, pero su metodología sigue pendiente de aprobación e integración en el cálculo";
+const analysisPendingReason = "La participación por análisis está guardada; faltan reglas y motor por análisis para calcular sin usar la ponderación global anterior";
+
+function savedForCourse(row: { status: string; processingError?: string | null; surveyDefinition?: { configurationVersion?: number | null } | null }) {
+  return row.surveyDefinition?.configurationVersion === 4 && row.status === "PENDIENTE_CONFIGURACION" &&
+    [savedForCourseReason, categoryPendingReason, analysisPendingReason].some(reason => reason === row.processingError);
+}
+
 /**
  * Motor de bifurcación reutilizable. Lee el crudo de la submission, busca las
  * reglas de ponderación y:
@@ -184,8 +241,8 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
   const submission = await surveysRepository.findSubmission(submissionId);
   if (!submission) throw new Error(`Submission ${submissionId} no encontrada`);
 
-  const payload = submission.rawJsonData as unknown as JotformPayload;
-  const def = await surveysRepository.findActiveDefinition(payload.formID);
+  let payload = submission.rawJsonData as unknown as JotformPayload;
+  const def = submission.surveyDefinitionId ? await surveysRepository.findDefinitionForProcessing(submission.surveyDefinitionId) : await surveysRepository.findActiveDefinition(payload.formID);
 
   if (!def || def.questions.length === 0) {
     await markPending(submissionId);
@@ -193,9 +250,59 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
     return { status: "PENDIENTE_CONFIGURACION", reason: "sin definición configurada" };
   }
 
+  if (payload.unresolvedAnswers?.length) {
+    const reason = `${payload.unresolvedAnswers.length} respuestas con identificador ausente, repetido o formato no reconocido; se conserva el origen para revisión`;
+    await markPending(submissionId, def.id, reason);
+    return { status: "PENDIENTE_CONFIGURACION", reason };
+  }
+
+
+  const matrixAnswers = expandMatrixAnswers(payload.answers, def.questions);
+  payload = { ...payload, answers: matrixAnswers.answers };
+  const context = configuredSchoolContext(payload.answers, def.questions);
+  const activityContext = configuredActivityContext(payload.answers, def.questions);
+  const demographicContext = configuredDemographics(payload.answers, def.questions);
+  const hasContext = context !== undefined || activityContext !== undefined || demographicContext.gender.configured || demographicContext.age.configured;
+  const contextSaved = await prisma.submission.updateMany({ where: { id: submissionId, contextRevision: submission.contextRevision }, data: {
+    responseFingerprint: responseFingerprint(def.id, payload.answers),
+    ...(hasContext ? { rawJsonData: {
+      ...(submission.rawJsonData as Prisma.JsonObject),
+      ...(context !== undefined ? { schoolContext: schoolGroupingContext(context, payload.created_at, def.configurationVersion === 4 ? null : def.timeZone) } : {}),
+      ...(activityContext !== undefined ? { activityContext } : {}),
+      ...(demographicContext.gender.configured || demographicContext.age.configured ? { demographicContext } : {}),
+    } as Prisma.InputJsonValue } : {}),
+  } });
+
+  if (!contextSaved.count) return { status: "PENDIENTE_CONFIGURACION", reason: "La respuesta cambió durante el procesamiento; reintentar" };
+  const detectedMoment = resolveSurveyMoment(payload, def.questions);
+  const surveyMoment = submission.reviewMoment ?? (def.questions.some(question => question.role === "MOMENT") ? detectedMoment : def.instrumentKind === "FOLLOW_UP" ? "POST_POST" : def.instrumentKind === "CQS" ? "CQS" : detectedMoment);
+  if (!(await surveysRepository.updateSubmissionMoment(submissionId, surveyMoment, isPreFromMoment(surveyMoment), submission.contextRevision)).count) return { status: "PENDIENTE_CONFIGURACION", reason: "La revisión cambió durante el procesamiento; reintentar" };
+  if ((def.configurationVersion === 3 || def.configurationVersion === 4) || def.questions.some(question => question.classification != null) || def.analysisWeights != null || def.categoryWeights != null || def.subcategoryWeights != null || def.questions.some(question => question.analysisParticipation != null || question.analysisScoring != null)) {
+    const reason = def.configurationVersion === 4 ? savedForCourseReason : def.categoryWeights != null || def.subcategoryWeights != null
+      ? categoryPendingReason : analysisPendingReason;
+    const byExternalId = new Map(def.questions.map(question => [question.externalId, question]));
+    const answers = payload.answers.flatMap(answer => {
+      const question = byExternalId.get(answer.questionId);
+      return question ? [{ questionId: question.id, value: normalizeValue(answer.value), rawValue: answer.value === null ? Prisma.JsonNull : answer.value }] : [];
+    });
+    if (!await persistResults({ expectedRevision: submission.contextRevision, submissionId, surveyDefinitionId: def.id, participantId: undefined, isDuplicate: false, answers, results: [], pendingReason: matrixAnswers.warnings.length ? `${reason}; ${matrixAnswers.warnings.join("; ")}` : reason })) return { status: "PENDIENTE_CONFIGURACION", reason: "La revisión cambió durante el procesamiento; reintentar" };
+    return { status: "PENDIENTE_CONFIGURACION", reason };
+  }
+  if (def.questions.some((question) => question.role === "MOMENT")) {
+    if (surveyMoment === "UNKNOWN") {
+      await markPending(submissionId, def.id);
+      return { status: "PENDIENTE_CONFIGURACION", reason: "momento ausente, ambiguo o sin mapeo" };
+    }
+  }
+  const externalParticipantId = resolveParticipantIdentifier(payload, def.questions);
+  if (def.questions.some((question) => question.role === "IDENTIFIER") && !externalParticipantId) {
+    await markPending(submissionId, def.id);
+    return { status: "PENDIENTE_CONFIGURACION", reason: "identificador de participante ausente o ambiguo" };
+  }
+
   // OPEN_TEXT no se pondera; se revisa manualmente y no exige Weight.
   const missing = def.questions
-    .filter((q) => q.type !== "OPEN_TEXT" && !q.weight)
+    .filter((q) => (q.role ?? "SCORED") === "SCORED" && q.type !== "OPEN_TEXT" && !q.weight)
     .map((q) => q.externalId);
   if (missing.length > 0) {
     // Se persiste el link a la definición aunque quede pendiente: así se
@@ -206,20 +313,26 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
     return { status: "PENDIENTE_CONFIGURACION", reason: `faltan pesos: ${missing.join(", ")}` };
   }
 
+  const structuredScored = payload.answers.some(answer => answer.value !== null && typeof answer.value !== "string" && typeof answer.value !== "number" && def.questions.some(question => question.externalId === answer.questionId && (question.role ?? "SCORED") === "SCORED" && question.type !== "OPEN_TEXT"));
+  if (structuredScored) {
+    await markPending(submissionId, def.id, "Respuesta estructurada sin regla de puntuación compatible");
+    return { status: "PENDIENTE_CONFIGURACION", reason: "respuesta estructurada sin regla de puntuación compatible" };
+  }
+
   // Reglas completas → calcular. Un fallo inesperado acá no debe perder el
   // dato: se guarda el detalle y queda en estado ERROR para revisión manual.
   try {
     const byExternalId = new Map(def.questions.map((q) => [q.externalId, q]));
-    const answers: { questionId: string; value: string }[] = [];
+    const answers: { questionId: string; value: string; rawValue: Prisma.InputJsonValue | typeof Prisma.JsonNull }[] = [];
     const scored = [];
 
     for (const a of payload.answers) {
       const q = byExternalId.get(a.questionId);
       if (!q) continue; // respuesta a un campo no configurado → se ignora
       const value = normalizeValue(a.value);
-      answers.push({ questionId: q.id, value }); // se guarda siempre (incl. OPEN_TEXT)
+      answers.push({ questionId: q.id, value, rawValue: a.value === null ? Prisma.JsonNull : a.value }); // se guarda siempre (incl. OPEN_TEXT)
       // Las respuestas en blanco no cuentan para el cálculo (ni en el máximo).
-      if (q.weight && value.trim() !== "") {
+      if ((q.role ?? "SCORED") === "SCORED" && q.type !== "OPEN_TEXT" && q.weight && value.trim() !== "") {
         scored.push({
           category: q.weight.category,
           subcategory: q.weight.subcategory,
@@ -239,11 +352,11 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
       subcategory: r.subcategory,
       calculatedScore: r.score,
       maxPossible: r.max,
-      isPrePost: payload.surveyMoment === "PRE",
+      isPrePost: surveyMoment === "PRE",
     }));
 
-    const participantId = payload.participant?.id
-      ? (await surveysRepository.upsertParticipant(payload.participant.id, {})).id
+    const participantId = externalParticipantId
+      ? (await surveysRepository.upsertParticipant(externalParticipantId, {})).id
       : undefined;
 
     // Duplicado = mismo participante + misma encuesta + mismo momento
@@ -253,14 +366,14 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
           await surveysRepository.findProcessedSibling({
             participantId,
             surveyDefinitionId: def.id,
-            surveyMoment: submission.surveyMoment,
+            surveyMoment,
             excludeSubmissionId: submissionId,
           })
         )
       : false;
 
-    await persistResults({
-      submissionId,
+    const persisted = await persistResults({
+      expectedRevision: submission.contextRevision, submissionId,
       surveyDefinitionId: def.id,
       participantId,
       isDuplicate,
@@ -268,6 +381,7 @@ export async function processSubmission(submissionId: string): Promise<ProcessOu
       results,
     });
 
+    if (!persisted) return { status: "PENDIENTE_CONFIGURACION", reason: "La revisión cambió durante el procesamiento; reintentar" };
     return { status: "PROCESADO", resultCount: results.length };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -314,6 +428,12 @@ export async function listUnregisteredForms(): Promise<UnregisteredFormDto[]> {
 
 // ── catálogo de formularios de Jotform ────────────────────────────────
 
+export async function listJotformLabels(accountId: string) {
+  const account = (await surveysRepository.listJotformAccounts()).find((item) => item.id === accountId);
+  if (!account) throw Object.assign(new Error("Cuenta Jotform no encontrada"), { statusCode: 404 });
+  return jotformClient.listLabels(account.apiKey);
+}
+
 /** GET /user/forms → guarda/actualiza el catálogo local y regresa el diff. */
 export async function syncJotformForms(accountId?: string) {
   const accounts = await jotformAccountsForApi(accountId);
@@ -328,23 +448,47 @@ export async function syncJotformForms(accountId?: string) {
 }
 
 /** Catálogo local (ya sincronizado), marcando cuáles ya tienen SurveyDefinition. */
-export async function listJotformForms() {
-  const [forms, registeredIds] = await Promise.all([
-    surveysRepository.listJotformForms(),
-    surveysRepository.registeredJotformFormIds(),
-  ]);
-  return forms.map((f) => ({
-    ...f,
-    accountName: f.account?.name ?? null,
-    registered: registeredIds.has(f.id),
-    syncedAt: f.syncedAt.toISOString(),
-  }));
+export async function listJotformForms(query: JotformFormsQuery): Promise<JotformFormsPage> {
+  const { forms, meta } = await surveysRepository.listJotformForms(query);
+  const registeredIds = await surveysRepository.registeredJotformFormIds(forms.map((form) => form.id));
+  return {
+    forms: forms.map((form) => ({
+      id: form.id, title: form.title, status: form.status, labelIds: form.labelIds,
+      createdAt: form.createdAt, updatedAt: form.updatedAt, submissionCount: form.submissionCount, lastSubmission: form.lastSubmission, url: form.url,
+      accountName: form.account?.name ?? null,
+      registered: registeredIds.has(form.id), hasDraft: form.setupDraft != null,
+      syncedAt: form.syncedAt.toISOString(),
+    })),
+    meta,
+  };
 }
 
-/** GET /form/:id/questions en vivo, ya separado en preguntas ponderables vs. catálogo. */
+/** GET /form/:id/questions: preguntas configurables y opciones de catálogo reutilizables. */
+async function readFormQuestions(formId: string) {
+  const [source, properties] = await firstSuccessfulJotform(apiKey => Promise.all([jotformClient.getFormQuestionSource(formId, apiKey), jotformClient.getFormProperties(formId, apiKey)]));
+  const questions = normalizeFormQuestions(source);
+  const mapped = mapJotformQuestions(questions, parseCatalogLabels(env.CATALOG_DATA));
+  const conditions = questionVisibility(questions, properties.conditions);
+  return {
+    ...mapped,
+    skipped: mapped.skipped.map(question => ({ ...question, ...(conditions.visibility.get(question.externalId) ? { visibility: conditions.visibility.get(question.externalId)! } : {}) })),
+    scoredQuestions: mapped.scoredQuestions.map(question => ({ ...question, ...(conditions.visibility.get(question.sourceContext?.matrix?.externalId ?? question.externalId) ? { visibility: conditions.visibility.get(question.sourceContext?.matrix?.externalId ?? question.externalId)! } : {}) })),
+    conditionWarnings: conditions.warnings,
+    conditionSource: conditions.original,
+    sourceContract: { schemaVersion: 1, capturedAt: new Date().toISOString(), questionOrder: Object.keys(source), questions: source, properties },
+  };
+}
+
 export async function previewFormQuestions(formId: string) {
-  const questions = await firstSuccessfulJotform((apiKey) => jotformClient.getFormQuestions(formId, apiKey));
-  return mapJotformQuestions(questions, parseCatalogLabels(env.CATALOG_DATA));
+  const { sourceContract: _source, ...preview } = await readFormQuestions(formId);
+  return preview;
+}
+
+async function definitionSourceContract(definitionId: string, userId: string) {
+  const scope = await resolveScope(userId);
+  const source = await surveysRepository.definitionSourceContract(definitionId, scope);
+  if (!source) throw Object.assign(new Error("Instrumento no encontrado"), { statusCode: 404 });
+  return source;
 }
 
 function maskApiKey(apiKey: string) {
@@ -472,14 +616,47 @@ export async function registerDefinition(
 ): Promise<{ definitionId: string } & ReprocessPendingResult> {
   await assertSiteAllowed(userId, input.siteId);
 
-  const { scoredQuestions, catalogMatches } = await previewFormQuestions(input.jotformFormId);
+  const setup = input.setupRevision === undefined ? undefined : await getSurveySetup(input.jotformFormId);
+  if (setup && (setup.revision !== input.setupRevision || setup.draft.siteId !== input.siteId || setup.draft.type !== input.type)) {
+    throw Object.assign(new Error("Configuration changed; reopen the form before registering"), { statusCode: 409, code: "CONFLICT" });
+  }
+  if (setup && (setup.draft.baseDefinitionId ?? undefined) !== input.baseDefinitionId) throw Object.assign(new Error("Confirma la versión base del borrador antes de activar"), { statusCode: 409 });
+  if (setup && (!setup.draft.instrumentName || !setup.draft.activityName)) {
+    throw Object.assign(new Error("Instrument and activity are required"), { statusCode: 400, code: "BAD_REQUEST" });
+  }
+  if (setup) {
+    await validateSiteSetup(setup.draft);
+    if ((setup.draft.scoringWeightsVersion === 4 || setup.draft.programName || setup.draft.instrumentKind) && (!setup.draft.programName || !setup.draft.instrumentKind || !setup.draft.activityType)) throw Object.assign(new Error("Selecciona tipo de instrumento y tipo de actividad"), { statusCode: 400 });
+  }
+  const { scoredQuestions, catalogMatches, skipped, conditionSource, sourceContract } = await readFormQuestions(input.jotformFormId);
+  if (scoredQuestions.some(question => question.sourceContext?.matrix) && setup?.draft.scoringWeightsVersion !== 4) throw Object.assign(new Error("Configura las filas de matriz mediante el asistente antes de activar"), { statusCode: 400 });
+  if (setup?.draft.scoringWeightsVersion === 4 && skipped.some(question => question.type === "control_matrix")) throw Object.assign(new Error("Hay matrices con filas u opciones ambiguas o tipos de celda pendientes; revisa el origen antes de activar"), { statusCode: 400 });
+  const effectiveQuestions = applyMatrixDefaults(applySetupQuestions(scoredQuestions, setup?.draft.questions, setup?.draft.scoringWeightsVersion), setup?.draft.matrixDefaults);
+  const configuredQuestions = setup?.draft.configurationMode === "instrument" ? effectiveQuestions.map(instrumentQuestion) : effectiveQuestions;
+  if (setup?.draft.matrixDefaults?.some(group => !scoredQuestions.some(question => question.sourceContext?.matrix?.externalId === group.externalId))) throw Object.assign(new Error("Las matrices cambiaron; revisa sus reglas generales"), { statusCode: 409 });
+  if (setup) await validateSetupQuestionCatalog(configuredQuestions, input.siteId, setup.draft.scoringWeightsVersion === 4);
+  if (configuredQuestions.some(question => question.classification != null) && setup?.draft.scoringWeightsVersion !== 3 && setup?.draft.scoringWeightsVersion !== 4) throw Object.assign(new Error("La clasificación independiente requiere scoringWeightsVersion=3 o 4"), { statusCode: 400 });
+  if ((setup?.draft.scoringWeightsVersion === 3 || setup?.draft.scoringWeightsVersion === 4) && setup.draft.instrumentKind !== "CQS" && configuredQuestions.some(question => (question.role ?? "SCORED") === "SCORED" && question.type !== "OPEN_TEXT" && question.analysisParticipation == null)) throw Object.assign(new Error("Configura la participación de cada pregunta evaluable, incluso si no participa en ningún análisis"), { statusCode: 400 });
+  if (setup?.draft.scoringWeightsVersion === 4 && setup.draft.instrumentKind !== "CQS" && !assistantScoringReady(configuredQuestions)) throw Object.assign(new Error("Revisa las reglas: selecciona respuesta correcta y valor o escala con máximo e inversión, sin puntos parciales; confirma las opciones actuales"), { statusCode: 400 });
+  if (setup?.draft.instrumentKind !== "CQS" && (setup?.draft.analysisWeights !== undefined || configuredQuestions.some(question => question.analysisScoring != null)) && !analysisScoringReady(configuredQuestions)) {
+    throw Object.assign(new Error("Completa la puntuación de cada pregunta habilitada en cada análisis; revisa máximos, respuestas correctas, puntos por opción y rangos/dirección contra las preguntas actuales"), { statusCode: 400, code: "BAD_REQUEST" });
+  }
+  if (setup?.draft.instrumentKind !== "CQS" && setup?.draft.analysisWeights !== undefined && !analysisWeightsReady(configuredQuestions, setup.draft.analysisWeights, setup.draft.instrumentKind !== "FOLLOW_UP")) {
+    throw Object.assign(new Error("Completa los pesos de cada análisis: subcategorías al 100% por categoría y categorías del IAA al 100% en aprendizaje"), { statusCode: 400, code: "BAD_REQUEST" });
+  }
+  if (setup?.draft.scoringWeightsVersion === 2 && !validScoringWeights(configuredQuestions, setup.draft.categoryWeights ?? [], setup.draft.subcategoryWeights ?? [], !["CQS", "FOLLOW_UP"].includes(setup.draft.instrumentKind ?? ""))) {
+    throw Object.assign(new Error("Revisa las preguntas actuales y sus pesos: cada subcategoría debe sumar 100% y el IAA solo aplica a aprendizaje"), { statusCode: 400, code: "BAD_REQUEST" });
+  }
   if (catalogMatches.length > 0) await catalogFieldsRepository.upsertMatches(catalogMatches);
 
   const def = await surveysRepository.createDefinitionWithQuestions({
     siteId: input.siteId,
     jotformFormId: input.jotformFormId,
     type: input.type,
-    questions: scoredQuestions,
+    questions: configuredQuestions,
+    sourceConditions: conditionSource,
+    sourceContract,
+    ...(setup ? { setup: { activatedBy: userId, baseDefinitionId: setup.draft.baseDefinitionId, ...(setup.draft.matrixDefaults ? { matrixDefaults: setup.draft.matrixDefaults as unknown as Prisma.InputJsonValue } : {}), configurationVersion: setup.draft.scoringWeightsVersion, programName: setup.draft.programName, instrumentKind: setup.draft.instrumentKind, revision: setup.revision, ...(setup.draft.analysisWeights !== undefined ? { analysisWeights: setup.draft.analysisWeights as unknown as Prisma.InputJsonValue } : {}), instrumentName: setup.draft.instrumentName, activityName: setup.draft.activityName, activityType: setup.draft.activityType, description: setup.draft.description, timeZone: setup.draft.timeZone, ...((setup.draft.scoringWeightsVersion === 2 || (setup.draft.scoringWeightsVersion === 3 || setup.draft.scoringWeightsVersion === 4) && (setup.draft.categoryWeights !== undefined || setup.draft.subcategoryWeights !== undefined)) ? { categoryWeights: (setup.draft.categoryWeights ?? []) as unknown as Prisma.InputJsonValue, subcategoryWeights: (setup.draft.subcategoryWeights ?? []) as unknown as Prisma.InputJsonValue } : {}) } } : {}),
   });
 
   const submissions = await surveysRepository.listUnassignedSubmissions();
@@ -505,6 +682,8 @@ export async function registerDefinition(
 export async function updateQuestion(questionId: string, input: UpdateQuestionInput, userId: string) {
   const site = await surveysRepository.findQuestionSite(questionId);
   await assertSiteAllowed(userId, site?.surveyDefinition?.siteId);
+  const question = await surveysRepository.findQuestion(questionId);
+  if (question) await assertLegacyConfigurationEditable(question.surveyDefinitionId);
   return surveysRepository.updateQuestion(questionId, input);
 }
 
@@ -539,8 +718,8 @@ export async function reprocessPending(
  */
 export async function reprocessSurvey(submissionId: string, userId: string): Promise<ProcessOutcome> {
   const site = await surveysRepository.findSubmissionSite(submissionId);
-  // Si nunca matcheó ninguna definición aún no hay sitio que autorizar.
-  if (site?.surveyDefinition) await assertSiteAllowed(userId, site.surveyDefinition.siteId);
+  // Only global administrators can reprocess a submission without an assigned site.
+  await assertSiteAllowed(userId, site?.surveyDefinition?.siteId);
   return processSubmission(submissionId);
 }
 
@@ -590,28 +769,143 @@ export async function groupSummary(userId: string) {
 export async function groupSearch(input: SurveyGroupSearch, userId: string): Promise<SurveyGroupSearchResult> {
   const scope = await resolveScope(userId);
   const rows = await surveysRepository.groupSearchRows({
+    includeUnprocessed: true, includeContext: true,
+    questionId: input.questionId, answerValue: input.answerValue,
     scope,
+    siteId: input.siteId,
+    surveyDefinitionId: input.surveyDefinitionId,
     from: input.from,
-    to: input.to ? `${input.to}T23:59:59` : undefined,
+    to: input.to,
   });
-  return summarizeGroupSearchRows(rows);
+  const matchingRows = rows.filter(row => {
+    const date = reviewGroupDate(row);
+    return (!input.from || date >= input.from) && (!input.to || date <= input.to);
+  });
+  const grouped = summarizeGroupSearchRows(matchingRows, [], true);
+  const expectations = await surveysRepository.courseExpectations(grouped.rows.flatMap((row) => row.siteId ? [{ siteId: row.siteId, school: row.school, date: row.date }] : []));
+  const result = summarizeGroupSearchRows(matchingRows, expectations, true);
+  const filtered = result.rows.filter(row => {
+    if (input.entryType === "courses" && !row.courseId) return false;
+    if (input.entryType === "individual" && row.courseId) return false;
+    const status = row.courseStatus ?? (row.errorCount ? "ERROR" : "PENDING");
+    return !input.reviewStatus || input.reviewStatus === status;
+  });
+  return { rows: filtered, totalGroups: filtered.length };
+}
+
+export async function setSubmissionContext(id: string, input: SubmissionContextReviewInput, userId: string) {
+  const parsed = SubmissionContextReviewSchema.safeParse(input);
+  if (!parsed.success) throw Object.assign(new Error("Invalid school/date review"), { statusCode: 400 });
+  const scope = await resolveScope(userId);
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  await prisma.$transaction(async (tx) => {
+    const where = { id, surveyDefinition: scopeToDefinitionWhere(scope) ?? {} };
+    const previous = await tx.submission.findFirst({ where, select: { reviewActivity: true, reviewSchool: true, reviewDate: true, reviewGender: true, reviewAge: true } });
+    if (!previous) throw Object.assign(new Error("Submission not found in your accessible surveys"), { statusCode: 404 });
+    await assertSubmissionCourseEditable(tx, id);
+    const activity = parsed.data.context === null ? null : parsed.data.context.activity === undefined ? previous.reviewActivity : parsed.data.context.activity || null;
+    const result = await tx.submission.updateMany({ where: { ...where, contextRevision: parsed.data.expectedRevision }, data: {
+      reviewGender: parsed.data.context === null ? null : parsed.data.context.gender === undefined ? previous.reviewGender : parsed.data.context.gender || null, reviewAge: parsed.data.context === null ? null : parsed.data.context.age === undefined ? previous.reviewAge : parsed.data.context.age,
+      reviewActivity: activity, reviewSchool: parsed.data.context?.school ?? null, reviewDate: parsed.data.context?.date ?? null,
+      contextRevision: { increment: 1 }, reviewedBy: userId, reviewedAt: new Date(),
+    } });
+    if (!result.count) throw Object.assign(new Error("Context changed; reload before saving"), { statusCode: 409 });
+    await tx.auditLog.create({ data: { actorId: user.id, actorUsername: user.username, actorRole: user.role, actorOrganizationId: user.organizationId, action: "SUBMISSION_CONTEXT_REVIEW", targetType: "Submission", targetId: id, metadata: { previous, context: parsed.data.context ? { ...parsed.data.context, activity } : null, revision: parsed.data.expectedRevision + 1 } } });
+  });
+  return { saved: true };
+}
+
+export async function setSubmissionMoment(id: string, moment: "PRE" | "POST" | "POST_POST" | "CQS" | null, userId: string, expectedRevision?: number) {
+  await surveysRepository.setSubmissionMoment(id, moment, userId, await resolveScope(userId), expectedRevision);
+  return { saved: true };
+}
+
+export async function setSubmissionExclusion(id: string, excluded: boolean, userId: string, expectedRevision?: number) {
+  const scope = await resolveScope(userId);
+  const result = await surveysRepository.setSubmissionExclusion(id, excluded, userId, scope, expectedRevision);
+  if (!result.count) throw Object.assign(new Error("Submission not found in your accessible surveys"), { statusCode: 404 });
+  return { saved: true };
+}
+
+export async function courseDetail(input: CourseDetailQuery, userId: string): Promise<CourseSubmissionDto[]> {
+  await assertSiteAllowed(userId, input.siteId);
+  const scope = await resolveScope(userId);
+  const rows = await surveysRepository.groupSearchRows({ includeUnprocessed: true, includeContext: true, scope, siteId: input.siteId, surveyDefinitionId: input.surveyDefinitionId, from: input.date, to: input.date });
+  const ids = rows.filter((row) => (input.groupId && row.courseMembership?.application.course.id === input.groupId ? true : reviewGroupDate(row) === input.date && (input.groupId ? reviewRowKey(row, true) === input.groupId : reviewGroupSchool(row) === input.school))).map((row) => row.id);
+  if (!ids.length) return [];
+  const details = await surveysRepository.courseSubmissionDetails(ids, scope);
+  return details.map((row) => ({
+    id: row.id, jotformSubmissionId: row.jotformSubmissionId, receivedAt: row.receivedAt.toISOString(),
+    reviewMoment: row.reviewMoment, reviewExcluded: row.reviewExcluded, surveyMoment: row.surveyMoment, status: row.status, savedForCourse: savedForCourse(row), processingError: row.processingError, isDuplicate: row.isDuplicate, participantName: row.participant?.name ?? null,
+    activityContext: ActivityContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.activityContext).data ?? null,
+    contextRevision: row.contextRevision,
+    confirmedContext: row.reviewSchool && row.reviewDate ? { school: row.reviewSchool, date: row.reviewDate, activity: row.reviewActivity, gender: row.reviewGender, age: row.reviewAge } : null,
+    schoolContext: SchoolContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext).data ?? null,
+    answers: row.answers.map((answer) => ({ questionId: answer.questionId, text: answer.question.text, value: answer.value })),
+  }));
+}
+
+export async function saveCourseExpectation(input: CourseExpectationInput, userId: string) {
+  await assertSiteAllowed(userId, input.siteId);
+  const scope = await resolveScope(userId);
+  const rows = await surveysRepository.groupSearchRows({ includeUnprocessed: true, includeContext: true, scope, siteId: input.siteId, from: input.date, to: input.date });
+  if (!summarizeGroupSearchRows(rows, [], true).rows.some((row) => row.school === input.school && row.date === input.date)) {
+    throw Object.assign(new Error("Course not found in your accessible surveys"), { statusCode: 404 });
+  }
+  await surveysRepository.saveCourseExpectation(input, userId);
+  return { saved: true };
+}
+
+function reviewGroupSchool(row: { participant: { school: string | null } | null; reviewSchool?: string | null; rawJsonData?: unknown; surveyDefinition?: { configurationVersion?: number | null } | null }) {
+  if (row.surveyDefinition?.configurationVersion !== 4) return row.participant?.school?.trim() || "Sin escuela";
+  const detected = SchoolContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext);
+  return row.reviewSchool?.trim() || detected.data?.school?.trim() || row.participant?.school?.trim() || "Sin escuela";
+}
+
+function reviewGroupDate(row: { receivedAt: Date; reviewDate?: string | null; rawJsonData?: unknown; surveyDefinition?: { configurationVersion?: number | null } | null }) {
+  const received = row.receivedAt.toISOString().slice(0, 10);
+  if (row.surveyDefinition?.configurationVersion !== 4) return received;
+  const raw = row.rawJsonData as Prisma.JsonObject | null;
+  const detected = SchoolContextSchema.safeParse(raw?.schoolContext).data;
+  return row.reviewDate ?? detected?.groupingDate ?? detected?.extractedDate ?? originalSubmissionDay(raw?.created_at) ?? received;
+}
+
+function reviewRowKey(row: { receivedAt: Date; participant: { school: string | null } | null; reviewSchool?: string | null; reviewDate?: string | null; rawJsonData?: unknown; surveyDefinition: { siteId: string; configurationVersion?: number | null } | null }, reviewContext: boolean) {
+  const date = reviewContext ? reviewGroupDate(row) : row.receivedAt.toISOString().slice(0, 10);
+  const school = reviewContext ? reviewGroupSchool(row) : row.participant?.school?.trim() || "Sin escuela";
+  const siteId = row.surveyDefinition?.siteId ?? null;
+  return JSON.stringify(reviewContext && row.surveyDefinition?.configurationVersion === 4 ? [siteId, row.surveyDefinition && "id" in row.surveyDefinition ? row.surveyDefinition.id : null, ActivityContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.activityContext).data?.activity ?? (row.surveyDefinition && "activityName" in row.surveyDefinition ? row.surveyDefinition.activityName : null), date] : [siteId, date, school]);
 }
 
 export function summarizeGroupSearchRows(
   rows: {
+    courseMembership?: { application: { course: { id: string; status: string; name: string; expectedParticipants?: number | null } } } | null;
+    reviewExcluded: boolean;
+    status: SubmissionStatus;
     receivedAt: Date;
+    surveyDefinition: { siteId: string; configurationVersion?: number | null } | null;
+    reviewSchool?: string | null; reviewDate?: string | null; rawJsonData?: unknown; processingError?: string | null;
     surveyMoment: SurveyMoment;
     participantId: string | null;
     participant: { school: string | null } | null;
     results: { calculatedScore: number; maxPossible: number }[];
-  }[]
+  }[],
+  expectations: { siteId: string; school: string; date: string; expectedParticipants: number }[] = [],
+  reviewContext = false,
 ): SurveyGroupSearchResult {
   const groups = new Map<
     string,
     {
+      courseId?: string; courseStatus?: "REVIEWED" | "COMPLETED"; courseName?: string; confirmedParticipants?: number | null; dates: Set<string>;
+      siteId: string | null;
       school: string;
       date: string;
       students: Set<string>;
+      schools: Map<string, number>;
+      excludedCount: number;
+      pendingCount: number;
+      versioned: boolean; savedCount: number;
+      errorCount: number;
       preCount: number;
       postCount: number;
       cqsCount: number;
@@ -621,14 +915,25 @@ export function summarizeGroupSearchRows(
   >();
 
   for (const row of rows) {
-    const date = row.receivedAt.toISOString().slice(0, 10);
-    const school = row.participant?.school?.trim() || "Sin escuela";
-    const key = `${date}||${school}`;
+    const date = reviewContext ? reviewGroupDate(row) : row.receivedAt.toISOString().slice(0, 10);
+    const school = reviewContext ? reviewGroupSchool(row) : row.participant?.school?.trim() || "Sin escuela";
+    const siteId = row.surveyDefinition?.siteId ?? null;
+    const course = reviewContext ? row.courseMembership?.application.course : null;
+    const confirmed = course?.status === "REVIEWED" || course?.status === "COMPLETED";
+    const key = confirmed ? course.id : reviewRowKey(row, reviewContext);
     let acc = groups.get(key);
     if (!acc) {
-      acc = { school, date, students: new Set(), preCount: 0, postCount: 0, cqsCount: 0, pre: [], post: [] };
+      acc = { ...(confirmed ? { courseId: course.id, courseStatus: course.status as "REVIEWED" | "COMPLETED", courseName: course.name, confirmedParticipants: course.expectedParticipants } : {}), dates: new Set(), siteId, school, date, students: new Set(), schools: new Map(), excludedCount: 0, pendingCount: 0, versioned: false, savedCount: 0, errorCount: 0, preCount: 0, postCount: 0, cqsCount: 0, pre: [], post: [] };
       groups.set(key, acc);
     }
+    acc.dates.add(date);
+    if (date > acc.date) acc.date = date;
+    if (!row.reviewExcluded) acc.schools.set(school, (acc.schools.get(school) ?? 0) + 1);
+    if (reviewContext && row.surveyDefinition?.configurationVersion === 4) acc.versioned = true;
+    if (row.reviewExcluded) { acc.excludedCount++; continue; }
+    if (row.status === "PENDIENTE_CONFIGURACION" && !(reviewContext && savedForCourse(row))) { acc.pendingCount++; continue; }
+    if (reviewContext && savedForCourse(row)) acc.savedCount++;
+    if (row.status === "ERROR") { acc.errorCount++; continue; }
     if (row.participantId) acc.students.add(row.participantId);
     if (row.surveyMoment === "PRE") acc.preCount++;
     else if (row.surveyMoment === "POST") acc.postCount++;
@@ -644,23 +949,39 @@ export function summarizeGroupSearchRows(
 
   const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
   const rounded = (n: number) => Math.round(n * 10) / 10;
+  const expectedByCourse = new Map(expectations.map((item) => [JSON.stringify([item.siteId, item.date, item.school]), item.expectedParticipants]));
   const resultRows = [...groups.entries()].map(([id, g]) => {
     const pre = avg(g.pre);
     const post = avg(g.post);
+    const manualExpectedParticipants = expectedByCourse.get(id) ?? null;
+    const expected = manualExpectedParticipants ?? g.preCount;
     return {
+      ...(g.courseId ? { courseId: g.courseId, courseStatus: g.courseStatus, courseName: g.courseName, confirmedParticipants: g.confirmedParticipants, dates: [...g.dates].sort() } : {}),
+      ...(g.versioned ? { versioned: true, savedCount: g.savedCount } : {}),
+      ...(reviewContext ? { contextNeedsReview: g.schools.size > 1 || g.schools.has("Sin escuela") } : {}),
+      excludedCount: g.excludedCount,
+      pendingCount: g.pendingCount,
+      errorCount: g.errorCount,
+      manualExpectedParticipants,
       id,
-      school: g.school,
+      siteId: g.siteId,
+      school: reviewContext ? [...new Map([...g.schools.keys()].filter(school => school !== "Sin escuela").map(school => [school.toLocaleLowerCase(), school])).values()].sort((a, b) => a.localeCompare(b)).join(", ") || "Sin escuela" : g.school,
       date: g.date,
-      studentsResponded: g.students.size,
+      studentsResponded: reviewContext ? Math.max(g.preCount, g.postCount) : g.students.size,
+      expectedParticipants: expected,
+      meetsResponseCoverage: expected > 0 && [g.preCount, g.postCount, g.cqsCount].every((count) => count * 100 >= expected * 80),
+      preResponsePercent: expected > 0 ? rounded(g.preCount / expected * 100) : null,
+      postResponsePercent: expected > 0 ? rounded(g.postCount / expected * 100) : null,
+      cqsResponsePercent: expected > 0 ? rounded(g.cqsCount / expected * 100) : null,
       manager: null,
       preCount: g.preCount,
       postCount: g.postCount,
       cqsCount: g.cqsCount,
-      improvementPercent: pre !== null && post !== null ? rounded(post - pre) : null,
+      improvementPercent: !g.versioned && pre !== null && post !== null ? rounded(post - pre) : null,
     };
   });
 
-  return { totalGroups: resultRows.length, rows: resultRows };
+  return { totalGroups: resultRows.length, rows: resultRows.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id)) };
 }
 
 /**
@@ -694,7 +1015,7 @@ async function resolveScope(userId: string): Promise<SurveyScope> {
   const siteIds = await allowedSiteIds({
     role: user.role.toLowerCase(),
     organizationId: user.organizationId,
-    excludedSiteIds: user.excludedSiteIds,
+    siteIds: user.siteIds,
   });
   return { siteIds, excludedSurveyDefinitionIds: user.excludedSurveyDefinitionIds, organizationId: user.organizationId };
 }
@@ -713,17 +1034,10 @@ async function assertSiteAllowed(userId: string, siteId: string | null | undefin
 // ── reportes (solo encuestas COMPLETADO) ─────────────────────────────
 
 export async function reportResults(
-  filters: {
-    surveyDefinitionId?: string | undefined;
-    siteId?: string | undefined;
-    type?: "LOCAL" | "VISITING" | undefined;
-    school?: string | undefined;
-    category?: string | undefined;
-    from?: string | undefined;
-    to?: string | undefined;
-  },
+  filters: ReportFilters,
   userId: string
 ) {
+  if (filters.courseDate || filters.excludedQuestionIds?.length) return (await reportDetail(filters, userId)).categories;
   const scope = await resolveScope(userId);
   if (filters.surveyDefinitionId && scope.excludedSurveyDefinitionIds?.includes(filters.surveyDefinitionId)) return [];
   let siteIds = scope.siteIds;
@@ -747,48 +1061,59 @@ export async function reportResults(
 export async function reportDetail(filters: Parameters<typeof reportResults>[0], userId: string): Promise<ReportDetail> {
   const scope = await resolveScope(userId);
   if (filters.surveyDefinitionId && scope.excludedSurveyDefinitionIds?.includes(filters.surveyDefinitionId)) {
-    return { total: emptyReportRow("Total"), categories: [], questions: [] };
+    return { overallImprovement: null, total: emptyReportRow("Total"), categories: [], questions: [] };
   }
   if (filters.siteId && scope.siteIds && !scope.siteIds.includes(filters.siteId)) {
-    return { total: emptyReportRow("Total"), categories: [], questions: [] };
+    return { overallImprovement: null, total: emptyReportRow("Total"), categories: [], questions: [] };
   }
+  const courseRows = filters.courseDate ? await surveysRepository.groupSearchRows({
+    scope, siteId: filters.siteId, surveyDefinitionId: filters.surveyDefinitionId,
+    from: filters.courseDate, to: filters.courseDate,
+  }) : undefined;
+  const courseSubmissionIds = courseRows?.filter((row) => (row.participant?.school?.trim() || "Sin escuela") === filters.school).map((row) => row.id);
   const subs = await surveysRepository.completedWithAnswers({
     scope: { siteIds: filters.siteId ? [filters.siteId] : scope.siteIds, excludedSurveyDefinitionIds: scope.excludedSurveyDefinitionIds },
     surveyDefinitionId: filters.surveyDefinitionId,
     type: filters.type,
-    school: filters.school,
+    submissionIds: courseSubmissionIds,
+    school: filters.courseDate ? undefined : filters.school,
     from: filters.from,
     to: filters.to,
   });
+  return buildReportDetail(subs, filters);
+}
+
+export function buildReportDetail(subs: Awaited<ReturnType<typeof surveysRepository.completedWithAnswers>>, filters: ReportFilters): ReportDetail {
   const rows = subs.flatMap((s) => s.answers
-    .filter((a) => a.question.weight && a.question.type !== "OPEN_TEXT")
+    .filter((a) => (a.question.role ?? "SCORED") === "SCORED" && a.question.weight && a.question.type !== "OPEN_TEXT")
     .map((a) => ({
       submissionId: s.id,
       questionId: a.question.id,
       text: a.question.text,
       category: a.question.weight!.category,
+      subcategory: a.question.weight!.subcategory,
       score: scoreAnswer({ type: a.question.type as QuestionType, value: a.value, maxScore: a.question.weight!.maxScore, correctAnswer: a.question.weight!.correctAnswer }),
       max: a.question.weight!.maxScore,
       pre: s.surveyMoment === "PRE",
     })));
-  const filteredRows = filters.category ? rows.filter((r) => r.category === filters.category) : rows;
-  const categorySubs = subs.map((s) => ({ results: s.answers
-    .filter((a) => a.question.weight && a.question.type !== "OPEN_TEXT")
-    .filter((a) => !filters.category || a.question.weight!.category === filters.category)
-    .map((a) => ({ category: a.question.weight!.category, subcategory: a.question.weight!.subcategory, calculatedScore: scoreAnswer({ type: a.question.type as QuestionType, value: a.value, maxScore: a.question.weight!.maxScore, correctAnswer: a.question.weight!.correctAnswer }), maxPossible: a.question.weight!.maxScore, isPrePost: s.surveyMoment === "PRE" })) }));
+  const excluded = new Set(filters.excludedQuestionIds);
+  const questionRows = filters.category ? rows.filter((r) => r.category === filters.category) : rows;
+  const filteredRows = questionRows.filter((r) => !excluded.has(r.questionId));
   const totalRows = [...filteredRows.reduce((map, r) => {
     const existing = map.get(r.submissionId) ?? { pre: r.pre, score: 0, max: 0 };
     existing.score += r.score; existing.max += r.max; map.set(r.submissionId, existing); return map;
   }, new Map<string, { pre: boolean; score: number; max: number }>()).values()];
-  const questions = [...new Map(filteredRows.map((r) => [r.questionId, r])).values()].map((r) => ({
-    ...makeDetailRow(r.text, filteredRows.filter((x) => x.questionId === r.questionId)), questionId: r.questionId, text: r.text,
-  }));
-  return { total: makeDetailRow("Total", totalRows), categories: aggregateCategoryResults(categorySubs), questions };
+  const questions = [...new Map(questionRows.map((r) => [r.questionId, r])).values()].map((r) => {
+    const answers = questionRows.filter((x) => x.questionId === r.questionId && x.max > 0);
+    const result = makeDetailRow(r.text, answers);
+    return { ...result, category: r.category, subcategory: r.subcategory, questionId: r.questionId, text: r.text, preCount: answers.filter((x) => x.pre).length, postCount: answers.filter((x) => !x.pre).length, excluded: excluded.has(r.questionId), comparable: result.pre !== null && result.post !== null };
+  });
+  return { overallImprovement: overallImprovement(questions), total: makeDetailRow("Total", totalRows), categories: categoryQuestionResults(questions), questions };
 }
 
 function emptyReportRow(name: string) { return { category: name, subcategory: null, pre: null, post: null, change: null }; }
-function makeDetailRow(name: string, rows: { pre: boolean; score: number; max: number }[]) {
-  const average = (pre: boolean) => { const values = rows.filter((r) => r.pre === pre); return values.length ? Math.round(values.reduce((sum, r) => sum + (r.score / r.max) * 100, 0) / values.length * 10) / 10 : null; };
+export function makeDetailRow(name: string, rows: { pre: boolean; score: number; max: number }[]) {
+  const average = (pre: boolean) => { const values = rows.filter((r) => r.pre === pre && r.max > 0); return values.length ? Math.round(values.reduce((sum, r) => sum + (r.score / r.max) * 100, 0) / values.length * 10) / 10 : null; };
   const pre = average(true), post = average(false);
   return { category: name, subcategory: null, pre, post, change: pre !== null && post !== null ? Math.round((post - pre) * 10) / 10 : null };
 }
@@ -840,7 +1165,7 @@ export function aggregateCategoryResults(
 /** Opciones para los dropdowns del dashboard (respetando el alcance del usuario). */
 export async function reportFilterOptions(userId: string) {
   const scope = await resolveScope(userId);
-  return surveysRepository.reportFilterOptions(scope.siteIds, scope.organizationId);
+  return surveysRepository.reportFilterOptions(scope);
 }
 
 // ── helpers ──────────────────────────────────────────────────────────
@@ -865,7 +1190,7 @@ export function liftIdentifiers(body: unknown): unknown {
 
   const byId = new Map<string, string>();
   for (const a of b.answers as { questionId?: unknown; value?: unknown }[]) {
-    if (a && a.questionId != null && a.value != null) {
+    if (a && a.questionId != null && (typeof a.value === "string" || typeof a.value === "number" || (typeof a.value === "boolean" && (RESERVED.isPre as readonly string[]).includes(String(a.questionId).toLowerCase())))) {
       byId.set(String(a.questionId).toLowerCase(), String(a.value).trim());
     }
   }
@@ -891,7 +1216,11 @@ export function liftIdentifiers(body: unknown): unknown {
   const surveyMoment = momentFromRaw(b.surveyMoment ?? b.isPrePost ?? pick(RESERVED.isPre));
   const isPrePost = surveyMoment === "PRE" ? true : surveyMoment === "POST" ? false : undefined;
 
-  return { ...b, participant: p.id ? p : b.participant, isPrePost, surveyMoment };
+  const schoolAnswer = (b.answers as { questionId?: unknown; value?: unknown }[]).find(answer =>
+    answer && typeof answer.questionId === "string" && (RESERVED.school as readonly string[]).includes(answer.questionId.toLowerCase())
+  );
+  const context = schoolContext((b.participant as Record<string, unknown> | undefined)?.school ?? schoolAnswer?.value);
+  return { ...b, schoolContext: context, participant: p.id ? p : b.participant, isPrePost, surveyMoment };
 }
 
 function momentFromRaw(value: unknown): SurveyMoment {
@@ -900,6 +1229,7 @@ function momentFromRaw(value: unknown): SurveyMoment {
   const raw = String(value ?? "").trim();
   if (/^pre$/i.test(raw)) return "PRE";
   if (/^post$/i.test(raw)) return "POST";
+  if (/^post[_ -]post$/i.test(raw)) return "POST_POST";
   if (/cqs|satisf/i.test(raw)) return "CQS";
   return "UNKNOWN";
 }
@@ -917,20 +1247,36 @@ const NON_ANSWER_KEYS = new Set(["slug", "event_id", "formID", "submissionID", "
 // `name` del campo (ej. { q3_dropdown1: "Grupo 1", q5_number3: "20" }).
 function answersFromFlatWebhook(flat: Record<string, unknown>): { questionId: string; value: unknown }[] {
   return Object.entries(flat)
-    .filter(([k, v]) => !NON_ANSWER_KEYS.has(k) && v !== undefined && v !== null)
+    .filter(([k, v]) => !NON_ANSWER_KEYS.has(k) && v !== undefined)
     .map(([questionId, value]) => ({ questionId, value }));
 }
 
-type JotformSubmissionApiAnswer = { name?: unknown; answer?: unknown };
-
-// GET /form/:id/submissions (importación histórica vía API, no el webhook):
-// answers viene anidado, keyed por qid, cada uno con { name, text, type, answer }.
-function answersFromSubmissionsApi(
-  answers: Record<string, JotformSubmissionApiAnswer>
-): { questionId: string; value: unknown }[] {
-  return Object.values(answers)
-    .filter((a) => typeof a?.name === "string" && a.answer !== undefined)
-    .map((a) => ({ questionId: a.name as string, value: a.answer }));
+// Preserve the qid-keyed source; only unambiguous names enter the scoring pipeline.
+function answersFromSubmissionsApi(source: Record<string, unknown>) {
+  const answers: { questionId: string; value: unknown }[] = [];
+  const unresolvedAnswers: { sourceId: string; reason: "MISSING_NAME" | "DUPLICATE_NAME" | "INVALID_ENTRY" }[] = [];
+  const named: { sourceId: string; name: string; value: unknown }[] = [];
+  for (const [sourceId, raw] of Object.entries(source)) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      unresolvedAnswers.push({ sourceId, reason: "INVALID_ENTRY" });
+      continue;
+    }
+    const entry = raw as Record<string, unknown>;
+    // Structural controls can lack an answer; retain their metadata without inventing a response.
+    if (!Object.hasOwn(entry, "answer")) continue;
+    if (typeof entry.name !== "string" || !entry.name.trim()) {
+      unresolvedAnswers.push({ sourceId, reason: "MISSING_NAME" });
+      continue;
+    }
+    named.push({ sourceId, name: entry.name, value: entry.answer });
+  }
+  const counts = new Map<string, number>();
+  for (const entry of named) counts.set(entry.name, (counts.get(entry.name) ?? 0) + 1);
+  for (const entry of named) {
+    if (counts.get(entry.name)! > 1) unresolvedAnswers.push({ sourceId: entry.sourceId, reason: "DUPLICATE_NAME" });
+    else answers.push({ questionId: entry.name, value: entry.value });
+  }
+  return { answers, ...(unresolvedAnswers.length ? { unresolvedAnswers } : {}) };
 }
 
 // Jotform manda el crudo en dos formas según la vía de ingesta:
@@ -944,9 +1290,11 @@ export function normalizeJotform(body: unknown): unknown {
 
   if (typeof b.form_id === "string" && b.answers && typeof b.answers === "object" && !Array.isArray(b.answers)) {
     return {
+      ...(typeof b.created_at === "string" ? { created_at: b.created_at } : {}),
       formID: b.form_id,
       submissionID: b.id,
-      answers: answersFromSubmissionsApi(b.answers as Record<string, JotformSubmissionApiAnswer>),
+      sourceAnswers: b.answers,
+      ...answersFromSubmissionsApi(b.answers as Record<string, unknown>),
     };
   }
 
@@ -978,8 +1326,9 @@ function toIsoDate(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toISOString();
 }
 
-function normalizeValue(value: string | number | unknown[]): string {
-  if (Array.isArray(value)) return JSON.stringify(value);
+function normalizeValue(value: AnswerJson): string {
+  if (value === null) return "";
+  if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
 
@@ -989,4 +1338,9 @@ function alertAdmin(submissionId: string, reason: string) {
   console.warn(
     `[ADMIN ALERT] Submission ${submissionId} requiere configuración: ${reason}`
   );
+}
+
+async function assertLegacyConfigurationEditable(definitionId: string) {
+  const definition = await surveysRepository.findDefinition(definitionId);
+  if (definition && ((definition.configurationVersion ?? 0) >= 3 || await prisma.surveyDefinition.count({ where: { jotformFormId: definition.jotformFormId, version: { gt: definition.version } } }) > 0)) throw Object.assign(new Error("Esta configuración está versionada. Abre una nueva versión desde el asistente; la versión activa no se modifica directamente."), { statusCode: 409, code: "CONFLICT" });
 }

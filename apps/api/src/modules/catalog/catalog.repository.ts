@@ -31,8 +31,12 @@ export const catalogRepository = {
     return prisma.site.findUnique({ where: { id } });
   },
 
-  async createSite(data: { name: string; organizationId: string | null }) {
-    return prisma.site.create({ data });
+  async createSite(data: { name: string; organizationId: string | null; programs?: string[]; activityTypes?: string[] }, creatorId?: string) {
+    return prisma.$transaction(async (tx) => {
+      const site = await tx.site.create({ data });
+      if (creatorId) await tx.user.update({ where: { id: creatorId }, data: { siteIds: { push: site.id } } });
+      return site;
+    });
   },
 
   async updateSite(id: string, dto: UpdateSiteDto) {
@@ -41,6 +45,8 @@ export const catalogRepository = {
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.organizationId !== undefined && { organizationId: dto.organizationId }),
+        ...(dto.programs !== undefined && { programs: dto.programs }),
+        ...(dto.activityTypes !== undefined && { activityTypes: dto.activityTypes }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
     });
@@ -48,6 +54,10 @@ export const catalogRepository = {
 
   async deleteSite(id: string) {
     await prisma.site.update({ where: { id }, data: { isActive: false } });
+  },
+
+  async countAssignedUsers(siteId: string) {
+    return prisma.user.count({ where: { siteIds: { has: siteId } } });
   },
 
   async countSurveyDefinitionsForSite(siteId: string): Promise<number> {

@@ -1,3 +1,7 @@
+import { Link } from "react-router-dom";
+import { useAuthStore } from "../../store/auth.store";
+import { exportWeightCsv } from "./weight-csv";
+import { categoryOptions } from "./category-options";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CategoryDto,
@@ -7,7 +11,7 @@ import type {
   SurveyDefinitionDto,
   WeightImportResult,
 } from "@epi/shared";
-import { QUESTION_TYPES, WEIGHT_CSV_COLUMNS } from "@epi/shared";
+import { QUESTION_TYPES } from "@epi/shared";
 import { Button, Card, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
 import type { Column, DropdownOption } from "../../shared/components";
 import { surveyApi } from "./api";
@@ -20,11 +24,6 @@ type Edit = { category: string; subcategory: string; maxScore: string; correctAn
 const inputCls =
   "w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
-function csvCell(v: string | number): string {
-  const s = String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 function editFromWeight(q: QuestionWithWeight): Edit {
   return {
     category: q.weight?.category ?? "",
@@ -36,6 +35,7 @@ function editFromWeight(q: QuestionWithWeight): Edit {
 
 export function ScoringPage() {
   const { t } = useI18n();
+  const role = useAuthStore(state => state.currentUser?.role);
   const [definitions, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [questions, setQuestions] = useState<QuestionWithWeight[]>([]);
@@ -83,7 +83,7 @@ export function ScoringPage() {
     setLoading(true);
     try {
       // OPEN_TEXT no se pondera — viven en la página de Preguntas abiertas.
-      const qs = (await surveyApi.questions(defId)).filter((q) => q.type !== "OPEN_TEXT");
+      const qs = (await surveyApi.questions(defId)).filter((q) => (q.role ?? "SCORED") === "SCORED" && q.type !== "OPEN_TEXT");
       setQuestions(qs);
       setEdits(Object.fromEntries(qs.map((q) => [q.id, editFromWeight(q)])));
     } finally {
@@ -156,19 +156,7 @@ export function ScoringPage() {
   const isScale = (q: QuestionWithWeight) => q.type === "LIKERT" || q.type === "FREQUENCY";
 
   function downloadTemplate(scaleMax?: number) {
-    const header = WEIGHT_CSV_COLUMNS.join(",");
-    const lines = questions.map((q) =>
-      [
-        q.externalId,
-        csvCell(q.text),
-        q.type,
-        csvCell(q.weight?.category ?? ""),
-        csvCell(q.weight?.subcategory ?? ""),
-        q.weight?.maxScore ?? (scaleMax !== undefined && isScale(q) ? scaleMax : ""),
-        csvCell(q.weight?.correctAnswer ?? ""),
-      ].join(",")
-    );
-    const csv = [header, ...lines].join("\n");
+    const csv = exportWeightCsv(questions, scaleMax);
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
@@ -205,22 +193,17 @@ export function ScoringPage() {
   const definitionOptions: DropdownOption[] = [
     { label: t("scoring.selectPlaceholder"), value: "" },
     ...definitions.map((d) => ({
-      label: `${d.title}${d.accountName ? ` · ${d.accountName}` : ""}`,
+      label: `${d.title} · v${d.version}${d.accountName ? ` · ${d.accountName}` : ""}`,
       value: d.id,
     })),
   ];
 
+  const selectedDefinition = definitions.find(item => item.id === selectedId);
+  const versioned = (selectedDefinition?.configurationVersion ?? 0) >= 3;
+
   // Nombres de categoría activos del catálogo de esta organización, y sus
   // subcategorías agrupadas por nombre — para los dropdowns de la tabla.
-  const activeCategories = categories.filter((c) => c.isActive);
-  const categoryNames = [...new Set(activeCategories.map((c) => c.name))].sort();
-  const subcategoriesByCategory = new Map<string, string[]>();
-  for (const c of activeCategories) {
-    if (!c.subcategory) continue;
-    const list = subcategoriesByCategory.get(c.name) ?? [];
-    list.push(c.subcategory);
-    subcategoriesByCategory.set(c.name, list);
-  }
+  const { categoryNames, subcategoriesByCategory } = categoryOptions(categories, definitions.find((definition) => definition.id === selectedId)?.organizationId);
 
   const columns: Column<QuestionWithWeight>[] = [
     {
@@ -389,7 +372,7 @@ export function ScoringPage() {
               onChange={selectDefinition}
             />
           </div>
-          {selectedId && (
+          {selectedId && !versioned && (
             <>
               <Button variant="secondary" onClick={onDownloadClick} disabled={!questions.length}>
                 {t("scoring.downloadTemplate")}
@@ -446,7 +429,8 @@ export function ScoringPage() {
         )}
       </Card>
 
-      {selectedId && (
+      {versioned && selectedDefinition && <Card><p>Esta configuración está versionada. Las reglas activas y sus respuestas se conservan; los cambios se preparan y activan desde el asistente.</p>{role === "system_admin" ? <Link className="text-primary underline" to={`/instruments/forms?configureForm=${encodeURIComponent(selectedDefinition.jotformFormId)}`}>Editar en el asistente de versiones</Link> : <p>Un administrador del sistema puede preparar una nueva versión.</p>}</Card>}
+      {selectedId && !versioned && (
         <Table
           columns={columns}
           rows={questions}

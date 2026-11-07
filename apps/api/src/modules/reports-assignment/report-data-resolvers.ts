@@ -143,7 +143,7 @@ async function seasonalSiteReport({ siteId, scope, filters }: ResolverArgs): Pro
   const subs: CompletedSubmission[] = await surveysRepository.completedWithResults({
     scope: { siteIds, excludedSurveyDefinitionIds: scope.excludedSurveyDefinitionIds },
     type: ["LOCAL", "VISITING"].includes(filterString(filters, "type") ?? "")
-      ? filterString(filters, "type") as "LOCAL" | "VISITING"
+      ? filterString(filters, "type") as "LOCAL" | "VISITING" | "OTHER"
       : undefined,
     school: filterString(filters, "school"),
     groupName: filterString(filters, "groupName"),
@@ -183,7 +183,7 @@ async function courseImpacts(args: ResolverArgs): Promise<ResolverResult> {
     .filter((r) => typeof r.change === "number")
     .sort((a, b) => Number(b.change) - Number(a.change));
   const changes = withChange.map((r) => Number(r.change));
-  const overallImprovement = changes.length ? Math.round((changes.reduce((a, b) => a + b, 0) / changes.length) * 10) / 10 : 0;
+  const overallImprovement = changes.length ? Math.round((changes.reduce((a, b) => a + b, 0) / changes.length) * 10) / 10 : "Sin datos";
 
   return {
     kpis: { ...data.kpis, overallImprovement },
@@ -202,6 +202,7 @@ async function courseImpacts(args: ResolverArgs): Promise<ResolverResult> {
 // Registro de resolvers por templateKey — plantillas sin resolver aquí
 // devuelven data vacía (ver assigned-reports.service.ts#getData).
 export const REPORT_DATA_RESOLVERS: Record<string, (args: ResolverArgs) => Promise<ResolverResult>> = {
+  "course-impacts-general": courseImpacts,
   "course-impacts-2026mx-ncssm": courseImpacts,
   "course-impacts-2026cr-burton": courseImpacts,
   "course-impacts-2026mx-templeton": courseImpacts,

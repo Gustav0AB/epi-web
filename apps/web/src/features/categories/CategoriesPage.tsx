@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CategoryDto, CategoryImportResult, OrganizationDto } from "@epi/shared";
-import { CATEGORY_CSV_COLUMNS } from "@epi/shared";
+import type { CategoryDto, CategoryImportPreview, CategoryImportResult, OrganizationDto } from "@epi/shared";
+import { CATEGORY_CSV_COLUMNS, csvCell } from "@epi/shared";
 import { Badge, Button, Card, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
 import type { Column, DropdownOption } from "../../shared/components";
 
@@ -16,10 +16,10 @@ import { useI18n } from "../../lib/i18n";
 // backend, distinto del límite JSON) — no puede pasar por apiClient.post.
 // organizationId va en la query: system_admin la elige, org_admin la ignora
 // (el backend siempre usa la suya para ese rol).
-async function importCategoriesCsv(csv: string, organizationId: string): Promise<CategoryImportResult> {
+async function importCategoriesCsv<T>(csv: string, organizationId: string, preview = false): Promise<T> {
   const token = useAuthStore.getState().token;
   const qs = organizationId ? `?organizationId=${organizationId}` : "";
-  const res = await fetch(`/api/categories/import${qs}`, {
+  const res = await fetch(`/api/categories/import${preview ? "/preview" : ""}${qs}`, {
     method: "POST",
     headers: {
       "Content-Type": "text/csv",
@@ -28,12 +28,8 @@ async function importCategoriesCsv(csv: string, organizationId: string): Promise
     body: csv,
   });
   const json = await res.json();
-  if (!json.success) throw new Error(json.error.message);
+  if (!res.ok || !json.success) throw new Error(json.error.message);
   return json.data;
-}
-
-function csvCell(v: string): string {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
 function download(filename: string, csv: string) {
@@ -65,6 +61,7 @@ export function CategoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [importSaving, setImportSaving] = useState(false);
   const [importResult, setImportResult] = useState<CategoryImportResult | null>(null);
+  const [importPreview, setImportPreview] = useState<{ csv: string; organizationId: string; data: CategoryImportPreview } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -171,14 +168,33 @@ export function CategoriesPage() {
     setImportSaving(true);
     setImportResult(null);
     try {
-      const result = await importCategoriesCsv(await file.text(), importOrgId);
-      setImportResult(result);
-      await load();
+      if (file.size > 1024 * 1024) throw new Error(t("categories.csvTooLarge"));
+      setError(null);
+      const csv = await file.text();
+      const selectedOrg = importOrgId;
+      const data = await importCategoriesCsv<CategoryImportPreview>(csv, selectedOrg, true);
+      setImportPreview({ csv, organizationId: selectedOrg, data });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("settings.categories.importError"));
     } finally {
       setImportSaving(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function confirmImport() {
+    if (!importPreview) return;
+    setImportSaving(true);
+    setError(null);
+    try {
+      const result = await importCategoriesCsv<CategoryImportResult>(importPreview.csv, importPreview.organizationId);
+      setImportResult(result);
+      setImportPreview(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("settings.categories.importError"));
+    } finally {
+      setImportSaving(false);
     }
   }
 
@@ -251,6 +267,7 @@ export function CategoriesPage() {
                 label={t("createUserModal.organization")}
                 options={orgOptions}
                 value={importOrgId}
+                disabled={importSaving || !!importPreview}
                 onChange={setImportOrgId}
               />
             )}
@@ -260,7 +277,7 @@ export function CategoriesPage() {
             <Button
               variant="secondary"
               loading={importSaving}
-              disabled={isSystemAdmin && !importOrgId}
+              disabled={importSaving || !!importPreview || (isSystemAdmin && !importOrgId)}
               onClick={() => fileRef.current?.click()}
             >
               {t("scoring.importCsv")}
@@ -270,6 +287,7 @@ export function CategoriesPage() {
               type="file"
               accept=".csv,text/csv"
               className="hidden"
+              disabled={importSaving || !!importPreview}
               onChange={onCategoriesFile}
             />
           </div>
@@ -285,6 +303,37 @@ export function CategoriesPage() {
           </p>
         )}
       </Card>
+
+      <Modal
+        open={!!importPreview}
+        onClose={() => { if (!importSaving) setImportPreview(null); }}
+        title={t("categories.previewTitle")}
+        footer={<>
+          <Button variant="ghost" disabled={importSaving} onClick={() => setImportPreview(null)}>{t("common.cancel")}</Button>
+          <Button loading={importSaving} disabled={importSaving || !importPreview?.data.additions.length} onClick={() => void confirmImport()}>{t("categories.confirmImport")}</Button>
+        </>}
+      >
+        <p className="mb-3 text-sm">{t("categories.previewNote")}</p>
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        {importPreview && <>
+          <p className="text-sm">{orgNameById.get(importPreview.organizationId) ?? currentUser?.organizationId}</p>
+          <Table
+            columns={[
+              { key: "row", header: t("categories.csvRow") },
+              { key: "category", header: t("scoring.table.category") },
+              { key: "subcategory", header: t("scoring.table.subcategory"), render: (row) => row.subcategory ?? "—" },
+              { key: "status", header: t("common.status") },
+            ]}
+            rows={[
+              ...importPreview.data.additions.map((row) => ({ ...row, status: t("categories.csvNew") })),
+              ...importPreview.data.duplicates.map((row) => ({ ...row, status: t("categories.csvDuplicate") })),
+            ].sort((a, b) => a.row - b.row)}
+            keyExtractor={(row) => String(row.row)}
+            pageSize={25}
+          />
+          {importPreview.data.errors.map((item) => <p key={item.row} className="text-sm text-danger">{t("categories.csvRow")} {item.row}: {item.message}</p>)}
+        </>}
+      </Modal>
 
       <Modal
         open={modalOpen}

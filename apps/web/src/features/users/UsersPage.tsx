@@ -6,6 +6,7 @@ import type { Column } from "../../shared/components";
 import { useAuthStore } from "../../store/auth.store";
 import { apiClient } from "../../lib/api-client";
 import { CreateUserModal } from "./components/CreateUserModal";
+import { UserSitesModal } from "./components/UserSitesModal";
 import { ResetPasswordModal } from "./components/ResetPasswordModal";
 import { useI18n } from "../../lib/i18n";
 
@@ -21,6 +22,7 @@ export function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [sitesUser, setSitesUser] = useState<User | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
 
   const canManageUsers = currentUser?.role === "system_admin" || currentUser?.role === "org_admin";
@@ -106,6 +108,9 @@ export function UsersPage() {
       align: "right",
       render: (u) => (
         <div className="flex justify-end gap-1">
+          {u.role !== "system_admin" && <Button variant="ghost" size="sm" onClick={() => setSitesUser(u)}>
+            {t("createUserModal.defaultSites")}
+          </Button>}
           <Button variant="ghost" size="sm" onClick={() => void toggleActive(u)}>
             {u.isActive ? t("common.deactivate") : t("common.activate")}
           </Button>
@@ -160,6 +165,8 @@ export function UsersPage() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleCreate}
       />
+
+      {sitesUser && <UserSitesModal key={sitesUser.id} user={sitesUser} onClose={() => setSitesUser(null)} onSaved={loadUsers} />}
 
       <ResetPasswordModal
         open={!!resetPasswordUser}

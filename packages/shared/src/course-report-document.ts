@@ -1,0 +1,27 @@
+import { selectCourseResultCategories } from "./course-category-selection.js";
+import { courseResponseCoverage } from "./schemas/course.schema.js";
+import { COURSE_REPORT_DRAFT_NOTICE, type CourseReportDraft } from "./schemas/course-report.schema.js";
+import type { CourseResultsDto } from "./schemas/course-results.schema.js";
+import { getReportTemplate, type ReportData, type ReportDocumentTemplate } from "./report-templates/index.js";
+export function mostImprovedKnowledge(result: CourseResultsDto) {
+  const rows = result.aggregates.filter(row => row.definitionId === result.primaryDefinitionId && row.level === "subcategory" && /^(knowledge|conocimientos?)$/i.test(row.category?.trim() ?? "") && !row.issue && (row.change ?? 0) > 0);
+  const best = Math.max(...rows.map(row => row.change!));
+  return rows.filter(row => row.change === best);
+}
+
+export function buildCourseReportPreview(sourceResult: CourseResultsDto, draft: CourseReportDraft, published = false): { template: ReportDocumentTemplate; data: ReportData } {
+  const result = selectCourseResultCategories(sourceResult, draft.categories);
+  const coverageText = (receipts: number, expected: number | null) => { const coverage = courseResponseCoverage(receipts, expected); return coverage.percent === null ? "Sin definir" : `${new Intl.NumberFormat("es", { maximumFractionDigits: 2 }).format(coverage.percent)}% (${coverage.meetsThreshold ? "alcanza" : "no alcanza"} 80%)`; };
+  const source = getReportTemplate(draft.templateKey);
+  if (!source) throw new Error("Plantilla de curso no disponible");
+  const aggregates = result.aggregates.filter(row => row.definitionId === result.primaryDefinitionId);
+  const index = aggregates.find(row => row.level === "index");
+  const categories = aggregates.filter(row => row.level === "category");
+  const template: ReportDocumentTemplate = { ...source, title: `${source.title}${published ? "" : " — Borrador"}`, blocks: [...source.blocks,
+    { id: "course-review-context", type: "text", title: "Curso y procedencia", content: `${published ? "PUBLICADO — Evaluación de aprendizaje. CQS y seguimiento pendientes de validación." : COURSE_REPORT_DRAFT_NOTICE}\nCurso: ${result.name}\nEscuela: ${result.school}\nActividad: ${result.activity}\nEnvíos Pre: ${result.preReceipts}; Post: ${result.postReceipts}; excluidos: ${result.excludedReceipts}; contexto/origen por revisar: ${result.contextPendingReceipts + result.sourcePendingReceipts}\nParticipantes esperados Pre: ${result.expectedParticipantsPre ?? "Sin definir"}; Post: ${result.expectedParticipantsPost ?? "Sin definir"}; cobertura de envíos Pre: ${coverageText(result.preReceipts, result.expectedParticipantsPre)}; Post: ${coverageText(result.postReceipts, result.expectedParticipantsPost)}. Base de curso completo; no representa personas únicas.\nCategorías incluidas: ${result.categorySelection?.included.join(", ") ?? "Todas las categorías del instrumento"}\nCategorías excluidas: ${result.categorySelection?.excluded.join(", ") || "Ninguna"}\nRevisión del curso: ${result.revision}\nConsulta: ${result.calculatedAt}\nPeriodo: ${draft.from ?? "Sin límite"} a ${draft.to ?? "Sin límite"}` },
+    { id: "course-review-aggregates", type: "table", title: "Resultados de aprendizaje — escala 0–100; cambio en puntos porcentuales", dataKey: "courseAggregates", columns: [{ key: "name", label: "Nivel / versión" },{ key: "pre", label: "Pre" },{ key: "post", label: "Post" },{ key: "change", label: "Cambio (pp)" }] },
+    { id: "course-review-bases", type: "table", title: "Bases disponibles por subcategoría y versión", dataKey: "courseBases", columns: [{ key: "name", label: "Subcategoría / versión" },{ key: "pre", label: "Envíos Pre" },{ key: "post", label: "Envíos Post" },{ key: "review", label: "Incompletos Pre / Post" }] },
+    { id: "course-review-methodology", type: "text", title: "Componentes pendientes", content: result.pending.join("\n") },
+  ] };
+  return { template, data: { kpis: { overallSatisfaction: "Pendiente", overallImprovement: index?.change ?? "Sin datos" }, series: { courseActivitySatisfaction: [], categoryComparison: categories.filter(row => row.pre !== null && row.post !== null).map(row => ({ name: row.category, pre: row.pre, post: row.post })), spotlightRows: [] }, tables: { categoryBreakdown: categories.map(row => ({ name: row.category, pre: row.pre ?? "Sin datos", post: row.post ?? "Sin datos", change: row.change ?? "Sin datos" })), mostImproved: mostImprovedKnowledge(result).map(row => ({ name: row.subcategory ?? row.category, change: row.change })), courseAggregates: result.aggregates.map(row => ({ name: `${row.level === "index" ? "IAA" : row.subcategory ?? row.category} · ${row.instrument} v${row.version}`, pre: row.pre ?? "Sin datos", post: row.post ?? "Sin datos", change: row.change ?? "Sin datos" })), courseBases: result.groups.map(group => ({ name: `${group.category ?? "Pendiente"} / ${group.subcategory ?? "Pendiente"} · ${group.instrument} v${group.version}`, pre: group.pre.receipts, post: group.post.receipts, review: `${group.pre.incomplete} / ${group.post.incomplete}` })) }, texts: Object.fromEntries(Object.entries(draft.textContent).filter((entry): entry is [string, string] => typeof entry[1] === "string")) } };
+}

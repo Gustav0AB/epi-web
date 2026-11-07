@@ -27,11 +27,9 @@ model User {
   sessionValidAfter           DateTime?
   organizationId              String?
   organization                Organization?        @relation(fields: [organizationId], references: [id])
-  // Sitio(s) de referencia: prioriza esa vista por defecto, NO restringe — el
-  // usuario ve toda su organización salvo lo listado en excludedSiteIds/
-  // excludedSurveyDefinitionIds. Vacío = sin sitio de referencia particular.
+  // Asignaciones explícitas; mínimo uno para roles no globales.
   siteIds                     String[]             @default([])
-  excludedSiteIds             String[]             @default([]) // sitios de su organización que este usuario NO puede ver
+  excludedSiteIds             String[]             @default([]) // histórico: sustituido por siteIds
   excludedSurveyDefinitionIds String[]             @default([]) // encuestas específicas que este usuario NO puede ver
   userFeatures                UserFeature[]
   userReportTemplates         UserReportTemplate[]
@@ -115,6 +113,11 @@ model UserReportTemplate {
 // Catálogo y configuración (reglas de negocio)
 
 model Site {
+  courseEditions CourseEdition[]
+  programs String[] @default(["Local", "Visiting", "Otro"])
+  activityTypes String[] @default([])
+  coursePublications CoursePublication[]
+  courseExpectations CourseExpectation[]
   id                String             @id @default(uuid())
   name              String             @unique
   isActive          Boolean            @default(true)
@@ -159,14 +162,23 @@ model InstitutionalPosition {
 // real de Jotform (no generamos uno propio). Se refresca con
 // POST /api/surveys/jotform/forms/sync, que hace diff contra lo ya guardado.
 model JotformForm {
+  createdAt String?
+  updatedAt String?
+  submissionCount Int?
+  lastSubmission String?
+  url String?
+  labelIds String[] @default([])
+  setupDraft Json?
+  setupRevision Int @default(0)
   id         String   @id // formID de Jotform
   title      String
   status     String // ACTIVE | DISABLED | DELETED, tal como lo manda Jotform
   accountId  String?
   account    JotformAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
   importedAt DateTime @default(now())
-  syncedAt   DateTime @updatedAt
+  syncedAt   DateTime @default(now())
 
+  @@index([accountId])
   @@map("jotform_forms")
 }
 
@@ -196,7 +208,37 @@ model CatalogField {
   @@map("catalog_fields")
 }
 
+model SurveySetupOption {
+  id   String @id @default(uuid())
+  kind String
+  key  String
+  name String
+
+  @@unique([kind, key])
+  @@map("survey_setup_options")
+}
+
 model SurveyDefinition {
+  courseComplements CourseComplement[]
+  primaryCourses CourseEdition[]
+  primaryRelations InstrumentRelation[] @relation("PrimaryInstrument")
+  complementaryRelations InstrumentRelation[] @relation("ComplementInstrument")
+  courseApplications CourseApplication[]
+  matrixDefaults Json?
+  configurationVersion Int?
+  assistantImport AssistantImport?
+  categoryWeights Json?
+  subcategoryWeights Json?
+  analysisWeights Json?
+  sourceContract Json?
+  sourceConditions String?
+  programName String?
+  instrumentKind String?
+  activityType String?
+  description String?
+  timeZone String?
+  instrumentName String?
+  activityName String?
   id            String       @id @default(uuid())
   siteId        String
   site          Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
@@ -212,13 +254,36 @@ model SurveyDefinition {
   @@map("survey_definitions")
 }
 
+enum QuestionRole {
+  GENDER
+  AGE
+  EXCLUDED
+  ACTIVITY
+  SCHOOL_GROUP
+  SCORED
+  INFORMATIONAL
+  IDENTIFIER
+  MOMENT
+  FILTER
+}
+
 model Question {
+  sourceContext Json?
+  matrixOverride Boolean @default(false)
+  classification Json?
+  analysisScoring Json?
+  analysisParticipation Json?
+  isFilter           Boolean @default(false)
+  visibility         Json?
   id                 String           @id @default(uuid())
   surveyDefinitionId String
   surveyDefinition   SurveyDefinition @relation(fields: [surveyDefinitionId], references: [id], onDelete: Cascade)
   externalId         String // id/nombre del campo tal como llega en el JSON de Jotform
   text               String
   type               QuestionType
+  role               QuestionRole @default(SCORED)
+  momentMappings     Json @default("[]")
+  optionLabels       Json @default("[]")
   options            String[]         @default([]) // opciones de Jotform (radio/dropdown/checkbox) — solo se usa como sugerencia para ONE_ANSWER.correctAnswer
   weight             Weight? // no aplica a OPEN_TEXT (se revisan manualmente, no se ponderan)
   answers            Answer[]
@@ -231,6 +296,7 @@ model Question {
 // El motor de ponderación: si falta un Weight para una pregunta, la
 // submission queda PENDIENTE_CONFIGURACION.
 model Weight {
+  factor        Int      @default(1)
   id            String   @id @default(uuid())
   questionId    String   @unique
   question      Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -246,6 +312,19 @@ model Weight {
 // Ingesta y operación (flujo de datos)
 
 model Submission {
+  responseFingerprint String?
+  courseMembership CourseMembership?
+  reviewGender String?
+  reviewAge Int?
+  reviewActivity String?
+  reviewSchool String?
+  reviewDate String?
+  contextRevision Int @default(0)
+  reviewMoment SurveyMoment?
+  reviewExcluded Boolean @default(false)
+  autoCourseDisabled Boolean @default(false)
+  reviewedBy String?
+  reviewedAt DateTime?
   id                  String             @id @default(uuid())
   jotformSubmissionId String             @unique
   surveyDefinitionId  String?
@@ -263,6 +342,7 @@ model Submission {
   receivedAt          DateTime           @default(now())
   processedAt         DateTime?
 
+  @@index([surveyDefinitionId, responseFingerprint])
   @@map("submissions")
 }
 
@@ -280,6 +360,7 @@ model Participant {
 }
 
 model Answer {
+  rawValue Json?
   id           String     @id @default(uuid())
   submissionId String
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -383,6 +464,7 @@ enum ReportAssignmentStatus {
 }
 
 enum SurveyType {
+  OTHER
   LOCAL
   VISITING
 }
@@ -390,6 +472,7 @@ enum SurveyType {
 enum SurveyMoment {
   PRE
   POST
+  POST_POST
   CQS
   UNKNOWN
 }
@@ -406,4 +489,158 @@ enum SubmissionStatus {
   PENDIENTE_CONFIGURACION
   COMPLETADO
   ERROR
+}
+
+model CourseExpectation {
+  siteId String
+  school String
+  date String
+  expectedParticipants Int
+  updatedBy String
+  updatedAt DateTime @updatedAt
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@id([siteId, school, date])
+  @@map("course_expectations")
+}
+
+model CoursePublication {
+  id String @id @default(uuid())
+  siteId String
+  site Site @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  school String
+  date String
+  version Int
+  surveyDefinitionIds String[]
+  snapshot Json
+  actorId String
+  createdAt DateTime @default(now())
+
+  @@unique([siteId, school, date, version])
+  @@map("course_publications")
+}
+
+model AssistantImport {
+  autoSync Boolean @default(false)
+  autoAttempts Int @default(0)
+  nextAttemptAt DateTime?
+  runId String?
+  downloadOffset Int @default(0)
+  downloadComplete Boolean @default(false)
+  lastPageIds String[] @default([])
+  definitionId String @id
+  definition SurveyDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  owner String?
+  leaseUntil DateTime?
+  status String @default("IDLE")
+  total Int @default(0)
+  updated Int @default(0)
+  pending Int @default(0)
+  errors Int @default(0)
+  skipped Int @default(0)
+  updatedAt DateTime @updatedAt
+  items AssistantImportItem[]
+
+  @@index([nextAttemptAt])
+  @@map("assistant_imports")
+}
+
+model AssistantImportItem {
+  runId String?
+  sourceJson Json?
+  definitionId String
+  submissionId String
+  fingerprint String
+  outcome String
+  job AssistantImport @relation(fields: [definitionId], references: [definitionId], onDelete: Cascade)
+
+  @@id([definitionId, submissionId])
+  @@map("assistant_import_items")
+}
+
+model CourseEdition {
+  status String @default("DRAFT")
+  complements CourseComplement[]
+  publications CourseEditionPublication[]
+  expectedParticipants Int?
+  expectedParticipantsPre Int?
+  expectedParticipantsPost Int?
+  reportDraft Json?
+  id String @id @default(uuid())
+  siteId String
+  site Site @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  primaryDefinitionId String
+  primaryDefinition SurveyDefinition @relation(fields: [primaryDefinitionId], references: [id], onDelete: Restrict)
+  name String
+  school String
+  activity String
+  revision Int @default(0)
+  createdBy String
+  createdAt DateTime @default(now())
+  applications CourseApplication[]
+  @@index([siteId, createdAt])
+  @@map("course_editions")
+}
+model InstrumentRelation {
+  primaryDefinitionId String
+  primaryDefinition SurveyDefinition @relation("PrimaryInstrument", fields: [primaryDefinitionId], references: [id], onDelete: Restrict)
+  complementaryDefinitionId String
+  complementaryDefinition SurveyDefinition @relation("ComplementInstrument", fields: [complementaryDefinitionId], references: [id], onDelete: Restrict)
+  createdBy String
+  createdAt DateTime @default(now())
+  @@id([primaryDefinitionId, complementaryDefinitionId])
+  @@map("instrument_relations")
+}
+model CourseApplication {
+  id String @id @default(uuid())
+  courseId String
+  course CourseEdition @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  definitionId String
+  definition SurveyDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  contextKey String
+  date String
+  moment SurveyMoment
+  createdAt DateTime @default(now())
+  memberships CourseMembership[]
+  @@unique([courseId, contextKey])
+  @@map("course_applications")
+}
+model CourseMembership {
+  submissionId String @id
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  applicationId String
+  application CourseApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  contextRevision Int
+  createdBy String
+  createdAt DateTime @default(now())
+  @@index([applicationId])
+  @@map("course_memberships")
+}
+
+model CourseEditionPublication {
+  id String @id @default(uuid())
+  courseId String
+  course CourseEdition @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  version Int
+  actorId String
+  name String
+  school String
+  surveyDefinitionIds String[]
+  snapshot Json
+  createdAt DateTime @default(now())
+  @@unique([courseId, version])
+  @@index([createdAt])
+  @@map("course_edition_publications")
+}
+
+model CourseComplement {
+  courseId String
+  course CourseEdition @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  definitionId String
+  definition SurveyDefinition @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  createdBy String
+  createdAt DateTime @default(now())
+  @@id([courseId, definitionId])
+  @@index([definitionId])
+  @@map("course_complements")
 }

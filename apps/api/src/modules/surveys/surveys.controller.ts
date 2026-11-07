@@ -1,6 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   apiSuccess,
+  CourseExpectationSchema,
+  CourseDetailSchema,
+  SubmissionExclusionSchema,
+  SubmissionContextReviewSchema,
+  SubmissionMomentReviewSchema,
+  JotformFormsQuerySchema,
   apiError,
   SurveyFiltersSchema,
   WeightInputSchema,
@@ -17,6 +23,33 @@ import { env } from "../../config/env.js";
 import { surveysService, reprocessSurvey } from "./surveys.service.js";
 
 export const surveysController = {
+  async setSubmissionContext(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = SubmissionContextReviewSchema.safeParse(req.body);
+      if (!input.success) { res.status(400).json(apiError("BAD_REQUEST", "Invalid school/date review")); return; }
+      res.json(apiSuccess(await surveysService.setSubmissionContext(req.params.id!, input.data, req.user!.sub)));
+    } catch (err) { next(err); }
+  },
+  async setSubmissionMoment(req: Request, res: Response, next: NextFunction) {
+    try { res.json(apiSuccess(await surveysService.setSubmissionMoment(req.params.id!, SubmissionMomentReviewSchema.parse(req.body).moment, req.user!.sub, SubmissionMomentReviewSchema.parse(req.body).expectedRevision))); }
+    catch (err) { next(err); }
+  },
+  async setSubmissionExclusion(req: Request, res: Response, next: NextFunction) {
+    try { res.json(apiSuccess(await surveysService.setSubmissionExclusion(req.params.id!, SubmissionExclusionSchema.parse(req.body).excluded, req.user!.sub, SubmissionExclusionSchema.parse(req.body).expectedRevision))); }
+    catch (err) { next(err); }
+  },
+  async courseDetail(req: Request, res: Response, next: NextFunction) {
+    try { res.json(apiSuccess(await surveysService.courseDetail(CourseDetailSchema.parse(req.query), req.user!.sub))); }
+    catch (err) { next(err); }
+  },
+  async saveCourseExpectation(req: Request, res: Response, next: NextFunction) {
+    try { res.json(apiSuccess(await surveysService.saveCourseExpectation(CourseExpectationSchema.parse(req.body), req.user!.sub))); }
+    catch (err) { next(err); }
+  },
+  async listFilters(req: Request, res: Response, next: NextFunction) {
+    try { res.json(apiSuccess(await surveysService.getDefinitionFilters(req.params.id!, req.user!.sub))); }
+    catch (err) { next(err); }
+  },
   async webhook(req: Request, res: Response, next: NextFunction) {
     if (env.JOTFORM_WEBHOOK_SECRET) {
       const provided = req.header("x-jotform-secret") ?? req.query.secret;
@@ -73,9 +106,9 @@ export const surveysController = {
     }
   },
 
-  async listGroups(_req: Request, res: Response, next: NextFunction) {
+  async listGroups(req: Request, res: Response, next: NextFunction) {
     try {
-      res.json(apiSuccess(await surveysService.listGroups()));
+      res.json(apiSuccess(await surveysService.listGroups(req.user!.sub)));
     } catch (err) {
       next(err);
     }
@@ -143,9 +176,14 @@ export const surveysController = {
     }
   },
 
-  async listJotformForms(_req: Request, res: Response, next: NextFunction) {
+  async listJotformForms(req: Request, res: Response, next: NextFunction) {
     try {
-      res.json(apiSuccess(await surveysService.listJotformForms()));
+      const parsed = JotformFormsQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json(apiError("BAD_REQUEST", "Invalid catalog filters", parsed.error.flatten()));
+        return;
+      }
+      res.json(apiSuccess(await surveysService.listJotformForms(parsed.data)));
     } catch (err) {
       next(err);
     }

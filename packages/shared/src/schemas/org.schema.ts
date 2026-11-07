@@ -20,13 +20,20 @@ export type OrganizationDto = {
   createdAt: string;
 };
 
+const SiteNamesSchema = z.array(z.string().trim().min(1).max(100)).max(100).refine(
+  names => new Set(names.map(name => name.toLowerCase())).size === names.length, "No se permiten nombres duplicados",
+);
 export const CreateSiteSchema = z.object({
+  programs: SiteNamesSchema.refine(names => names.includes("Otro"), "Incluye el programa Otro").optional(),
+  activityTypes: SiteNamesSchema.optional(),
   name: z.string().trim().min(2).max(100),
   organizationId: z.string().uuid().nullable().optional(),
 });
 export type CreateSiteDto = z.infer<typeof CreateSiteSchema>;
 
 export const UpdateSiteSchema = z.object({
+  programs: SiteNamesSchema.refine(names => names.includes("Otro"), "Incluye el programa Otro").optional(),
+  activityTypes: SiteNamesSchema.optional(),
   name: z.string().trim().min(2).max(100).optional(),
   organizationId: z.string().uuid().nullable().optional(),
   isActive: z.boolean().optional(),
@@ -34,6 +41,8 @@ export const UpdateSiteSchema = z.object({
 export type UpdateSiteDto = z.infer<typeof UpdateSiteSchema>;
 
 export type SiteDto = {
+  programs?: string[];
+  activityTypes?: string[];
   id: string;
   name: string;
   organizationId: string | null;
@@ -71,6 +80,13 @@ export type CategoryDto = {
 export type CategoryImportResult = {
   applied: number;
   skipped: number;
+  duplicates: number;
+  errors: { row: number; message: string }[];
+};
+
+export type CategoryImportPreview = {
+  additions: { row: number; category: string; subcategory: string | null }[];
+  duplicates: { row: number; category: string; subcategory: string | null }[];
   errors: { row: number; message: string }[];
 };
 

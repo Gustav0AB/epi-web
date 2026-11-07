@@ -1,3 +1,4 @@
+import { startAssistantMigrationWorker } from "./modules/surveys/assistant-migration.worker.js";
 import "./config/env.js"; // Validate env first
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
@@ -12,13 +13,17 @@ void featuresRepository
   .upsertMany(Object.values(FEATURES_REGISTRY))
   .catch((e) => console.error("Feature sync failed:", e));
 
+const stopAssistantWorker = startAssistantMigrationWorker();
+
 const server = app.listen(env.PORT, () => {
   console.log(`🚀 API running on http://localhost:${env.PORT}`);
 });
 
 async function shutdown(signal: string) {
   console.log(`\n${signal} received — graceful shutdown...`);
+  const workerStopped = stopAssistantWorker();
   server.close(async () => {
+    await workerStopped;
     await prisma.$disconnect();
     console.log("Database disconnected. Bye!");
     process.exit(0);

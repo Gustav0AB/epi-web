@@ -7,9 +7,10 @@ type ModalProps = {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  width?: string;
 };
 
-export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, width }: ModalProps) {
   const { t } = useI18n();
   useEffect(() => {
     if (!open) return;
@@ -28,7 +29,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
 
       {/* Panel — flex column so header/footer are sticky and body scrolls */}
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-gray-200 bg-white shadow-xl">
+      <div style={width ? { maxWidth: width } : undefined} role="dialog" aria-modal="true" aria-label={title} className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-gray-200 bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           <button

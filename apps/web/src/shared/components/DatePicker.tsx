@@ -95,6 +95,8 @@ export function DatePicker({ label, value, onChange, placeholder }: DatePickerPr
 
       <button
         type="button"
+        aria-label={label}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="flex items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
       >

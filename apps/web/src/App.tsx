@@ -1,27 +1,23 @@
+import { PublishedCourseReportsPage } from "./features/reports/PublishedCourseReportsPage";
 import { useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { AppLayout } from "./layouts/AppLayout";
-import { ReportLayout } from "./layouts/ReportLayout";
 import { ProtectedRoute } from "./router/ProtectedRoute";
 import { PublicRoute } from "./router/PublicRoute";
 import { RoleGate } from "./router/RoleGate";
 import { LoginPage } from "./features/auth/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { UsersPage } from "./features/users/UsersPage";
-import { SurveysPage } from "./features/surveys/SurveysPage";
 import { SurveyGroupsPage } from "./features/surveys/SurveyGroupsPage";
 import { ScoringPage } from "./features/surveys/ScoringPage";
 import { SurveySettingsPage } from "./features/surveys/SurveySettingsPage";
 import { JotformAccountsPage } from "./features/surveys/JotformAccountsPage";
-import { OpenQuestionsPage } from "./features/open-questions/OpenQuestionsPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
-import { InteractiveReportsPage } from "./features/reports/InteractiveReportsPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { OrganizationsPage } from "./features/organizations/OrganizationsPage";
 import { SitesPage } from "./features/sites/SitesPage";
 import { CategoriesPage } from "./features/categories/CategoriesPage";
 import { AuditLogPage } from "./features/audit/AuditLogPage";
-import { ReportAssignmentsPage } from "./features/reports/ReportAssignmentsPage";
 import { initSync } from "./lib/sync";
 import { useAuthStore } from "./store/auth.store";
 import { getDefaultRoute } from "./router/RoleGate";
@@ -33,6 +29,41 @@ function NoAccessPage() {
       administrador.
     </div>
   );
+}
+
+function Workspace({ area }: { area: "courses" | "instruments" | "organizations" }) {
+  const user = useAuthStore(state => state.currentUser);
+  const system = user?.role === "system_admin";
+  const admin = system || user?.role === "org_admin";
+  const feature = (key: string) => admin || user?.featureKeys.includes(key);
+  if (area === "courses") return <Outlet />;
+  const tabs = area === "instruments" ? [
+    ["/instruments/forms", "Formularios", system],
+    ["/instruments/accounts", "Cuentas Jotform", system],
+    ["/instruments/scoring", "Ponderaciones", feature("scoring")],
+    ["/instruments/categories", "Catálogo de categorías", admin],
+  ] : [
+    ["/organization-management/organizations", "Organizaciones", system],
+    ["/organization-management/sites", "Sitios", admin],
+  ];
+  return <div className="space-y-4">
+    <nav aria-label={area === "instruments" ? "Área de instrumentos" : "Organizaciones y sitios"} className="flex flex-wrap gap-2 border-b pb-2">
+      {tabs.filter(([, , allowed]) => allowed).map(([to, label]) =>
+        <NavLink key={String(to)} to={String(to)} end={to !== "/courses/review"} className={({ isActive }) => `rounded px-3 py-2 text-sm font-medium ${isActive ? "bg-primary text-white" : "text-primary hover:bg-gray-100"}`}>{label}</NavLink>)}
+    </nav>
+    <Outlet />
+  </div>;
+}
+
+function WorkspaceIndex({ area }: { area: "courses" | "instruments" }) {
+  const user = useAuthStore(state => state.currentUser);
+  if (area === "courses") return user?.role === "system_admin" || user?.role === "org_admin" || user?.featureKeys.includes("surveys") ? <SurveyGroupsPage /> : <NoAccessPage />;
+  return <CourseRedirect to={user?.role === "system_admin" ? "/instruments/forms" : user?.role === "org_admin" ? "/instruments/categories" : "/instruments/scoring"} />;
+}
+
+function CourseRedirect({ to }: { to: string }) {
+  const { search, hash } = useLocation();
+  return <Navigate to={to + search + hash} replace />;
 }
 
 export default function App() {
@@ -49,28 +80,15 @@ export default function App() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
+        <Route element={<AppLayout />}><Route path="/published-courses" element={<PublishedCourseReportsPage />} /><Route path="/published-courses/:publicationId" element={<PublishedCourseReportsPage />} /></Route>
         <Route path="/no-access" element={<NoAccessPage />} />
 
-        {/* Reportes interactivos: sin sidebar, acceso exclusivo */}
-        <Route
-          element={
-            <RoleGate
-              allow="report_template"
-              templateKey="interactive_reports"
-            />
-          }
-        >
-          <Route element={<ReportLayout />}>
-            <Route
-              path="/interactive-reports"
-              element={<InteractiveReportsPage />}
-            />
-          </Route>
-        </Route>
+        <Route path="/interactive-reports" element={<Navigate to="/published-courses" replace />} />
+        <Route path="/report-assignments" element={<Navigate to="/published-courses" replace />} />
 
         {/* Reportes: con sidebar — herramienta interna del usuario operativo
             para ver la información de forma genérica y dar visto bueno,
-            antes de que se publique como reporte asignado (interactive-reports). */}
+            antes de preparar y publicar el reporte desde el curso. */}
         <Route
           element={<RoleGate allow="report_template" templateKey="reports" />}
         >
@@ -85,28 +103,45 @@ export default function App() {
             <Route path="/home" element={<HomePage />} />
           </Route>
         </Route>
-        <Route
-          element={<RoleGate allow="functionality" featureKey="surveys" />}
-        >
-          <Route element={<AppLayout />}>
-            <Route path="/surveys" element={<SurveysPage />} />
-            <Route path="/survey-groups" element={<SurveyGroupsPage />} />
+        <Route element={<AppLayout />}>
+          <Route path="/surveys" element={<CourseRedirect to="/courses/responses" />} />
+          <Route path="/survey-groups" element={<CourseRedirect to="/courses/review" />} />
+          <Route path="/survey-groups/comparison" element={<CourseRedirect to="/courses/review/comparison" />} />
+          <Route path="/complementary-instruments" element={<CourseRedirect to="/courses/complementary" />} />
+          <Route path="/open-questions" element={<CourseRedirect to="/courses/open-questions" />} />
+          <Route path="/scoring" element={<CourseRedirect to="/instruments/scoring" />} />
+          <Route path="/survey-settings" element={<CourseRedirect to="/instruments/forms" />} />
+          <Route path="/jotform-accounts" element={<CourseRedirect to="/instruments/accounts" />} />
+          <Route path="/categories" element={<CourseRedirect to="/instruments/categories" />} />
+          <Route path="/organizations" element={<CourseRedirect to="/organization-management/organizations" />} />
+          <Route path="/sites" element={<CourseRedirect to="/organization-management/sites" />} />
+          <Route path="/courses" element={<Workspace area="courses" />}>
+            <Route index element={<WorkspaceIndex area="courses" />} />
+            <Route element={<RoleGate allow="functionality" featureKey="surveys" />}>
+              <Route path="*" element={<CourseRedirect to="/courses" />} />
+            </Route>
           </Route>
-        </Route>
-        <Route
-          element={<RoleGate allow="functionality" featureKey="scoring" />}
-        >
-          <Route element={<AppLayout />}>
-            <Route path="/scoring" element={<ScoringPage />} />
+          <Route path="/instruments" element={<Workspace area="instruments" />}>
+            <Route index element={<WorkspaceIndex area="instruments" />} />
+            <Route element={<RoleGate allow="system_admin" />}>
+              <Route path="forms" element={<SurveySettingsPage />} />
+              <Route path="accounts" element={<JotformAccountsPage />} />
+            </Route>
+            <Route element={<RoleGate allow="functionality" featureKey="scoring" />}>
+              <Route path="scoring" element={<ScoringPage />} />
+            </Route>
+            <Route element={<RoleGate allow="admin_tier" />}>
+              <Route path="categories" element={<CategoriesPage />} />
+            </Route>
           </Route>
-        </Route>
-        <Route
-          element={
-            <RoleGate allow="functionality" featureKey="open_questions" />
-          }
-        >
-          <Route element={<AppLayout />}>
-            <Route path="/open-questions" element={<OpenQuestionsPage />} />
+          <Route element={<RoleGate allow="admin_tier" />}>
+            <Route path="/organization-management" element={<Workspace area="organizations" />}>
+              <Route index element={<CourseRedirect to="/organization-management/sites" />} />
+              <Route path="sites" element={<SitesPage />} />
+              <Route element={<RoleGate allow="system_admin" />}>
+                <Route path="organizations" element={<OrganizationsPage />} />
+              </Route>
+            </Route>
           </Route>
         </Route>
 
@@ -121,24 +156,10 @@ export default function App() {
         <Route element={<RoleGate allow="system_admin" />}>
           <Route element={<AppLayout />}>
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/organizations" element={<OrganizationsPage />} />
             <Route path="/audit-log" element={<AuditLogPage />} />
-            <Route path="/jotform-accounts" element={<JotformAccountsPage />} />
           </Route>
         </Route>
 
-        {/* Sitios y categorías: system_admin (cualquier org) u org_admin (solo la propia) */}
-        <Route element={<RoleGate allow="admin_tier" />}>
-          <Route element={<AppLayout />}>
-            <Route path="/sites" element={<SitesPage />} />
-            <Route path="/categories" element={<CategoriesPage />} />
-            <Route path="/survey-settings" element={<SurveySettingsPage />} />
-            <Route
-              path="/report-assignments"
-              element={<ReportAssignmentsPage />}
-            />
-          </Route>
-        </Route>
       </Route>
 
       <Route

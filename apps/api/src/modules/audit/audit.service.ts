@@ -4,9 +4,11 @@ import type { JwtPayload } from "../../middlewares/auth.middleware.js";
 
 export type AuditAction =
   | "LOGIN"
+  | "SURVEY_SETUP_SAVE"
   | "USER_CREATE"
   | "USER_DELETE"
   | "USER_ROLE_CHANGE"
+  | "USER_SITE_ACCESS_CHANGE"
   | "PASSWORD_RESET"
   | "CATEGORY_IMPORT"
   | "ACCOUNT_LOCKED"

@@ -466,16 +466,6 @@ export function ReportsPage() {
     }
   }
 
-  function continueToTemplate() {
-    const params = new URLSearchParams({ fromReport: "1" });
-    if (filters.siteId) params.set("siteIds", filters.siteId);
-    if (filters.type) params.set("type", filters.type);
-    if (filters.school) params.set("school", filters.school);
-    if (filters.category) params.set("category", filters.category);
-    if (filters.from) params.set("from", filters.from);
-    if (filters.to) params.set("to", filters.to);
-    navigate(`/report-assignments?${params.toString()}`);
-  }
 
   return (
     <div className="space-y-6">
@@ -561,9 +551,9 @@ export function ReportsPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="font-medium text-gray-900">{t("reportBuilder.confirmData")}</p>
-                  <p className="text-sm text-gray-500">{t("reportBuilder.confirmDataHelp")}</p>
+                  <p className="text-sm text-gray-500">{t("reportBuilder.prepareCourseHelp")}</p>
                 </div>
-                <Button onClick={continueToTemplate}>{t("reportBuilder.completeTemplate")}</Button>
+                <Button onClick={() => navigate("/courses")}>{t("reportBuilder.prepareCourse")}</Button>
               </div>
             </Card>
           )}

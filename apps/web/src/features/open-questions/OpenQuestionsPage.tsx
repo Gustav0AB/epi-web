@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import type { QuestionWithWeight, SurveyDefinitionDto } from "@epi/shared";
 import { Button, Card, Dropdown, Label } from "../../shared/components";
 import type { DropdownOption } from "../../shared/components";
@@ -7,6 +8,8 @@ import { useI18n } from "../../lib/i18n";
 
 export function OpenQuestionsPage() {
   const { t } = useI18n();
+  const [params] = useSearchParams();
+  const requestedDefinition = params.get("definitionId");
   const [definitions, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [questions, setQuestions] = useState<QuestionWithWeight[]>([]);
@@ -16,25 +19,33 @@ export function OpenQuestionsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void surveyApi.definitions().then(setDefinitions).catch(() => {});
-  }, []);
+    let cancelled = false;
+    void surveyApi.definitions().then(data => {
+      if (cancelled) return;
+      setDefinitions(data);
+      const requested = data.find(definition => definition.id === requestedDefinition);
+      setSelectedId(requested?.id ?? "");
+      setSummary(requested?.openQuestionsSummary ?? "");
+    }).catch(() => { if (!cancelled) setError("No se pudieron cargar los instrumentos"); });
+    return () => { cancelled = true; };
+  }, [requestedDefinition]);
 
-  const loadQuestions = useCallback(async (defId: string) => {
-    if (!defId) return;
+  useEffect(() => {
+    let cancelled = false;
+    setQuestions([]);
+    if (!selectedId) { setLoading(false); return; }
     setLoading(true);
-    try {
-      const qs = await surveyApi.questions(defId);
-      setQuestions(qs.filter((q) => q.type === "OPEN_TEXT"));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    void surveyApi.questions(selectedId).then(data => {
+      if (!cancelled) setQuestions(data.filter(q => q.type === "OPEN_TEXT" && !q.sourceContext?.matrixParent));
+    }).catch(() => { if (!cancelled) setError("No se pudieron cargar las preguntas"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedId]);
 
   function selectDefinition(id: string) {
     setSelectedId(id);
-    setSummary(definitions.find((d) => d.id === id)?.openQuestionsSummary ?? "");
+    setSummary(definitions.find(d => d.id === id)?.openQuestionsSummary ?? "");
     setError(null);
-    void loadQuestions(id);
   }
 
   async function saveSummary() {

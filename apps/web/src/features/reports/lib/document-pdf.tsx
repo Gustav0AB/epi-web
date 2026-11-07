@@ -68,6 +68,7 @@ function KpiSection({ template, data }: { template: Extract<ReportTemplate["bloc
 // (una serie por fila); "pie" se aproxima como barras de % del total —
 // geometría circular real queda pendiente si hace falta más adelante.
 function ChartSection({ block, rows }: { block: Extract<ReportTemplate["blocks"][number], { type: "chart" }>; rows: Record<string, unknown>[] }) {
+  if (!rows.length) return <View style={styles.card}><Text style={styles.paragraph}>Sin datos calculados</Text></View>;
   if (block.chartType === "pie") {
     const seriesKey = block.series[0]?.key ?? "";
     const total = rows.reduce((acc, r) => acc + (Number(r[seriesKey]) || 0), 0) || 1;
@@ -118,8 +119,9 @@ function ChartSection({ block, rows }: { block: Extract<ReportTemplate["blocks"]
 }
 
 function TableSection({ block, rows }: { block: Extract<ReportTemplate["blocks"][number], { type: "table" }>; rows: Record<string, unknown>[] }) {
+  if (!rows.length) return <View style={styles.card}><Text style={styles.paragraph}>Sin datos calculados</Text></View>;
   return (
-    <View style={styles.card} wrap={false}>
+    <View style={styles.card}>
       <View style={styles.table}>
         <View style={styles.tHeadRow}>
           {block.columns.map((col) => (
@@ -127,7 +129,7 @@ function TableSection({ block, rows }: { block: Extract<ReportTemplate["blocks"]
           ))}
         </View>
         {rows.map((row, i) => (
-          <View key={i} style={styles.tRow}>
+          <View key={i} style={styles.tRow} wrap={false}>
             {block.columns.map((col) => {
               const value = row[col.key];
               const text =
@@ -152,7 +154,7 @@ function ImageSection({ block, data, noDataText }: { block: Extract<ReportTempla
   const caption = block.captionKey ? data.texts[block.captionKey]?.trim() : "";
   return (
     <View style={styles.card} wrap={false}>
-      {block.title && <Text style={styles.blockTitle}>{block.title}</Text>}
+      {block.title && <Text style={styles.blockTitle} minPresenceAhead={45}>{block.title}</Text>}
       {src ? (
         // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image no acepta alt
         <Image src={src} style={[styles.reportImage, { height: block.height ?? 180 }]} />
@@ -173,9 +175,10 @@ type DocumentPdfArgs = {
   generatedOnLabel: string;
   noDataText: string;
   locale?: string;
+  notice?: string;
 };
 
-function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabel, noDataText, locale = "es-MX" }: DocumentPdfArgs) {
+export function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabel, noDataText, locale = "es-MX", notice }: DocumentPdfArgs) {
   return (
     <Document title={template.title}>
       <Page size="A4" style={styles.page}>
@@ -191,6 +194,7 @@ function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabe
           </View>
         </View>
 
+        {notice && <View style={styles.card}><Text style={styles.blockTitle}>{notice}</Text></View>}
         {appliedFilters.length > 0 && (
           <View style={styles.filtersRow}>
             {appliedFilters.map((f) => (
@@ -202,9 +206,9 @@ function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabe
           </View>
         )}
 
-        {template.blocks.map((block) => (
-          <View key={block.id} style={styles.section}>
-            {block.title && block.type !== "text" && block.type !== "image" && <Text style={styles.blockTitle}>{block.title}</Text>}
+        {template.blocks.filter(block => block.type !== "image" || block.required !== false || data.texts[block.dataKey]).map((block) => (
+          <View key={block.id} style={styles.section} wrap={block.type !== "text" || ((block.dataKey ? data.texts[block.dataKey] : block.content) ?? "").length > 1000}>
+            {block.title && block.type !== "text" && block.type !== "image" && <Text style={styles.blockTitle} minPresenceAhead={45}>{block.title}</Text>}
 
             {block.type === "kpi-group" && <KpiSection template={block} data={data} />}
             {block.type === "chart" && <ChartSection block={block} rows={data.series[block.dataKey] ?? []} />}
@@ -212,7 +216,7 @@ function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabe
             {block.type === "image" && <ImageSection block={block} data={data} noDataText={noDataText} />}
             {block.type === "text" && (
               <>
-                {block.title && <Text style={styles.blockTitle}>{block.title}</Text>}
+                {block.title && <Text style={styles.blockTitle} minPresenceAhead={45}>{block.title}</Text>}
                 <Text style={styles.paragraph}>
                   {(block.dataKey ? data.texts[block.dataKey] : block.content) || noDataText}
                 </Text>
@@ -223,7 +227,7 @@ function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabe
 
         <Text
           style={styles.footer}
-          render={({ pageNumber, totalPages }) => `Ecology Project International — ${pageNumber} / ${totalPages}`}
+          render={({ pageNumber, totalPages }) => `${notice ? `${notice.startsWith("BORRADOR") ? "BORRADOR NO PUBLICADO" : "PUBLICADO"} — ` : ""}Ecology Project International — ${pageNumber} / ${totalPages}`}
           fixed
         />
       </Page>
@@ -234,5 +238,5 @@ function InstitutionalDocument({ template, data, appliedFilters, generatedOnLabe
 export async function downloadDocumentPdf(args: DocumentPdfArgs): Promise<void> {
   const blob = await pdf(<InstitutionalDocument {...args} />).toBlob();
   const dateSlug = new Date().toISOString().slice(0, 10);
-  downloadBlob(blob, `${args.template.key}-${dateSlug}.pdf`);
+  downloadBlob(blob, `${args.notice ? args.notice.startsWith("BORRADOR") ? "borrador-" : "publicado-" : ""}${args.template.key}-${dateSlug}.pdf`);
 }

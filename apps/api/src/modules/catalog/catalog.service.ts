@@ -1,3 +1,5 @@
+import { usersRepository } from "../users/users.repository.js";
+import { allowedSiteIds } from "../../shared/site-scope.js";
 import { catalogRepository } from "./catalog.repository.js";
 import type {
   UpdateOrganizationDto,
@@ -35,6 +37,14 @@ function assertOrgAccess(requester: JwtPayload, resourceOrgId: string | null) {
   throw forbidden("Insufficient permissions to access this resource");
 }
 
+async function assertAssignedSite(requester: JwtPayload, siteId: string) {
+  if (requester.role === "system_admin") return;
+  const user = await usersRepository.findById(requester.sub);
+  if (!user) throw forbidden("User not found");
+  const ids = await allowedSiteIds({ ...user, role: user.role.toLowerCase() });
+  if (ids !== undefined && !ids.includes(siteId)) throw forbidden("Site is outside your assigned sites");
+}
+
 export const catalogService = {
   // ── Organizaciones ────────────────────────────────────────────────────
   async updateOrganization(dto: UpdateOrganizationDto, id: string) {
@@ -65,9 +75,10 @@ export const catalogService = {
         throw forbidden("org_admin can only create sites in their own organization");
       }
       organizationId = requester.organizationId;
+      if (!organizationId) throw forbidden("An organization is required to create sites");
     }
     try {
-      return await catalogRepository.createSite({ name: dto.name, organizationId });
+      return await catalogRepository.createSite({ name: dto.name, organizationId, ...(dto.programs ? { programs: dto.programs } : {}), ...(dto.activityTypes ? { activityTypes: dto.activityTypes } : {}) }, requester.role === "org_admin" ? requester.sub : undefined);
     } catch (err) {
       if (isUniqueConstraintError(err)) throw conflict("A site with that name already exists");
       throw err;
@@ -78,11 +89,15 @@ export const catalogService = {
     const existing = await catalogRepository.findSiteById(id);
     if (!existing) throw notFound("Site not found");
     assertOrgAccess(requester, existing.organizationId);
+    await assertAssignedSite(requester, id);
 
     if (requester.role === "org_admin" && dto.organizationId !== undefined && dto.organizationId !== requester.organizationId) {
       throw forbidden("org_admin cannot move sites to another organization");
     }
 
+    if (dto.organizationId !== undefined && dto.organizationId !== existing.organizationId && await catalogRepository.countAssignedUsers(id)) {
+      throw conflict("Reassign users before moving this site to another organization");
+    }
     try {
       return await catalogRepository.updateSite(id, dto);
     } catch (err) {
@@ -95,6 +110,7 @@ export const catalogService = {
     const existing = await catalogRepository.findSiteById(id);
     if (!existing) throw notFound("Site not found");
     assertOrgAccess(requester, existing.organizationId);
+    await assertAssignedSite(requester, id);
 
     const surveyDefinitions = await catalogRepository.countSurveyDefinitionsForSite(id);
     if (surveyDefinitions > 0) {

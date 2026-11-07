@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearDatabase } from "../lib/seed";
 import { useAuthStore } from "../store/auth.store";
 import { apiClient, ApiError } from "../lib/api-client";
 import { applyOptimisticWrite, resolveOfflineGet } from "../lib/offline";
+
+vi.mock("../lib/seed", () => ({ clearDatabase: vi.fn().mockResolvedValue(undefined) }));
 
 vi.mock("../lib/offline", () => ({
   resolveOfflineGet: vi.fn(),
@@ -65,6 +68,7 @@ describe("apiClient", () => {
 
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAuthStore.getState().token).toBeNull();
+    await vi.waitFor(() => expect(clearDatabase).toHaveBeenCalled());
   });
 
   it("supports DELETE requests", async () => {

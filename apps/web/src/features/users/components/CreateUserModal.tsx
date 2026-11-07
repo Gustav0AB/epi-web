@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FEATURES_REGISTRY } from "@epi/shared";
-import { Button, Dropdown, Modal, TextField } from "../../../shared/components";
+import { Button, CheckboxGroup, Dropdown, Modal, TextField } from "../../../shared/components";
 import type { DropdownOption } from "../../../shared/components";
 import type {
   ApiResponse,
@@ -33,7 +33,6 @@ const initialForm = {
   reportTemplateKeys: [] as string[],
   organizationId: "",
   siteIds: [] as string[],
-  excludedSiteIds: [] as string[],
   excludedSurveyDefinitionIds: [] as string[],
 };
 
@@ -89,7 +88,11 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
       setSites([]);
       return;
     }
-    void fetchList<SiteDto>(`/api/sites?organizationId=${form.organizationId}`).then(setSites);
+    let cancelled = false;
+    void fetchList<SiteDto>(`/api/sites?organizationId=${form.organizationId}`)
+      .then((rows) => { if (!cancelled) setSites(rows); })
+      .catch(() => { if (!cancelled) setError(t("createUserModal.genericError")); });
+    return () => { cancelled = true; };
   }, [open, form.organizationId]);
 
   // org_admin solo crea usuarios en su propia organización.
@@ -118,13 +121,6 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
     { value: OTHER_POSITION_VALUE, label: t("createUserModal.institutionalPositionOther") },
   ];
 
-  function toggleAllSites(field: "siteIds" | "excludedSiteIds") {
-    setForm((f) => {
-      const allSelected = sites.length > 0 && sites.every((s) => f[field].includes(s.id));
-      return { ...f, [field]: allSelected ? [] : sites.map((s) => s.id) };
-    });
-  }
-
   function toggleFeature(key: string) {
     setForm((f) => ({
       ...f,
@@ -146,6 +142,10 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (form.role !== "system_admin" && (!form.organizationId || form.siteIds.length === 0)) {
+      setError(t("createUserModal.sitesRequired"));
+      return;
+    }
     setIsSubmitting(true);
     try {
       const institutionalPosition =
@@ -166,6 +166,8 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
 
       await onSubmit({
         ...form,
+        siteIds: form.role === "system_admin" ? [] : form.siteIds,
+        excludedSurveyDefinitionIds: form.role === "system_admin" ? [] : form.excludedSurveyDefinitionIds,
         institutionalPosition: institutionalPosition || null,
         featureKeys: form.role === "functionality_user" ? form.featureKeys : [],
         reportTemplateKeys: form.role === "report_viewer" ? form.reportTemplateKeys : [],
@@ -257,12 +259,10 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
           options={roleOptions}
           value={form.role}
           onChange={(val) =>
-            setForm((f) => ({ ...f, role: val as Role, featureKeys: [], reportTemplateKeys: [] }))
+            setForm((f) => ({ ...f, role: val as Role, featureKeys: [], reportTemplateKeys: [], siteIds: [], excludedSurveyDefinitionIds: [] }))
           }
         />
 
-        {/* Organización: el usuario ve toda su información (todos los sitios
-            y encuestas), salvo lo marcado explícitamente como excluido abajo. */}
         {form.role !== "system_admin" && (
           <>
             <Dropdown
@@ -276,87 +276,13 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
                       .map((o) => ({ value: o.id, label: o.name }))
               }
               value={form.organizationId}
-              onChange={(val) => setForm((f) => ({ ...f, organizationId: val }))}
+              onChange={(val) => { setSites([]); setForm((f) => ({ ...f, organizationId: val, siteIds: [], excludedSurveyDefinitionIds: [] })); }}
               disabled={!isSystemAdmin}
             />
-            {sites.length > 0 && (
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-700">
-                    {t("createUserModal.defaultSites")}{" "}
-                    <span className="font-normal text-gray-400">{t("createUserModal.defaultSitesHint")}</span>
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => toggleAllSites("siteIds")}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    {sites.every((s) => form.siteIds.includes(s.id))
-                      ? t("createUserModal.deselectAll")
-                      : t("createUserModal.selectAll")}
-                  </button>
-                </div>
-                <div className="space-y-1 rounded-lg border border-gray-200 p-3">
-                  {sites.map((s) => (
-                    <label key={s.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 accent-primary"
-                        checked={form.siteIds.includes(s.id)}
-                        onChange={() =>
-                          setForm((f) => ({
-                            ...f,
-                            siteIds: f.siteIds.includes(s.id)
-                              ? f.siteIds.filter((id) => id !== s.id)
-                              : [...f.siteIds, s.id],
-                          }))
-                        }
-                      />
-                      <span className="text-sm text-gray-800">{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-            {sites.length > 0 && (
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-700">
-                    {t("createUserModal.excludedSites")}{" "}
-                    <span className="font-normal text-gray-400">{t("createUserModal.excludedSitesHint")}</span>
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => toggleAllSites("excludedSiteIds")}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    {sites.every((s) => form.excludedSiteIds.includes(s.id))
-                      ? t("createUserModal.deselectAll")
-                      : t("createUserModal.selectAll")}
-                  </button>
-                </div>
-                <div className="space-y-1 rounded-lg border border-gray-200 p-3">
-                  {sites.map((s) => (
-                    <label key={s.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 accent-danger"
-                        checked={form.excludedSiteIds.includes(s.id)}
-                        onChange={() =>
-                          setForm((f) => ({
-                            ...f,
-                            excludedSiteIds: f.excludedSiteIds.includes(s.id)
-                              ? f.excludedSiteIds.filter((id) => id !== s.id)
-                              : [...f.excludedSiteIds, s.id],
-                          }))
-                        }
-                      />
-                      <span className="text-sm text-gray-800">{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
+            <CheckboxGroup label={t("createUserModal.defaultSites")}
+              options={sites.map((site) => ({ value: site.id, label: site.name }))}
+              value={form.siteIds} onChange={(siteIds) => setForm((f) => ({ ...f, siteIds }))} />
+            <p className="text-sm text-gray-500">{t("createUserModal.defaultSitesHint")}</p>
             {orgScopedSurveyDefinitions.length > 0 && (
               <div>
                 <p className="mb-2 text-sm font-medium text-gray-700">

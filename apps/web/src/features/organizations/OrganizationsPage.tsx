@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import type { OrganizationDto } from "@epi/shared";
 import { Badge, Button, ConfirmModal, Label, Modal, Table, TextField } from "../../shared/components";
@@ -83,7 +84,8 @@ export function OrganizationsPage() {
       header: "",
       align: "right",
       render: (o) => (
-        <div className="flex justify-end gap-1">
+        <div className="flex items-center justify-end gap-2">
+          <Link className="text-primary underline" to={`/organization-management/sites?${new URLSearchParams({ organizationId: o.id })}`}>Ver sitios</Link>
           <Button variant="ghost" size="sm" onClick={() => openEdit(o)}>
             {t("common.edit")}
           </Button>

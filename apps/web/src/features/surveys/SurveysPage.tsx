@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { currentYearRange, surveyFilterOptions } from "./survey-filter-options";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   GroupSummary,
+  SurveyFilterField,
   SiteDto,
   SurveyDefinitionDto,
   SurveyListItem,
@@ -14,6 +16,8 @@ import { StatusBadge } from "./StatusBadge";
 import { useI18n } from "../../lib/i18n";
 
 type Filters = {
+  questionId: string;
+  answerValue: string;
   surveyDefinitionId: string;
   status: string;
   groupName: string;
@@ -25,6 +29,8 @@ type Filters = {
 };
 
 const EMPTY: Filters = {
+  questionId: "",
+  answerValue: "",
   surveyDefinitionId: "",
   status: "",
   groupName: "",
@@ -38,6 +44,7 @@ const EMPTY: Filters = {
 function buildQuery(f: Filters): string {
   const p = new URLSearchParams();
   p.set("weightedOnly", "true");
+  if (f.questionId && f.answerValue) { p.set("questionId", f.questionId); p.set("answerValue", f.answerValue); }
   if (f.surveyDefinitionId) p.set("surveyDefinitionId", f.surveyDefinitionId);
   if (f.status) p.set("status", f.status);
   if (f.groupName) p.set("groupName", f.groupName);
@@ -58,8 +65,12 @@ export function SurveysPage() {
     COMPLETADO: t("surveys.status.completed"),
     ERROR: t("surveys.status.error"),
   };
-  const [filters, setFilters] = useState<Filters>(EMPTY);
+  const loadSequence = useRef(0);
+  const [filters, setFilters] = useState<Filters>(() => ({ ...EMPTY, ...currentYearRange() }));
   const [rows, setRows] = useState<SurveyListItem[]>([]);
+  const [filterFields, setFilterFields] = useState<SurveyFilterField[]>([]);
+  const [filterError, setFilterError] = useState<string | null>(null);
+  const [filterReload, setFilterReload] = useState(0);
   const [definitions, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
   const [groups, setGroups] = useState<string[]>([]);
   const [sites, setSites] = useState<SiteDto[]>([]);
@@ -76,14 +87,23 @@ export function SurveysPage() {
     void surveyApi.summary().then(setSummary).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setFilterFields([]); setFilterError(null);
+    if (filters.surveyDefinitionId) void surveyApi.filterFields(filters.surveyDefinitionId).then((fields) => { if (!cancelled) setFilterFields(fields); }).catch((err: unknown) => { if (!cancelled) setFilterError(err instanceof Error ? err.message : t("jotformCatalog.loadError")); });
+    return () => { cancelled = true; };
+  }, [filters.surveyDefinitionId, filterReload]);
+
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     setLoading(true);
     try {
-      setRows(await surveyApi.list(buildQuery(filters)));
+      const data = await surveyApi.list(buildQuery(filters));
+      if (sequence === loadSequence.current) setRows(data);
     } catch {
-      setRows([]);
+      if (sequence === loadSequence.current) setRows([]);
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
   }, [filters]);
 
@@ -118,9 +138,11 @@ export function SurveysPage() {
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
+  const available = surveyFilterOptions(definitions, sites, filters.siteId, filters.surveyDefinitionId);
+
   const surveyOptions: DropdownOption[] = [
     { label: t("surveys.filter.allSurveys"), value: "" },
-    ...definitions.filter((d) => d.isWeighted).map((d) => ({
+    ...available.definitions.map((d) => ({
       label: `${d.title}${d.accountName ? ` · ${d.accountName}` : ""} (v${d.version})`,
       value: d.id,
     })),
@@ -135,7 +157,7 @@ export function SurveysPage() {
   ];
   const siteOptions: DropdownOption[] = [
     { label: t("surveys.filter.allSites"), value: "" },
-    ...sites.map((s) => ({ label: s.name, value: s.id })),
+    ...available.sites.map((s) => ({ label: s.name, value: s.id })),
   ];
   const typeOptions: DropdownOption[] = [
     { label: t("surveys.filter.localAndVisiting"), value: "" },
@@ -146,6 +168,7 @@ export function SurveysPage() {
     { label: t("surveys.filter.preAndPost"), value: "" },
     { label: t("surveys.filter.pre"), value: "PRE" },
     { label: t("surveys.filter.post"), value: "POST" },
+    { label: t("surveySetup.moments.POST_POST"), value: "POST_POST" },
     { label: "CQS", value: "CQS" },
   ];
 
@@ -161,7 +184,7 @@ export function SurveysPage() {
       key: "prePost",
       header: t("surveys.table.prePost"),
       render: (r) =>
-        r.surveyMoment === "CQS"
+        r.surveyMoment === "POST_POST" ? t("surveySetup.moments.POST_POST") : r.surveyMoment === "CQS"
           ? "CQS"
           : r.surveyMoment === "UNKNOWN"
             ? "—"
@@ -226,8 +249,13 @@ export function SurveysPage() {
             label={t("surveys.filter.survey")}
             options={surveyOptions}
             value={filters.surveyDefinitionId}
-            onChange={(v) => set({ surveyDefinitionId: v })}
+            onChange={(v) => set({ surveyDefinitionId: v, questionId: "", answerValue: "" })}
           />
+          {filterFields.length > 0 && <>
+            <Dropdown label={t("surveySetup.filterQuestion")} value={filters.questionId} options={[{ value: "", label: t("surveySetup.select") }, ...filterFields.map((field) => ({ value: field.id, label: field.label }))]} onChange={(value) => set({ questionId: value, answerValue: "" })} />
+            {filters.questionId && <Dropdown label={t("surveySetup.filterValue")} value={filters.answerValue} options={[{ value: "", label: t("surveySetup.select") }, ...(filterFields.find((field) => field.id === filters.questionId)?.options ?? [])]} onChange={(value) => set({ answerValue: value })} />}
+          </>}
+          {filterError && <div role="alert"><p>{filterError}</p><Button variant="secondary" onClick={() => setFilterReload((value) => value + 1)}>{t("jotformCatalog.retry")}</Button></div>}
           <Dropdown
             label={t("surveys.filter.site")}
             options={siteOptions}

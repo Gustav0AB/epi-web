@@ -12,6 +12,7 @@ type DocumentReportPageProps = {
   template: ReportTemplate;
   data: ReportData;
   appliedFilters: AppliedFilter[];
+  notice?: string;
 };
 
 // Vista "documento oficial": mismo ReportRenderer que la vista interactiva,
@@ -19,22 +20,24 @@ type DocumentReportPageProps = {
 // @react-pdf/renderer (lib/document-pdf.tsx) — no window.print(): el donante
 // se lleva un documento con el formato institucional, no una captura de la
 // pantalla.
-export function DocumentReportPage({ template, data, appliedFilters }: DocumentReportPageProps) {
+export function DocumentReportPage({ template, data, appliedFilters, notice }: DocumentReportPageProps) {
   const { t } = useI18n();
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleDownloadPdf() {
-    setGenerating(true);
+    setGenerating(true); setError(null);
     try {
       const { downloadDocumentPdf } = await import("./lib/document-pdf");
       await downloadDocumentPdf({
         template,
         data,
         appliedFilters,
+        ...(notice ? { notice } : {}),
         generatedOnLabel: t("documentReport.generatedOn"),
         noDataText: t("reportRenderer.noData"),
       });
-    } finally {
+    } catch (error) { setError(error instanceof Error ? error.message : "No se pudo generar el PDF; vuelve a intentarlo"); } finally {
       setGenerating(false);
     }
   }
@@ -48,7 +51,9 @@ export function DocumentReportPage({ template, data, appliedFilters }: DocumentR
         </Button>
       </div>
 
+      {error && <p role="alert" className="text-danger">{error}</p>}
       <div id="report-document" className="rounded-lg border border-gray-200 bg-white p-10 print:border-0 print:p-0">
+        {notice && <p className="mb-4 rounded border border-amber-500 p-3 font-semibold">{notice}</p>}
         <ReportPrintHeader title={template.title} subtitle={template.subtitle} appliedFilters={appliedFilters} />
         <ReportRenderer template={template} data={data} mode="document" />
       </div>

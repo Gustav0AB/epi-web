@@ -1,3 +1,5 @@
+import { mostImprovedRows, orderReportRows } from "../features/surveys/report-ranking";
+import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import type { ReportDetail, ReportRow, SurveyDefinitionDto, SurveyListItem } from "@epi/shared";
 import {
@@ -39,10 +41,19 @@ const EMPTY: Filters = { surveyDefinitionId: "", siteId: "", type: "", school: "
 export function HomePage() {
   const { t } = useI18n();
 
-  const [filters, setFilters] = useState<Filters>(EMPTY);
+  const [searchParams] = useSearchParams();
+  const [courseDate, setCourseDate] = useState(searchParams.get("courseDate") ?? "");
+  const [filters, setFilters] = useState<Filters>(() => ({ ...EMPTY,
+    siteId: searchParams.get("siteId") ?? "", school: searchParams.get("school") ?? "",
+    surveyDefinitionId: searchParams.get("surveyDefinitionId") ?? "",
+  }));
   const [options, setOptions] = useState<FilterOptions>({ sites: [], schools: [], categories: [] });
   const [definitions, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
+  const [reportOrder, setReportOrder] = useState<"category" | "ranking">("category");
   const [rows, setRows] = useState<ReportRow[]>([]);
+  // shortcut: exclusions belong to this view; persist them when publication snapshots are implemented.
+  const [excludedQuestionIds, setExcludedQuestionIds] = useState<string[]>([]);
+  const [reportError, setReportError] = useState(false);
   const [detail, setDetail] = useState<ReportDetail | null>(null);
   const [loadingRows, setLoadingRows] = useState(true);
   const [recent, setRecent] = useState<SurveyListItem[]>([]);
@@ -56,22 +67,35 @@ export function HomePage() {
 
   useEffect(() => {
     const p = new URLSearchParams();
+    if (courseDate) p.set("courseDate", courseDate);
     if (filters.siteId) p.set("siteId", filters.siteId);
     if (filters.surveyDefinitionId) p.set("surveyDefinitionId", filters.surveyDefinitionId);
     if (filters.type) p.set("type", filters.type);
     if (filters.school) p.set("school", filters.school);
     if (filters.category) p.set("category", filters.category);
+    if (excludedQuestionIds.length) p.set("excludedQuestionIds", excludedQuestionIds.join(","));
     const q = p.toString();
+    let active = true;
     setLoadingRows(true);
-    void surveyApi
-      .reportResults(q ? `?${q}` : "")
-      .then(setRows)
-      .catch(() => setRows([]))
-      .finally(() => setLoadingRows(false));
-    void surveyApi.reportDetail(q ? `?${q}` : "").then(setDetail).catch(() => setDetail(null));
-  }, [filters.surveyDefinitionId, filters.siteId, filters.type, filters.school, filters.category]);
+    setReportError(false);
+    void surveyApi.reportDetail(q ? `?${q}` : "").then((resultDetail) => {
+      if (!active) return;
+      setRows(resultDetail.categories);
+      setDetail(resultDetail);
+    }).catch(() => {
+      if (!active) return;
+      setRows([]);
+      setDetail(null);
+      setReportError(true);
+    }).finally(() => { if (active) setLoadingRows(false); });
+    return () => { active = false; };
+  }, [filters.surveyDefinitionId, filters.siteId, filters.type, filters.school, filters.category, excludedQuestionIds, courseDate]);
 
-  const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  const set = (patch: Partial<Filters>) => {
+    if ("siteId" in patch || "school" in patch) setCourseDate("");
+    if (!("prePost" in patch)) setExcludedQuestionIds([]);
+    setFilters((f) => ({ ...f, ...patch }));
+  };
 
   const title = filters.siteId
     ? (options.sites.find((s) => s.id === filters.siteId)?.name ?? t("reports.globalTitle"))
@@ -81,9 +105,12 @@ export function HomePage() {
   const showPost = filters.prePost !== "pre";
   const showChange = showPre && showPost;
 
+  const orderedRows = useMemo(() => orderReportRows(rows, reportOrder), [rows, reportOrder]);
+  const mostImproved = useMemo(() => mostImprovedRows(rows), [rows]);
+
   const chartData = useMemo(
-    () => rows.map((r) => ({ name: r.subcategory ?? r.category, pre: r.pre, post: r.post, change: r.change })),
-    [rows]
+    () => orderedRows.map((r) => ({ name: r.subcategory ? `${r.category} / ${r.subcategory}` : r.category, pre: r.pre, post: r.post, change: r.change })),
+    [orderedRows]
   );
 
   const siteOptions: DropdownOption[] = [
@@ -117,13 +144,14 @@ export function HomePage() {
 
   return (
     <div className="space-y-6">
-      <Label variant="title" className="block">{t("nav.home")}</Label>
+      <Label variant="title" className="block">{courseDate ? t("reports.courseComparison") : t("nav.home")}</Label>
 
       <div className="flex flex-col items-start gap-6 lg:flex-row">
         {/* Analytics */}
         <div className="min-w-0 flex-1 space-y-6">
           <Label variant="subtitle" className="block">{title}</Label>
 
+          {courseDate && <p>{filters.school} · {courseDate} (UTC) · <Link className="text-primary hover:underline" to="/courses/review">{t("nav.surveyGroups")}</Link></p>}
           <Card>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <Dropdown label={t("reports.survey")} options={surveyOptions} value={filters.surveyDefinitionId} onChange={(v) => set({ surveyDefinitionId: v })} />
@@ -133,27 +161,29 @@ export function HomePage() {
               <Dropdown label={t("reports.category")} options={categoryOptions} value={filters.category} onChange={(v) => set({ category: v })} />
               <Dropdown label={t("reports.prePost")} options={prePostOptions} value={filters.prePost} onChange={(v) => set({ prePost: v })} />
             </div>
-            {Object.values(filters).some(Boolean) && (
-              <button onClick={() => setFilters(EMPTY)} className="mt-3 text-sm font-medium text-primary hover:underline">
+            {(Object.values(filters).some(Boolean) || excludedQuestionIds.length > 0) && (
+              <button onClick={() => { setFilters(EMPTY); setExcludedQuestionIds([]); setCourseDate(""); }} className="mt-3 text-sm font-medium text-primary hover:underline">
                 {t("surveys.filter.clear")}
               </button>
             )}
           </Card>
 
+          {reportError && <p role="alert">{t("reports.loadError")}</p>}
           {detail && (detail.questions.length > 0 || detail.total.pre !== null || detail.total.post !== null) && (
             <Card>
               <Label variant="subtitle" className="mb-1 block">{t("reports.detailTitle")}</Label>
               <p className="mb-4 text-sm text-gray-500">{t("reports.detailNote")}</p>
+              <p className="mb-4 text-sm text-gray-500">{t("reports.exclusionNote")}</p>
               <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-blue-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("reports.total")} · {t("reports.pre")}</p><p className="mt-1 text-xl font-semibold text-gray-800">{pct(detail.total.pre)}</p></div>
                 <div className="rounded-lg bg-orange-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("reports.total")} · {t("reports.post")}</p><p className="mt-1 text-xl font-semibold text-gray-800">{pct(detail.total.post)}</p></div>
-                <div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("reports.change")}</p><p className="mt-1 text-xl font-semibold" style={{ color: detail.total.change !== null && detail.total.change < 0 ? COLOR_NEG : COLOR_PRE }}>{detail.total.change === null ? "—" : `${detail.total.change > 0 ? "+" : ""}${detail.total.change}%`}</p></div>
+                <div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t("reports.overallImprovement")}</p><p className="mt-1 text-xl font-semibold" style={{ color: detail.overallImprovement !== null && detail.overallImprovement < 0 ? COLOR_NEG : COLOR_PRE }}>{detail.overallImprovement === null ? "—" : `${detail.overallImprovement > 0 ? "+" : ""}${detail.overallImprovement} pp`}</p><p className="mt-2 text-xs text-gray-500">{t("reports.overallFormula")}</p></div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[42rem] text-left text-sm">
                   <thead><tr className="border-b border-gray-200 text-gray-500"><th className="py-2 font-medium">{t("reports.question")}</th><th className="py-2 text-right font-medium">{t("reports.pre")}</th><th className="py-2 text-right font-medium">{t("reports.post")}</th><th className="py-2 text-right font-medium">{t("reports.change")}</th></tr></thead>
                   <tbody className="divide-y divide-gray-100">
-                    {detail.questions.map((r) => <tr key={r.questionId}><td className="max-w-xl py-2 text-gray-800">{r.text}</td><td className="py-2 text-right tabular-nums">{pct(r.pre)}</td><td className="py-2 text-right tabular-nums">{pct(r.post)}</td><td className="py-2 text-right font-medium tabular-nums" style={{ color: r.change !== null && r.change < 0 ? COLOR_NEG : COLOR_PRE }}>{r.change === null ? "—" : `${r.change > 0 ? "+" : ""}${r.change}%`}</td></tr>)}
+                    {detail.questions.map((r) => <tr key={r.questionId}><td className="max-w-xl py-2 text-gray-800"><label className="flex items-start gap-2"><input type="checkbox" checked={!r.excluded} disabled={loadingRows} aria-label={`${t("reports.includeQuestion")}: ${r.text}`} onChange={() => setExcludedQuestionIds((ids) => r.excluded ? ids.filter((id) => id !== r.questionId) : [...ids, r.questionId])} /><span>{r.text}{!r.comparable && <span className="ml-2 text-xs text-gray-500">{t("reports.notComparable")}</span>}{r.excluded && <span className="ml-2 text-xs text-gray-500">{t("reports.excluded")}</span>}</span></label></td><td className="py-2 text-right tabular-nums">{pct(r.pre)}<span className="block text-xs text-gray-500">{t("reports.answerCount")}: {r.preCount}</span></td><td className="py-2 text-right tabular-nums">{pct(r.post)}<span className="block text-xs text-gray-500">{t("reports.answerCount")}: {r.postCount}</span></td><td className="py-2 text-right font-medium tabular-nums" style={{ color: r.change !== null && r.change < 0 ? COLOR_NEG : COLOR_PRE }}>{r.change === null ? "—" : `${r.change > 0 ? "+" : ""}${r.change}%`}</td></tr>)}
                   </tbody>
                 </table>
               </div>
@@ -161,6 +191,9 @@ export function HomePage() {
           )}
 
           <Card>
+            <Dropdown label={t("reports.order")} value={reportOrder} options={[{ value: "category", label: t("reports.orderCategory") }, { value: "ranking", label: t("reports.orderRanking") }]} onChange={(value) => setReportOrder(value === "ranking" ? "ranking" : "category")} />
+            <p className="my-3 text-sm text-gray-500">{t("reports.categoryFormula")}</p>
+            {showChange && <p className="my-3 text-sm">{t("reports.mostImproved")}: {mostImproved.length ? mostImproved.map((r) => `${r.category}${r.subcategory ? ` / ${r.subcategory}` : ""} (+${r.change} pp)`).join(", ") : t("reports.noPositiveImprovement")}</p>}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[28rem] text-left text-sm">
                 <thead>
@@ -172,7 +205,7 @@ export function HomePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {rows.map((r) => (
+                  {orderedRows.map((r) => (
                     <tr key={`${r.category}|${r.subcategory ?? ""}`}>
                       <td className="py-2 text-gray-800">
                         {r.subcategory ?? r.category}

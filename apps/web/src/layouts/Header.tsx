@@ -112,7 +112,7 @@ export function Header() {
               title={`${count} ${t("header.newResponses")}`}
               onClick={() => {
                 markSeen();
-                navigate("/surveys");
+                navigate("/courses/responses");
               }}
               className="relative flex h-9 w-9 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
             >

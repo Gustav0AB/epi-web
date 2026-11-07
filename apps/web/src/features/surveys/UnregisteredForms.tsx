@@ -20,7 +20,7 @@ export function UnregisteredForms({ onRegistered }: { onRegistered: () => void }
   const [sites, setSites] = useState<SiteDto[]>([]);
   const [target, setTarget] = useState<UnregisteredFormDto | null>(null);
   const [siteId, setSiteId] = useState("");
-  const [type, setType] = useState<"LOCAL" | "VISITING">("LOCAL");
+  const [type, setType] = useState<"LOCAL" | "VISITING" | "OTHER">("LOCAL");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,7 +127,7 @@ export function UnregisteredForms({ onRegistered }: { onRegistered: () => void }
             label={t("unregistered.surveyType")}
             options={TYPE_OPTIONS}
             value={type}
-            onChange={(v) => setType(v as "LOCAL" | "VISITING")}
+            onChange={(v) => setType(v as "LOCAL" | "VISITING" | "OTHER")}
           />
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>

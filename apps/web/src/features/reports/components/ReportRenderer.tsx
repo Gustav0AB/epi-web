@@ -88,8 +88,10 @@ function CourseImpactReportView({ template, data, mode, noDataText }: ReportRend
   const coursePhoto = data.texts.coursePhotoUrl;
   const categoryRows = data.series.categoryComparison ?? [];
   const spotlightRows = data.series.spotlightRows ?? [];
-  const satisfaction = Number(data.kpis.overallSatisfaction ?? 0);
-  const improvement = Number(data.kpis.overallImprovement ?? 0);
+  const satisfaction = data.kpis.overallSatisfaction;
+  const improvement = data.kpis.overallImprovement;
+  const satisfactionNumber = typeof satisfaction === "number" && Number.isFinite(satisfaction) ? satisfaction : null;
+  const indicator = (value: number | string | undefined) => typeof value === "number" && Number.isFinite(value) ? mode === "document" ? formatValue(value, "percent") : <AnimatedNumber value={value} format="percent" /> : typeof value === "string" && value.trim() ? value : noDataText;
 
   return (
     <div className="overflow-hidden bg-white text-[#242424]">
@@ -107,14 +109,14 @@ function CourseImpactReportView({ template, data, mode, noDataText }: ReportRend
         <div className="border-r-0 border-[#f28c00] sm:border-r sm:pr-6">
           <h2 className="text-center text-xl font-bold">Overall Satisfaction</h2>
           <div className="mt-4 flex justify-center">
-            <div className="relative h-40 w-40 rounded-full" style={{ background: `conic-gradient(#4196b3 ${Math.max(0, Math.min(100, satisfaction))}%, #e8eef0 0)` }}>
-              <div className="absolute inset-5 flex items-center justify-center rounded-full bg-white text-2xl font-semibold text-[#4196b3]"><AnimatedNumber value={satisfaction} format="percent" /></div>
+            <div className="relative h-40 w-40 rounded-full" style={{ background: satisfactionNumber === null ? "#e8eef0" : `conic-gradient(#4196b3 ${Math.max(0, Math.min(100, satisfactionNumber))}%, #e8eef0 0)` }}>
+              <div className="absolute inset-5 flex items-center justify-center rounded-full bg-white text-2xl font-semibold text-[#4196b3]">{indicator(satisfaction)}</div>
             </div>
           </div>
           <p className="mt-5 min-h-28 whitespace-pre-wrap border-t border-dashed border-[#f28c00] pt-4 text-base leading-relaxed text-gray-700">{data.texts.studentQuote || noDataText}</p>
           <div className="mt-5 rounded-[50%] bg-[#4196b3] px-8 py-6 text-center text-white">
-            <div className="text-5xl font-light"><AnimatedNumber value={satisfaction} format="percent" /></div>
-            <div className="mt-1 text-xs font-semibold uppercase tracking-wide">{data.texts.recommendationText || "of participants indicated that they would recommend this course to other students."}</div>
+            <div className="text-5xl font-light">{indicator(satisfaction)}</div>
+            <div className="mt-1 text-xs font-semibold uppercase tracking-wide">{data.texts.recommendationText || (satisfactionNumber === null ? noDataText : "of participants indicated that they would recommend this course to other students.")}</div>
           </div>
         </div>
 
@@ -139,7 +141,7 @@ function CourseImpactReportView({ template, data, mode, noDataText }: ReportRend
           </div>
           <div className="mt-5 border-b border-gray-300 pb-4">
             {categoryChart?.type === "chart" && <ChartBlockView block={categoryChart} data={data.series[categoryChart.dataKey] ?? categoryRows} showExport={mode === "interactive"} />}
-            <div className="ml-5 hidden w-32 text-center sm:block"><div className="text-4xl font-semibold text-[#4196b3]"><AnimatedNumber value={improvement} format="percent" /></div><div className="text-xs font-bold uppercase text-[#4196b3]">Overall improvement</div></div>
+            <div className="ml-5 hidden w-32 text-center sm:block"><div className="text-4xl font-semibold text-[#4196b3]">{indicator(improvement)}</div><div className="text-xs font-bold uppercase text-[#4196b3]">Overall improvement</div></div>
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <div>
@@ -149,7 +151,7 @@ function CourseImpactReportView({ template, data, mode, noDataText }: ReportRend
             <div>
               {coursePhoto && <img src={coursePhoto} alt="Course fieldwork" className="h-64 w-full object-cover" />}
               <h3 className="mt-2 text-center text-sm font-bold">Most Improved Area of Knowledge</h3>
-              <div className="mt-2 flex justify-between border border-[#4196b3] px-3 py-2 text-sm"><span>{String(data.tables.mostImproved?.[0]?.name ?? "—")}</span><span>+{String(data.tables.mostImproved?.[0]?.change ?? "—")}%</span></div>
+              <div className="mt-2 flex justify-between border border-[#4196b3] px-3 py-2 text-sm"><span>{String(data.tables.mostImproved?.[0]?.name ?? "—")}</span><span>{typeof data.tables.mostImproved?.[0]?.change === "number" ? `${Number(data.tables.mostImproved[0].change) >= 0 ? "+" : ""}${data.tables.mostImproved[0].change}%` : noDataText}</span></div>
             </div>
           </div>
           <div className="mt-6 grid gap-6 border-t border-dashed border-[#f28c00] pt-5 lg:grid-cols-2">
@@ -158,11 +160,13 @@ function CourseImpactReportView({ template, data, mode, noDataText }: ReportRend
           </div>
         </div>
       </section></ReportReveal>
+      {template.blocks.filter(block => block.id.startsWith("course-review-")).map(block => <ReportBlockView key={block.id} block={block} data={data} showExport={false} locale="es-MX" noDataText={noDataText} />)}
     </div>
   );
 }
 
 function ExportableRadar({ data, showExport }: { data: Record<string, unknown>[]; showExport: boolean }) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
@@ -176,7 +180,8 @@ function ExportableRadar({ data, showExport }: { data: Record<string, unknown>[]
     }, { threshold: 0.15 });
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [data.length]);
+  if (!data.length) return <p className="my-3 text-sm text-gray-500">{t("reportRenderer.noData")}</p>;
   return (
     <div ref={containerRef}>
       {showExport && <div className="mb-2 flex justify-end"><ChartExportButtons containerRef={containerRef} filename="environmental-literacy-radar" /></div>}
