@@ -11,7 +11,7 @@ const app = createApp();
 // Sync feature registry to DB so FK constraints never fail on user creation.
 void featuresRepository
   .upsertMany(Object.values(FEATURES_REGISTRY))
-  .catch((e) => console.error("Feature sync failed:", e));
+  .catch(() => console.error(JSON.stringify({ event: "feature_sync_failed" })));
 
 const stopAssistantWorker = startAssistantMigrationWorker();
 

@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/error-messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "../store/auth.store";
 import { surveyApi } from "../features/surveys/api";
@@ -124,7 +125,7 @@ describe("surveyApi", () => {
       })
     );
 
-    await expect(surveyApi.groups()).rejects.toThrow("Bad CSV");
+    await expect(surveyApi.groups()).rejects.toThrow(errorMessage("UNKNOWN"));
   });
 });
 

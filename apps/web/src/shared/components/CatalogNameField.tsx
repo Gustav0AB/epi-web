@@ -1,6 +1,5 @@
 import { useId, useState } from "react";
-import { Dropdown } from "./Dropdown";
-import { TextField } from "./TextField";
+import { Dropdown, TextField } from "@epi/ui";
 import { useI18n } from "../../lib/i18n";
 
 type Props = { label: string; value: string; options: string[]; onChange: (value: string) => void; disabled?: boolean };

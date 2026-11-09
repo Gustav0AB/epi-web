@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CourseResultsQuerySchema } from "./course-results.schema.js";
-export const CourseReportContentSchema = z.object({ studentQuote: z.string().max(5000).optional(), recommendationText: z.string().max(5000).optional(), conservationImpacts: z.string().max(5000).optional(), spotlightText: z.string().max(5000).optional() }).strict();
+const reportImage = z.union([z.literal(""), z.string().url().max(2048).refine(value => /^https?:\/\//i.test(value)), z.string().max(1400000).regex(/^data:image\/(?:png;base64,iVBORw0KGgo|jpeg;base64,\/9j\/)[A-Za-z0-9+/]*={0,2}$/)]);
+export const CourseReportContentSchema = z.object({ studentQuote: z.string().max(5000).optional(), recommendationText: z.string().max(5000).optional(), conservationImpacts: z.string().max(5000).optional(), spotlightText: z.string().max(5000).optional(), heroPhotoUrl: reportImage.optional(), coursePhotoUrl: reportImage.optional(), coursePhotoCaption: z.string().max(5000).optional() }).strict();
 export const CourseCategoriesSchema = z.array(z.string().trim().min(1).max(200)).min(1).max(200).refine(items => new Set(items).size === items.length, "Categorías repetidas");
 export const CourseReportDraftSchema = z.object({ categories: CourseCategoriesSchema.optional(), templateKey: z.enum(["course-impacts-general","course-impacts-2026mx-ncssm","course-impacts-2026cr-burton","course-impacts-2026mx-templeton"]), textContent: CourseReportContentSchema, from: z.string().date().optional(), to: z.string().date().optional() }).strict().refine(input => CourseResultsQuerySchema.safeParse({ from: input.from, to: input.to }).success, "Rango de fechas inválido");
 export type CourseReportDraft = z.infer<typeof CourseReportDraftSchema>;

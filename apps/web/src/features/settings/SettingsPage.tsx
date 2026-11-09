@@ -1,21 +1,20 @@
+import { onlineRequest } from "../../lib/api-client";
 import { useCallback, useEffect, useState } from "react";
 import type { ApiResponse, ReportTemplate } from "@epi/shared";
-import { Button, Card, Label, TextField } from "../../shared/components";
+import { Button, Card, Label, TextField } from "@epi/ui";
 import { useAuthStore } from "../../store/auth.store";
 import { useI18n } from "../../lib/i18n";
 
 async function call<T>(path: string, options?: RequestInit): Promise<T> {
   const token = useAuthStore.getState().token;
-  const res = await fetch(path, {
+  return onlineRequest<T>(path, {
     ...options,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
-  const json = (await res.json()) as ApiResponse<T>;
-  if (!json.success) throw new Error(json.error.message);
-  return json.data;
+
 }
 
 // Configuración (solo admin): plantillas de reporte. Organizaciones, sitios

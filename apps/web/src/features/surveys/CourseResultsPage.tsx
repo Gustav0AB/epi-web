@@ -2,7 +2,7 @@ import { CourseCalculationWarnings } from "./CourseCalculationWarnings";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { courseResponseCoverage, CourseResultsQuerySchema, type CourseResultsDto, type PrePostBase } from "@epi/shared";
-import { Button, Card, DatePicker, Label, Table } from "../../shared/components";
+import { Button, Card, DatePicker, Label, Table } from "@epi/ui";
 import { CourseComparison } from "./CourseComparison";
 import { surveyApi } from "./api";
 const number = (value: number | null) => value === null ? "Sin datos" : new Intl.NumberFormat("es", { maximumFractionDigits: 6 }).format(value);

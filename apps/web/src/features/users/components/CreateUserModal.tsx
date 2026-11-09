@@ -1,7 +1,8 @@
+import { onlineRequest } from "../../../lib/api-client";
 import { useEffect, useState } from "react";
 import { FEATURES_REGISTRY } from "@epi/shared";
-import { Button, CheckboxGroup, Dropdown, Modal, TextField } from "../../../shared/components";
-import type { DropdownOption } from "../../../shared/components";
+import { Button, CheckboxGroup, Dropdown, Modal, TextField } from "@epi/ui";
+import type { DropdownOption } from "@epi/ui";
 import type {
   ApiResponse,
   CreateUserDto,
@@ -38,9 +39,7 @@ const initialForm = {
 
 async function fetchList<T>(path: string): Promise<T[]> {
   const token = useAuthStore.getState().token;
-  const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
-  const json = (await res.json()) as ApiResponse<T[]>;
-  return json.success ? json.data : [];
+  return onlineRequest<T[]>(path, { headers: { Authorization: `Bearer ${token}` } });
 }
 
 export function CreateUserModal({ open, onClose, onSubmit }: Props) {

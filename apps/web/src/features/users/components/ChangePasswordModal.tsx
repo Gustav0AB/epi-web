@@ -1,5 +1,6 @@
+import { onlineRequest } from "../../../lib/api-client";
 import { useState } from "react";
-import { Button, Modal, TextField } from "@shared/components";
+import { Button, Modal, TextField } from "@epi/ui";
 import { useAuthStore } from "../../../store/auth.store";
 import { useI18n } from "../../../lib/i18n";
 
@@ -33,13 +34,11 @@ export function ChangePasswordModal({ open, onClose, required = false }: Props) 
     setError(null);
     try {
       const token = useAuthStore.getState().token;
-      const res = await fetch("/api/users/me/change-password", {
+      await onlineRequest("/api/users/me/change-password", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword: current, newPassword: next }),
       });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message ?? t("common.changePasswordError"));
       useAuthStore.getState().logout();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.changePasswordError"));

@@ -33,7 +33,7 @@ const navItems: NavItem[] = [
   { to: "/home", label: "nav.home", kind: "functionality", featureKey: FEATURE_KEYS.HOME, icon: <HomeOutlinedIcon className="shrink-0" /> },
   { to: "/courses", label: "nav.courses", kind: "functionality_any", featureKeys: [FEATURE_KEYS.SURVEYS, FEATURE_KEYS.OPEN_QUESTIONS], icon: <PollOutlinedIcon className="shrink-0" /> },
   { to: "/instruments", label: "nav.instruments", kind: "functionality", featureKey: FEATURE_KEYS.SCORING, icon: <TuneOutlinedIcon className="shrink-0" /> },
-  { to: "/published-courses", label: "nav.publishedReports", kind: "published", icon: <AssessmentOutlinedIcon className="shrink-0" /> },
+  { to: "/reports", label: "nav.reports", kind: "published", icon: <AssessmentOutlinedIcon className="shrink-0" /> },
   { to: "/users", label: "nav.users", kind: "user_management", icon: <PeopleOutlinedIcon className="shrink-0" /> },
   { to: "/organization-management", label: "nav.organizationManagement", kind: "admin_tier", icon: <CorporateFareOutlinedIcon className="shrink-0" /> },
   { to: "/settings", label: "nav.settings", kind: "system_admin", icon: <SettingsSuggestOutlinedIcon className="shrink-0" /> },
@@ -84,7 +84,7 @@ export function Sidebar() {
         </button>
         {expanded && (
           <span className="ml-3 text-base font-semibold text-gray-900">
-            EPI
+            SGE
           </span>
         )}
       </div>

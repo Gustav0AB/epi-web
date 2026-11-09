@@ -1,9 +1,13 @@
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { useAuthStore } from "../store/auth.store";
 import { OfflineBanner } from "../shared/components";
 
 export function AppLayout() {
+  const reportViewer = useAuthStore(state => state.currentUser?.role === "report_viewer");
+  if (reportViewer) return <Navigate to="/interactive-reports" replace />;
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar />

@@ -5,6 +5,7 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
+    server: { deps: { inline: [/epi-ui/, /epi-login/, /@mui/, /@emotion/] } },
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
@@ -28,6 +29,7 @@ export default defineConfig({
     },
   },
   resolve: {
+    dedupe: ["react", "react-dom", "@emotion/react", "@emotion/styled", "@mui/material", "@mui/icons-material"],
     alias: {
       "@shared": path.resolve(__dirname, "src/shared"),
     },

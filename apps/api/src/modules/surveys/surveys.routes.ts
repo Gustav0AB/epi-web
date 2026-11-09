@@ -1,5 +1,5 @@
 import { CourseListQuerySchema } from "@epi/shared";
-import { confirmCourseSelection, splitCourseApplication, courseComplementResults, listPublishedCourseReports, publishedCourseReport, courseReportHistory, publishCourseEdition, setCourseExpectedParticipants, getCourseReportDraft, saveCourseReportDraft, courseResults, courseOptions, listCourseEditions, createCourseEdition, courseEditionDetail, courseResponseCandidates, setCourseInstrument, setCourseMembership } from "./course-editions.service.js";
+import { publishedReportAggregate, publishedReportFilterOptions, confirmCourseSelection, splitCourseApplication, courseComplementResults, listPublishedCourseReports, publishedCourseReport, courseReportHistory, publishCourseEdition, setCourseExpectedParticipants, getCourseReportDraft, saveCourseReportDraft, courseResults, courseOptions, listCourseEditions, createCourseEdition, courseEditionDetail, courseResponseCandidates, setCourseInstrument, setCourseMembership } from "./course-editions.service.js";
 import { surveysService } from "./surveys.service.js";
 import { setAssistantAutoSync, assistantMigrationStatus, assistantResponseCount, migrateAssistantResponses } from "./assistant-migration.service.js";
 import { AssistantSyncSettingsSchema, JotformLabelsQuerySchema } from "@epi/shared";
@@ -30,6 +30,12 @@ webhooksRouter.post("/jotform", multer().none(), surveysController.webhook);
 // por organización/sitio desde el service (ver site-scope.ts).
 export const surveysRouter = Router();
 surveysRouter.get("/published-courses", requireAuth, async (req,res,next) => { try { res.json(apiSuccess(await listPublishedCourseReports(req.query,req.user!.sub))); } catch(error) { next(error); } });
+surveysRouter.get("/published-report-aggregate", requireAuth, async (req, res, next) => {
+  try { res.json(apiSuccess(await publishedReportAggregate(req.query, req.user!.sub))); } catch (error) { next(error); }
+});
+surveysRouter.get("/published-report-options", requireAuth, async (req, res, next) => {
+  try { res.json(apiSuccess(await publishedReportFilterOptions(req.user!.sub))); } catch (error) { next(error); }
+});
 surveysRouter.get("/published-courses/:id", requireAuth, async (req,res,next) => { try { res.json(apiSuccess(await publishedCourseReport(req.params.id!,req.user!.sub))); } catch(error) { next(error); } });
 surveysRouter.get("/courses/:id/publications", requireAuth, async (req,res,next) => { try { res.json(apiSuccess(await courseReportHistory(req.params.id!,req.query,req.user!.sub))); } catch(error) { next(error); } });
 surveysRouter.post("/courses/:id/publications", requireAuth, requireRole("system_admin","org_admin"), async (req,res,next) => { try { res.status(201).json(apiSuccess(await publishCourseEdition(req.params.id!,req.body,req.user!.sub))); } catch(error) { next(error); } });

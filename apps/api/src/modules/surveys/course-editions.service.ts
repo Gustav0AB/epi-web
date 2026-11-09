@@ -2,6 +2,7 @@ import { selectCourseResultCategories } from "@epi/shared";
 import { addCourseStandardDeviations } from "./course-standard-deviation.js";
 import { z } from "zod";
 import { complementaryResults } from "./complementary-results.js";
+import { aggregatePublishedCourses } from "./published-report-aggregate.js";
 import { aggregateCourseQuestions } from "./course-aggregation.js";
 import { courseResultBases } from "./course-results.js";
 import { courseResponseIssues } from "./course-context.js";
@@ -74,7 +75,7 @@ export async function listCourseEditions(input: unknown, userId: string) {
     memberships: { some: { submission } },
   };
   const where: Prisma.CourseEditionWhereInput = {
-    ...courseWhere(scope), ...(query.siteId ? { siteId: query.siteId } : {}),
+    ...courseWhere(scope), ...(query.status ? { status: query.status } : {}), ...(query.siteId ? { siteId: query.siteId } : {}),
     ...(query.school ? { school: { contains: query.school, mode: "insensitive" } } : {}),
     ...(query.activity ? { activity: { contains: query.activity, mode: "insensitive" } } : {}),
     ...(from || to || query.submittedOn || query.moment ? { OR: [
@@ -314,6 +315,72 @@ function publicationDto(row: PublicationRow): CourseReportPublication {
   if (snapshot?.schemaVersion !== 1 || snapshot.component !== "learning" || !snapshot.document?.template || !snapshot.document.data) throw fail("La publicación requiere revisión; no se recalculará su contenido", 409);
   return { ...publicationSummary(row), snapshot };
 }
+export async function publishedReportFilterOptions(userId: string) {
+  const { scope } = await access(userId);
+  const [sites, definitions, publications] = await Promise.all([
+    prisma.site.findMany({
+      where: scope.siteIds ? { id: { in: scope.siteIds } } : {},
+      select: { id: true, name: true, programs: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.surveyDefinition.findMany({
+      where: scopeToDefinitionWhere(scope) ?? {},
+      select: { id: true, siteId: true, instrumentName: true, instrumentKind: true, version: true, programName: true },
+      orderBy: [{ instrumentName: "asc" }, { version: "desc" }],
+    }),
+    prisma.courseEditionPublication.findMany({
+      where: publicationWhere(scope),
+      select: {
+        id: true, name: true, school: true, version: true, createdAt: true,
+        course: { select: { id: true, siteId: true, primaryDefinitionId: true, applications: { select: { date: true } } } },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    }),
+  ]);
+  return {
+    sites,
+    definitions: definitions.map(definition => ({
+      id: definition.id, siteId: definition.siteId, name: definition.instrumentName || "Instrumento",
+      kind: definition.instrumentKind, version: definition.version, program: definition.programName,
+    })),
+    publications: publications.map(item => ({
+      id: item.id, name: item.name, school: item.school, version: item.version,
+      courseId: item.course.id, siteId: item.course.siteId, definitionId: item.course.primaryDefinitionId,
+      dates: [...new Set(item.course.applications.map(application => application.date))],
+    })),
+  };
+}
+
+export async function publishedReportAggregate(input: unknown, userId: string) {
+  const filters = z.object({
+    definitionId: z.string().uuid(), siteId: z.string().uuid().optional(),
+    program: z.string().max(200).optional(), from: z.string().date(), to: z.string().date(),
+  }).strict().refine(value => value.from <= value.to, "Rango de fechas inválido").parse(input);
+  const { scope } = await access(userId);
+  const rows = await prisma.courseEditionPublication.findMany({
+    where: { ...publicationWhere(scope), course: { AND: [
+      courseWhere(scope),
+      { primaryDefinitionId: filters.definitionId, status: "COMPLETED" },
+      ...(filters.siteId ? [{ siteId: filters.siteId }] : []),
+      ...(filters.program ? [{ primaryDefinition: { programName: filters.program } }] : []),
+    ] } },
+    include: { course: { select: { siteId: true, applications: { where: { definitionId: filters.definitionId, moment: { in: ["PRE", "POST"] } }, select: { date: true } } } } },
+    orderBy: [{ version: "desc" }, { createdAt: "desc" }],
+  });
+  const latest = new Map<string, typeof rows[number]>();
+  for (const row of rows) if (!latest.has(row.courseId)) latest.set(row.courseId, row);
+  const matching = [...latest.values()].filter(row => row.course.applications.some(app => app.date >= filters.from && app.date <= filters.to));
+  if (!matching.length) return null;
+  if (matching.some(row => row.course.applications.some(app => app.date < filters.from || app.date > filters.to))) {
+    throw fail("El rango incluye parcialmente un curso publicado. Amplía las fechas para incluir todas sus aplicaciones.", 400);
+  }
+  try {
+    return aggregatePublishedCourses(matching.map(row => publicationDto(row).snapshot.result));
+  } catch (error) {
+    throw fail(error instanceof Error ? error.message : "No se pudo calcular el reporte", 400);
+  }
+}
+
 export async function listPublishedCourseReports(input: unknown, userId: string) {
   const query = CourseListQuerySchema.parse(input); const { scope } = await access(userId);
   const where: Prisma.CourseEditionPublicationWhereInput = { ...publicationWhere(scope), ...(query.school ? { school: { contains: query.school, mode: "insensitive" } } : {}) };

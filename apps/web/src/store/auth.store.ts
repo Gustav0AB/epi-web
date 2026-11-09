@@ -1,3 +1,4 @@
+import { ApiError, errorMessage } from "../lib/error-messages";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { AuthToken, LoginDto, User } from "@epi/shared";
@@ -8,6 +9,7 @@ type AuthState = {
   isLoading: boolean;
   isUserLoading: boolean;
   error: string | null;
+  errorCode: string | null;
   currentUser: User | null;
   mustChangePassword: boolean;
 };
@@ -51,32 +53,38 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       isLoading: false,
       isUserLoading: false,
       error: null,
+      errorCode: null,
       currentUser: null,
       mustChangePassword: false,
 
       login: async (dto) => {
-        set({ isLoading: true, error: null });
+        set({ isLoading: true, error: null, errorCode: null });
         try {
           const { apiClient } = await import("../lib/api-client");
           const data = await apiClient.post<AuthToken>("/api/auth/login", dto);
           const currentUser = await fetchCurrentUser(data.accessToken);
           set({ token: data.accessToken, isAuthenticated: true, isLoading: false, currentUser, mustChangePassword: data.mustChangePassword });
 
-          const { seedDatabase } = await import("../lib/seed");
-          await seedDatabase(data.accessToken);
+          if (!data.mustChangePassword) {
+            // Local cache is optional: a failed refresh must not reject an authenticated session.
+            try {
+              const { seedDatabase } = await import("../lib/seed");
+              await seedDatabase(data.accessToken);
+            } catch { /* The next successful login refreshes the cache. */ }
+          }
         } catch (err) {
-          const message = err instanceof Error ? err.message : "Login failed";
-          set({ error: message, isLoading: false });
+          const message = err instanceof ApiError ? err.message : errorMessage("UNKNOWN");
+          set({ error: message, errorCode: err instanceof ApiError ? err.code : "UNKNOWN", isLoading: false });
           throw err;
         }
       },
 
       logout: () => {
         void import("../lib/seed").then(({ clearDatabase }) => clearDatabase());
-        set({ token: null, isAuthenticated: false, error: null, currentUser: null, mustChangePassword: false });
+        set({ token: null, isAuthenticated: false, error: null, errorCode: null, currentUser: null, mustChangePassword: false });
       },
 
-      clearError: () => set({ error: null }),
+      clearError: () => set({ error: null, errorCode: null }),
 
       initCurrentUser: async () => {
         const { token, currentUser } = get();

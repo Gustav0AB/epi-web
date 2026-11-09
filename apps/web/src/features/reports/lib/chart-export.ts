@@ -15,14 +15,18 @@ export function downloadBlob(blob: Blob, filename: string) {
 function serializeSvg(svg: SVGSVGElement): string {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  if (!clone.getAttribute("width")) clone.setAttribute("width", String(svg.clientWidth));
-  if (!clone.getAttribute("height")) clone.setAttribute("height", String(svg.clientHeight));
+  const typography = getComputedStyle(svg);
+  clone.setAttribute("font-family", typography.fontFamily);
+  clone.setAttribute("font-size", typography.fontSize);
+  clone.setAttribute("font-weight", typography.fontWeight);
+  if (svg.clientWidth > 0) clone.setAttribute("width", String(svg.clientWidth));
+  if (svg.clientHeight > 0) clone.setAttribute("height", String(svg.clientHeight));
   return new XMLSerializer().serializeToString(clone);
 }
 
-// Busca el primer <svg> dentro de un contenedor (el chart de Recharts).
+// Recharts can render legend icons before the actual chart surface.
 export function findChartSvg(container: HTMLElement): SVGSVGElement | null {
-  return container.querySelector("svg");
+  return Array.from(container.querySelectorAll<SVGSVGElement>("svg")).find(svg => !svg.closest(".recharts-legend-wrapper")) ?? null;
 }
 
 export function exportChartAsSvg(container: HTMLElement, filename: string) {
@@ -49,9 +53,11 @@ export function exportChartAsPng(container: HTMLElement, filename: string, scale
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(scale, scale);
-    // No pintamos el canvas: el PNG conserva el fondo transparente.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height + legend.length * 22);
     ctx.drawImage(img, 0, 0, width, height);
-    ctx.font = "12px sans-serif";
+    const typography = getComputedStyle(svg);
+    ctx.font = `${typography.fontWeight} ${typography.fontSize} ${typography.fontFamily}`;
     legend.forEach((item, index) => {
       const y = height + index * 22 + 4;
       ctx.fillStyle = item.color;

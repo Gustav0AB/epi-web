@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Pagination } from "../shared/components/Pagination";
+import { Pagination } from "@epi/ui";
 
 describe("server pagination", () => {
   it("shows the last page count without offering a next page", () => {

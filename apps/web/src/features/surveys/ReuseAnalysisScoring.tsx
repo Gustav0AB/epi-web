@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { scaleOptionPoints, ANALYSIS_TYPES, type QuestionWithWeight, type SurveyDefinitionDto, type AnalysisType, type SurveySetupQuestion } from "@epi/shared";
-import { Button, Dropdown, Pagination, Table } from "../../shared/components";
+import { Button, Dropdown, Pagination, Table } from "@epi/ui";
 import { surveyApi } from "./api";
 import { applyInstrumentAnalysisReuse, previewInstrumentAnalysisReuse, availableAnalysisReuseDefinitions, type AnalysisReuseScope, applyAnalysisReuse, previewAnalysisReuse, type AnalysisReuseRow } from "./setup-analysis-reuse";
 

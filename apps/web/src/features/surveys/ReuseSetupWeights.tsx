@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { QuestionWithWeight, SurveyDefinitionDto, SurveySetupQuestion, WeightInput } from "@epi/shared";
-import { Button, Dropdown, Table } from "../../shared/components";
+import { Button, Dropdown, Table } from "@epi/ui";
 import { useI18n } from "../../lib/i18n";
 import { surveyApi } from "./api";
 import { previewReusedWeights } from "./setup-weight-reuse";

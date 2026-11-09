@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SiteDto, User } from "@epi/shared";
-import { Button, CheckboxGroup, Modal } from "../../../shared/components";
+import { Button, CheckboxGroup, Modal } from "@epi/ui";
 import { apiClient } from "../../../lib/api-client";
 import { useI18n } from "../../../lib/i18n";
 

@@ -1,5 +1,5 @@
 import type { CourseSubmissionDto } from "@epi/shared";
-import { Table } from "../../shared/components";
+import { Table } from "@epi/ui";
 
 type Submission = Pick<CourseSubmissionDto, "id" | "answers" | "reviewExcluded">;
 

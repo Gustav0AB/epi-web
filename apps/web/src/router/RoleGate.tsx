@@ -8,6 +8,7 @@ type Props =
   | { allow: "system_admin" }
   | { allow: "admin_tier" }
   | { allow: "user_management" }
+  | { allow: "published_reports" }
   | { allow: "functionality"; featureKey: string }
   | { allow: "report_template"; templateKey: string };
 
@@ -56,8 +57,11 @@ export function RoleGate(props: Props) {
     case "functionality":
       allowed = isAdminTier || currentUser.featureKeys.includes(props.featureKey);
       break;
+    case "published_reports":
+      allowed = true;
+      break;
     case "report_template":
-      allowed = isAdminTier || currentUser.reportTemplateKeys.includes(props.templateKey);
+      allowed = currentUser.role !== "report_viewer" && (isAdminTier || currentUser.reportTemplateKeys.includes(props.templateKey));
       break;
   }
 

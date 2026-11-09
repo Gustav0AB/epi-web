@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AuditLogDto } from "@epi/shared";
-import { Badge, Label, Table } from "../../shared/components";
-import type { Column } from "../../shared/components";
+import { Badge, Label, Table } from "@epi/ui";
+import type { Column } from "@epi/ui";
 import { apiClient } from "../../lib/api-client";
 import { useI18n, type I18nKey } from "../../lib/i18n";
 

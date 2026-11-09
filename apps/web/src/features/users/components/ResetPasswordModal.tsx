@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Modal, TextField } from "@shared/components";
+import { Button, Modal, TextField } from "@epi/ui";
 import { useI18n } from "../../../lib/i18n";
 
 type Props = {

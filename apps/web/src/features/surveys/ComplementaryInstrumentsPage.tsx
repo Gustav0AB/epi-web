@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { CourseComplementResultsDto, CourseEditionsPage, CourseEditionDetailDto, CourseResponseDto, CourseResponsePage } from "@epi/shared";
-import { Button, Card, Dropdown, Label, Modal, Pagination, Table } from "../../shared/components";
+import { Button, Card, Dropdown, Label, Modal, Pagination, Table } from "@epi/ui";
 import { surveyApi } from "./api";
 const number=(value:number|null)=>value===null ? "Sin datos" : new Intl.NumberFormat("es",{maximumFractionDigits:4}).format(value);
 export function ComplementResultsView({result}:{result:CourseComplementResultsDto}){

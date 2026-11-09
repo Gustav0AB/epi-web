@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SiteDto, UnregisteredFormDto } from "@epi/shared";
-import { Button, Card, Dropdown, Label, Modal } from "../../shared/components";
-import type { DropdownOption } from "../../shared/components";
+import { Button, Card, Dropdown, Label, Modal } from "@epi/ui";
+import type { DropdownOption } from "@epi/ui";
 import { surveyApi } from "./api";
 import { useI18n } from "../../lib/i18n";
 

@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/error-messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearDatabase } from "../lib/seed";
 import { useAuthStore } from "../store/auth.store";
@@ -50,7 +51,7 @@ describe("apiClient", () => {
     await expect(apiClient.get("/api/demo")).rejects.toMatchObject({
       name: "ApiError",
       code: "BAD_REQUEST",
-      message: "Nope",
+      message: errorMessage("BAD_REQUEST"),
     });
   });
 
@@ -64,11 +65,22 @@ describe("apiClient", () => {
     );
     useAuthStore.setState({ token: "token-123", isAuthenticated: true });
 
-    await expect(apiClient.get("/api/demo")).rejects.toThrow("Expired");
+    await expect(apiClient.get("/api/demo")).rejects.toThrow(errorMessage("UNAUTHORIZED"));
 
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAuthStore.getState().token).toBeNull();
     await vi.waitFor(() => expect(clearDatabase).toHaveBeenCalled());
+  });
+
+  it("hides server internals, invalid JSON and network failure details", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ status: 500, json: async () => ({ success: false, error: { code: "INTERNAL_ERROR", message: "Prisma password secret" } }) })
+      .mockResolvedValueOnce({ json: async () => { throw new SyntaxError("Unexpected token <"); } })
+      .mockRejectedValueOnce(new TypeError("Failed to fetch private server")));
+    await expect(apiClient.get("/api/demo")).rejects.toThrow(errorMessage("INTERNAL_ERROR"));
+    await expect(apiClient.get("/api/demo")).rejects.toThrow(errorMessage("INTERNAL_ERROR"));
+    await expect(apiClient.get("/api/demo")).rejects.toThrow(errorMessage("NETWORK_ERROR"));
   });
 
   it("supports DELETE requests", async () => {

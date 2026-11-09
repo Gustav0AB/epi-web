@@ -1,9 +1,11 @@
+import { buildDonutSegments, type DonutCategory } from "../../shared/components/hierarchical-donut";
 import { exportChartAsPng } from "../reports/lib/chart-export";
 import { useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { courseResultCategories, selectCourseResultCategories, mostImprovedKnowledge, type CourseResultsDto, type PrePostBase } from "@epi/shared";
-import { Button, Card, Dropdown, Table } from "../../shared/components";
-import type { Column } from "../../shared/components";
+import { Button, Card, Dropdown, Table } from "@epi/ui";
+import { HierarchicalProgressDonut } from "../../shared/components";
+import type { Column } from "@epi/ui";
 
 const number = new Intl.NumberFormat("es", { maximumFractionDigits: 2 });
 const percent = (value: number | null) => value === null ? "Sin datos" : `${number.format(value)}%`;
@@ -46,6 +48,26 @@ export function instrumentIndicatorCategory(category: string | null) {
   return null;
 }
 
+export function courseIndexDonutCategories(result: CourseResultsDto, moment: "pre" | "post", color: (category: string) => string): DonutCategory[] | null {
+  const rows = result.aggregates.filter(row => row.definitionId === result.primaryDefinitionId);
+  const index = rows.find(row => row.level === "index");
+  const distribution = result.distributions.find(row => row.definitionId === result.primaryDefinitionId);
+  if (!index || index.issue || !distribution) return null;
+  const rounded = (value: number | null) => value === null ? null : Number(value.toFixed(2));
+  const categories = rows.filter(row => row.level === "category").map(row => ({
+    id: row.category!, label: row.category!, color: color(row.category!),
+    weight: distribution.categoryWeights?.find(weight => weight.category === row.category)?.weight ?? NaN,
+    value: rounded(row[moment]),
+    children: rows.filter(child => child.level === "subcategory" && child.category === row.category).map(child => ({
+      id: child.subcategory!, label: child.subcategory!,
+      weight: distribution.subcategoryWeights?.find(weight => weight.category === row.category && weight.subcategory === child.subcategory)?.weight ?? NaN,
+      value: rounded(child[moment]),
+    })),
+  }));
+  try { buildDonutSegments(categories); return categories; }
+  catch { return null; }
+}
+
 export function CourseCategorySelector({ available, included, onChange, disabled = false }: { available: string[]; included: string[]; onChange: (categories: string[]) => void; disabled?: boolean }) {
   return <Card><h2 className="mb-3 font-semibold">Categorías incluidas</h2><div className="flex flex-wrap gap-4">{available.map((category, index) => <label key={category} className="flex items-center gap-2"><input type="checkbox" disabled={disabled} checked={included.includes(category)} onChange={() => onChange(included.includes(category) ? included.filter(item => item !== category) : available.filter(item => included.includes(item) || item === category))} /><span aria-hidden="true" className="h-3 w-3 rounded" style={{ backgroundColor: palette[index % palette.length] }} />{category}</label>)}</div><p className="mt-3 text-sm text-gray-500">Se mostrarán los resultados de las categorías incluidas. El índice utiliza sus pesos proporcionales.</p></Card>;
 }
@@ -55,6 +77,7 @@ export function CourseComparison({ result: source, availableCategories, hideCate
   const barsRef = useRef<HTMLDivElement>(null);
   const linesRef = useRef<HTMLDivElement>(null);
   const indexRef = useRef<HTMLDivElement>(null);
+  const [indexMoment, setIndexMoment] = useState<"pre" | "post">("post");
   const [excluded, setExcluded] = useState<string[]>([]);
   const [order, setOrder] = useState("category-desc");
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
@@ -75,6 +98,7 @@ export function CourseComparison({ result: source, availableCategories, hideCate
     ...chart.map((row, index) => [`category${index}`, row[moment]]),
   ]));
   const index = aggregate.find(row => row.level === "index");
+  const indexCategories = courseIndexDonutCategories(result, indexMoment, categoryColor);
   const momentLegend = [{ label: "Pre", color: "#ef8200" }, { label: "Post", color: "#4297b5" }];
   const categoryDataAvailable = chart.some(row => row.pre !== null || row.post !== null);
 
@@ -145,7 +169,17 @@ export function CourseComparison({ result: source, availableCategories, hideCate
       <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Perfil Pre/Post por categoría</h2><Button variant="secondary" size="sm" disabled={chart.length < 3 || !categoryDataAvailable} aria-label="Descargar Perfil Pre/Post por categoría en PNG" onClick={() => { if (radarRef.current) exportChartAsPng(radarRef.current, `curso-${result.courseId}-perfil-pre-post`, 2, momentLegend); }}>Descargar PNG</Button></div><div ref={radarRef}>{chart.length >= 3 ? <ResponsiveContainer width="100%" height={300}><RadarChart data={chart}><PolarGrid /><PolarAngleAxis dataKey="name" /><PolarRadiusAxis domain={[0, 100]} /><Radar name="Pre" dataKey="pre" stroke="#ef8200" fill="#ef8200" fillOpacity={0.15} /><Radar name="Post" dataKey="post" stroke="#4297b5" fill="#4297b5" fillOpacity={0.15} /><Legend /><Tooltip /></RadarChart></ResponsiveContainer> : <p>Selecciona al menos tres categorías para el radar.</p>}</div></Card>
       <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Pre/Post por categoría</h2><Button variant="secondary" size="sm" disabled={!categoryDataAvailable} aria-label="Descargar Pre/Post por categoría en PNG" onClick={() => { if (barsRef.current) exportChartAsPng(barsRef.current, `curso-${result.courseId}-barras-pre-post`, 2, momentLegend); }}>Descargar PNG</Button></div><div ref={barsRef}>{chart.length ? <ResponsiveContainer width="100%" height={300}><BarChart data={chart}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis domain={[0, 100]} /><Tooltip /><Legend /><Bar dataKey="pre" name="Pre" fill="#ef8200" /><Bar dataKey="post" name="Post" fill="#4297b5" /></BarChart></ResponsiveContainer> : <p>Sin categorías seleccionadas.</p>}</div></Card>
       <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Cambio entre Pre y Post</h2><Button variant="secondary" size="sm" disabled={!categoryDataAvailable} aria-label="Descargar Cambio entre Pre y Post en PNG" onClick={() => { if (linesRef.current) exportChartAsPng(linesRef.current, `curso-${result.courseId}-cambio-pre-post`, 2, chart.map(row => ({ label: row.name, color: categoryColor(row.name) }))); }}>Descargar PNG</Button></div><div ref={linesRef}>{chart.length ? <ResponsiveContainer width="100%" height={300}><LineChart data={slope}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="moment" /><YAxis domain={[0, 100]} /><Tooltip /><Legend />{chart.map((row, position) => <Line key={row.name} dataKey={`category${position}`} name={row.name} stroke={categoryColor(row.name)} connectNulls={false} />)}</LineChart></ResponsiveContainer> : <p>Sin categorías seleccionadas.</p>}</div></Card>
-      <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Índice de alfabetización ambiental</h2><Button variant="secondary" size="sm" disabled={!index || index.pre === null && index.post === null} aria-label="Descargar Índice de alfabetización ambiental en PNG" onClick={() => { if (indexRef.current) exportChartAsPng(indexRef.current, `curso-${result.courseId}-indice-alfabetizacion`, 2, momentLegend); }}>Descargar PNG</Button></div><div ref={indexRef}><p className="mb-3 text-sm">Resultado global sobre 100.</p>{index && (index.pre !== null || index.post !== null) ? <ResponsiveContainer width="100%" height={260}><BarChart data={[{ name: "IAA", pre: index.pre, post: index.post }]}><XAxis dataKey="name" /><YAxis domain={[0, 100]} /><Tooltip /><Legend /><Bar dataKey="pre" name="Pre" fill="#ef8200" /><Bar dataKey="post" name="Post" fill="#4297b5" /></BarChart></ResponsiveContainer> : <p>Se requieren distribuciones completas y respuestas válidas para el índice.</p>}</div></Card>
+      <Card className="lg:col-span-2">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Índice de alfabetización ambiental</h2>
+          <Button variant="secondary" size="sm" disabled={!indexCategories?.length || index?.[indexMoment] == null} aria-label="Descargar Índice de alfabetización ambiental en PNG" onClick={() => { if (indexRef.current && indexCategories) exportChartAsPng(indexRef.current, `curso-${result.courseId}-indice-alfabetizacion-${indexMoment}`, 2, indexCategories.map(category => ({ label: category.label, color: category.color }))); }}>Descargar PNG</Button>
+        </div>
+        <Dropdown label="Momento del índice" value={indexMoment} options={[{ value: "pre", label: "Pre" }, { value: "post", label: "Post" }]} onChange={value => { if (value === "pre" || value === "post") setIndexMoment(value); }} />
+        <p className="my-3 text-sm">Categorías en el anillo interior y subcategorías en el exterior. Pre {percent(index?.pre ?? null)} · Post {percent(index?.post ?? null)}.</p>
+        <div ref={indexRef} className="flex justify-center">
+          {indexCategories?.length && index ? <HierarchicalProgressDonut title={`IAA · ${indexMoment === "pre" ? "Pre" : "Post"}`} value={index[indexMoment] === null ? null : Number(index[indexMoment]!.toFixed(2))} categories={indexCategories} size={360} /> : <p>Se requieren distribuciones completas y respuestas válidas para el índice.</p>}
+        </div>
+      </Card>
     </div></details>
     <Card><details><summary className="cursor-pointer font-semibold">Información por categoría · {categories.length} filas</summary><div className="mt-4"><fieldset className="mb-4 flex flex-wrap gap-4"><legend className="mb-2 text-sm">Columnas opcionales</legend>{[["weight", "Peso"], ["questionMaximum", "Máximo por pregunta"], ["maximum", "Máximo normalizado"], ["sd", "Desviación estándar"], ["color", "Mostrar por color"]].map(([key, label]) => <label key={key} className="flex items-center gap-2"><input type="checkbox" checked={categoryOptions.includes(key!)} onChange={() => toggle(key!, categoryOptions, setCategoryOptions)} />{label}</label>)}</fieldset>{categoryOptions.includes("sd") && <p className="mb-3 text-sm">La desviación estándar describe puntajes por envío en escala de 0 a 100 y muestra su propia media. La media ponderada de la tabla sigue la agregación por pregunta.</p>}<Table rows={categories} keyExtractor={row => JSON.stringify([row.definitionId, row.category, row.subcategory])} columns={categoryColumns} pageSize={10} /></div></details></Card>
     <Card><details><summary className="cursor-pointer font-semibold">Información por pregunta · {questions.length} preguntas</summary><div className="mt-4"><div className="mb-4 flex flex-wrap items-end gap-4"><Dropdown label="Orden de preguntas" value={order} onChange={setOrder} options={[{ value: "category-desc", label: "Mayor a menor por categoría y subcategoría" }, { value: "category-asc", label: "Menor a mayor por categoría y subcategoría" }, { value: "global-asc", label: "Menor a mayor entre todas las preguntas" }, { value: "global-desc", label: "Mayor a menor entre todas las preguntas" }]} />{[["maximum", "Máximo"], ["rank", "Rank global"]].map(([key, label]) => <label key={key} className="flex items-center gap-2"><input type="checkbox" checked={questionOptions.includes(key!)} onChange={() => toggle(key!, questionOptions, setQuestionOptions)} />{label}</label>)}</div><p className="mb-3 text-sm">El promedio se expresa en puntos y porcentaje de su máximo. El cambio es Post − Pre en puntos porcentuales. Las preguntas sin comparación aparecen al final de su grupo.</p><Table rows={questions} keyExtractor={row => row.id} columns={questionColumns} pageSize={10} /></div></details></Card>

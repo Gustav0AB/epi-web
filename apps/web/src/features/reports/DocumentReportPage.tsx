@@ -1,6 +1,6 @@
 import { useState } from "react";
 import DownloadIcon from "@mui/icons-material/Download";
-import { Button } from "../../shared/components";
+import { Button } from "@epi/ui";
 import type { ReportData, ReportTemplate } from "./templates/types";
 import { ReportRenderer } from "./components/ReportRenderer";
 import { ReportPrintHeader } from "./components/ReportPrintHeader";
@@ -20,7 +20,7 @@ type DocumentReportPageProps = {
 // @react-pdf/renderer (lib/document-pdf.tsx) — no window.print(): el donante
 // se lleva un documento con el formato institucional, no una captura de la
 // pantalla.
-export function DocumentReportPage({ template, data, appliedFilters, notice }: DocumentReportPageProps) {
+export function ReportPdfDownload({ template, data, appliedFilters, notice }: DocumentReportPageProps) {
   const { t } = useI18n();
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,15 +43,23 @@ export function DocumentReportPage({ template, data, appliedFilters, notice }: D
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="print:hidden mb-4 flex justify-end">
-        <Button variant="secondary" size="sm" onClick={() => void handleDownloadPdf()} disabled={generating}>
-          <DownloadIcon style={{ fontSize: 16 }} className="mr-1.5" />
-          {generating ? t("documentReport.generatingPdf") : t("documentReport.downloadPdf")}
-        </Button>
-      </div>
-
+    <>
+      <Button variant="secondary" size="sm" onClick={() => void handleDownloadPdf()} disabled={generating}>
+        <DownloadIcon style={{ fontSize: 16 }} className="mr-1.5" />
+        {generating ? t("documentReport.generatingPdf") : t("documentReport.downloadPdf")}
+      </Button>
       {error && <p role="alert" className="text-danger">{error}</p>}
+    </>
+  );
+}
+
+export function DocumentReportPage(props: DocumentReportPageProps) {
+  const { template, data, appliedFilters, notice } = props;
+  return (
+    <div className="mx-auto max-w-3xl">
+      <div className="print:hidden mb-4 flex flex-col items-end gap-2">
+        <ReportPdfDownload {...props} />
+      </div>
       <div id="report-document" className="rounded-lg border border-gray-200 bg-white p-10 print:border-0 print:p-0">
         {notice && <p className="mb-4 rounded border border-amber-500 p-3 font-semibold">{notice}</p>}
         <ReportPrintHeader title={template.title} subtitle={template.subtitle} appliedFilters={appliedFilters} />

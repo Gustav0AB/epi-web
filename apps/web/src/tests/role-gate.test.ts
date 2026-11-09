@@ -32,12 +32,12 @@ describe("getDefaultRoute", () => {
     expect(getDefaultRoute(user({ featureKeys: ["surveys"] }))).toBe("/courses");
     expect(getDefaultRoute(user({ featureKeys: ["scoring"] }))).toBe("/instruments/scoring");
     expect(getDefaultRoute(user({ featureKeys: ["open_questions"] }))).toBe("/courses/open-questions");
-    expect(getDefaultRoute(user({ featureKeys: [] }))).toBe("/published-courses");
+    expect(getDefaultRoute(user({ featureKeys: [] }))).toBe("/reports");
   });
 
   it("sends every report viewer to site publications without template assignments", () => {
-    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["reports"] }))).toBe("/published-courses");
-    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["interactive_reports"] }))).toBe("/published-courses");
-    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: [] }))).toBe("/published-courses");
+    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["reports"] }))).toBe("/interactive-reports");
+    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: ["interactive_reports"] }))).toBe("/interactive-reports");
+    expect(getDefaultRoute(user({ role: "report_viewer", reportTemplateKeys: [] }))).toBe("/interactive-reports");
   });
 });

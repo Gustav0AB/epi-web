@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { SubmissionContextReviewSchema, type CourseResponseDto } from "@epi/shared";
-import { Button, Modal, TextField } from "../../shared/components";
+import { Button, Modal, TextField } from "@epi/ui";
 import { surveyApi } from "./api";
 export function CourseResponseContextModal({ response, onClose, onSaved }: { response: CourseResponseDto; onClose: () => void; onSaved: () => Promise<void> }) {
   const [school, setSchool] = useState(response.context.school ?? ""); const [date, setDate] = useState(response.context.date ?? "");

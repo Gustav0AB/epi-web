@@ -1,4 +1,5 @@
-import Logo from "../../../assets/epi-logo.png";
+import Logo from "../../../assets/logo.svg";
+import LogoText from "../../../assets/logo-text.svg";
 import { useI18n } from "../../../lib/i18n";
 
 type AppliedFilter = { label: string; value: string };
@@ -18,7 +19,10 @@ export function ReportPrintHeader({ title, subtitle, appliedFilters }: ReportPri
   return (
     <>
       <header className="mb-8 flex flex-col items-start justify-between gap-4 border-b border-gray-200 pb-6 sm:flex-row sm:items-center">
-        <img src={Logo} alt="Ecology Project International" className="h-12 w-auto" />
+        <div className="flex items-center gap-2">
+          <img src={Logo} alt="" className="h-12 w-auto" />
+          <img src={LogoText} alt={t("app.name")} className="h-6 w-auto" />
+        </div>
         <div className="text-left sm:text-right">
           <h1 className="text-xl font-bold text-gray-900">{title}</h1>
           {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}

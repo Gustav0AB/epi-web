@@ -33,8 +33,8 @@ async function record(actor: JwtPayload, action: AuditAction, target?: Target, m
         ...(metadata !== undefined && { metadata: metadata as Prisma.InputJsonValue }),
       },
     });
-  } catch (err) {
-    console.error("audit log write failed", action, err);
+  } catch {
+    console.error(JSON.stringify({ event: "audit_write_failed", action }));
   }
 }
 

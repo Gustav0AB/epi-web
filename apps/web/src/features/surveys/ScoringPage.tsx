@@ -12,8 +12,8 @@ import type {
   WeightImportResult,
 } from "@epi/shared";
 import { QUESTION_TYPES } from "@epi/shared";
-import { Button, Card, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
-import type { Column, DropdownOption } from "../../shared/components";
+import { Button, Card, Dropdown, Label, Modal, Table, TextField } from "@epi/ui";
+import type { Column, DropdownOption } from "@epi/ui";
 import { surveyApi } from "./api";
 import { useI18n } from "../../lib/i18n";
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SchoolCatalogDto } from "@epi/shared";
 import { apiClient } from "../../lib/api-client";
-import { Button, Card, Dropdown, Label, Table } from "../../shared/components";
+import { Button, Card, Dropdown, Label, Table } from "@epi/ui";
 
 export function SchoolCatalog() {
   const [data, setData] = useState<SchoolCatalogDto>({ schools: [], unresolvedCount: 0 });

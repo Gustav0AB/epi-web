@@ -1,19 +1,9 @@
 import type { ApiResponse } from "@epi/shared";
 import { useAuthStore } from "../store/auth.store";
 import { resolveOfflineGet, applyOptimisticWrite } from "./offline";
+import { ApiError } from "./error-messages";
 
 const BASE_URL = import.meta.env["VITE_API_URL"] ?? "";
-
-class ApiError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public details?: unknown
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
 
 type WriteMethod = "POST" | "PATCH" | "DELETE";
 
@@ -33,26 +23,26 @@ async function request<T>(
 
   const token = useAuthStore.getState().token;
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  return onlineRequest<T>(`${BASE_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
   });
+}
 
-  const json = (await response.json()) as ApiResponse<T>;
-
+export async function onlineRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try { response = await fetch(path, options); }
+  catch { throw new ApiError("NETWORK_ERROR"); }
+  let json: ApiResponse<T>;
+  try { json = await response.json(); }
+  catch { throw new ApiError("INTERNAL_ERROR"); }
+  if (!json || typeof json.success !== "boolean") throw new ApiError("INTERNAL_ERROR");
   if (!json.success) {
-    // Token inválido/expirado, cuenta desactivada o sesión revocada
-    // (ver requireAuth) — cierra sesión localmente; ProtectedRoute
-    // redirige a /login en el siguiente render.
-    if (json.error.code === "UNAUTHORIZED") {
-      useAuthStore.getState().logout();
-    }
-    throw new ApiError(json.error.code, json.error.message, json.error.details);
+    const code = typeof json.error?.code === "string" ? json.error.code : "UNKNOWN";
+    if (code === "UNAUTHORIZED") useAuthStore.getState().logout();
+    throw new ApiError(code, response.status >= 500 ? undefined : json.error?.message);
   }
+  if (response.ok === false) throw new ApiError("INTERNAL_ERROR");
 
   return json.data;
 }

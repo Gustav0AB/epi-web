@@ -40,6 +40,22 @@ describe("E6 course draft and existing templates", () => {
   for (const value of [{ ...draft, templateKey: "unknown" },{ ...draft, textContent: { overallImprovement: "100" } },{ ...draft, textContent: { studentQuote: "x".repeat(5001) } },{ ...draft, from: "2026-11-05", to: "2026-11-01" }]) expect(CourseReportDraftSchema.safeParse(value).success).toBe(false);
   expect(SaveCourseReportDraftSchema.safeParse({ expectedRevision: -1, draft }).success).toBe(false);
  });
+ it("preserves manual image URLs in the preview and rejects unsafe addresses", () => {
+  const withImages = { ...draft, textContent: { ...draft.textContent, heroPhotoUrl: "https://example.test/foto.jpg", coursePhotoUrl: "https://example.test/curso.jpg", coursePhotoCaption: "Actividad" } };
+  expect(CourseReportDraftSchema.safeParse(withImages).success).toBe(true);
+  expect(buildCourseReportPreview(result, withImages).data.texts.coursePhotoCaption).toBe("Actividad");
+  expect(CourseReportDraftSchema.safeParse({ ...draft, textContent: { heroPhotoUrl: "javascript:alert(1)" } }).success).toBe(false);
+ });
+ it("lets a report editor select images and edit manual fields in place", () => {
+  const output = buildCourseReportPreview(result,draft);
+  const html = renderToStaticMarkup(<ReportRenderer {...output} editContent={() => {}} editImage={() => {}} />);
+  expect(html).toContain('type="file"'); expect(html).toContain('aria-label="Fotografía de portada"');
+  expect(html).toContain('aria-label="Testimonio"'); expect(html).toContain('aria-label="Pie de foto"');
+  const image = "data:image/png;base64,iVBORw0KGgoAAA==";
+  expect(CourseReportDraftSchema.safeParse({ ...draft, textContent: { heroPhotoUrl: image } }).success).toBe(true);
+  expect(buildCourseReportPreview(result, { ...draft, textContent: { heroPhotoUrl: image } }).data.texts.heroPhotoUrl).toBe(image);
+  expect(CourseReportDraftSchema.safeParse({ ...draft, textContent: { heroPhotoUrl: "data:image/svg+xml;base64,AAAA" } }).success).toBe(false);
+ });
  it("sends draft revision and explicit content to the scoped endpoint", async () => {
   const fetch = vi.fn().mockResolvedValue({ json: () => Promise.resolve({ success: true, data: {} }) }); vi.stubGlobal("fetch",fetch);
   await surveyApi.saveCourseReportDraft("course/id",3,draft);

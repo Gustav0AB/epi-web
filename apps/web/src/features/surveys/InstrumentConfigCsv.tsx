@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { SurveySetupDraft, CategoryDto, SiteDto } from "@epi/shared";
-import { Button, Table, TextField } from "../../shared/components";
+import { Button, Table, TextField } from "@epi/ui";
 import { previewInstrumentConfigCsv } from "./instrument-config-csv";
 import { exportInstrumentTableCsv, hasScoreValues, previewInstrumentTable, readInstrumentTableCsv, type ConfigQuestion, type ConfigRow } from "./instrument-config-table";
 

@@ -19,8 +19,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, Dropdown, Label, List } from "../shared/components";
-import type { DropdownOption } from "../shared/components";
+import { Card, Dropdown, Label, List } from "@epi/ui";
+import type { DropdownOption } from "@epi/ui";
 import { surveyApi } from "../features/surveys/api";
 import { StatusBadge } from "../features/surveys/StatusBadge";
 import { useI18n } from "../lib/i18n";

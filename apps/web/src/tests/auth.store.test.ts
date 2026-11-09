@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/error-messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { User } from "@epi/shared";
 import { useAuthStore } from "../store/auth.store";
@@ -37,7 +38,7 @@ afterEach(() => {
 });
 
 describe("useAuthStore", () => {
-  it("logs in, stores the token, loads the user, and seeds local data", async () => {
+  it("logs in and skips cache seeding when a password change is required", async () => {
     const token = tokenWith({ sub: user.id, role: user.role });
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({
@@ -58,7 +59,19 @@ describe("useAuthStore", () => {
       currentUser: user,
       mustChangePassword: true,
     });
+    expect(seedDatabase).not.toHaveBeenCalled();
+  });
+
+  it("keeps the authenticated session when optional cache seeding fails", async () => {
+    const token = tokenWith({ sub: user.id, role: user.role });
+    vi.mocked(seedDatabase).mockRejectedValueOnce(new Error("cache unavailable"));
+    vi.stubGlobal("navigator", { onLine: true });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ json: async () => ({ success: true, data: { accessToken: token, mustChangePassword: false } }) })
+      .mockResolvedValueOnce({ json: async () => ({ success: true, data: user }) }));
+    await expect(useAuthStore.getState().login({ username: "ana_demo", password: "password123" })).resolves.toBeUndefined();
     expect(seedDatabase).toHaveBeenCalledWith(token);
+    expect(useAuthStore.getState()).toMatchObject({ isAuthenticated: true, error: null });
   });
 
   it("stores login errors and can clear them", async () => {
@@ -70,9 +83,9 @@ describe("useAuthStore", () => {
       })
     );
 
-    await expect(useAuthStore.getState().login({ username: "ana_demo", password: "bad" })).rejects.toThrow("Bad login");
+    await expect(useAuthStore.getState().login({ username: "ana_demo", password: "bad" })).rejects.toThrow(errorMessage("UNAUTHORIZED"));
 
-    expect(useAuthStore.getState()).toMatchObject({ error: "Bad login", isLoading: false });
+    expect(useAuthStore.getState()).toMatchObject({ error: errorMessage("UNAUTHORIZED"), errorCode: "UNAUTHORIZED", isLoading: false });
     useAuthStore.getState().clearError();
     expect(useAuthStore.getState().error).toBeNull();
   });

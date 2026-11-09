@@ -7,7 +7,7 @@ export function getDefaultRoute(user: User): string {
     if (user.featureKeys.includes("surveys")) return "/courses";
     if (user.featureKeys.includes("scoring")) return "/instruments/scoring";
     if (user.featureKeys.includes("open_questions")) return "/courses/open-questions";
-    return "/published-courses";
+    return "/reports";
   }
-  return "/published-courses";
+  return "/interactive-reports";
 }

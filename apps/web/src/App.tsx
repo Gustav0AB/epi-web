@@ -1,7 +1,10 @@
+import { InteractiveCourseReportPage } from "./features/reports/InteractiveCourseReportPage";
+import { CourseReportPage } from "./features/reports/CourseReportPage";
 import { PublishedCourseReportsPage } from "./features/reports/PublishedCourseReportsPage";
 import { useEffect } from "react";
-import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink, Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { AppLayout } from "./layouts/AppLayout";
+import { ReportLayout } from "./layouts/ReportLayout";
 import { ProtectedRoute } from "./router/ProtectedRoute";
 import { PublicRoute } from "./router/PublicRoute";
 import { RoleGate } from "./router/RoleGate";
@@ -66,9 +69,20 @@ function CourseRedirect({ to }: { to: string }) {
   return <Navigate to={to + search + hash} replace />;
 }
 
+function PublishedReportRedirect() {
+  const { publicationId } = useParams();
+  return <CourseRedirect to={publicationId ? `/reports/${encodeURIComponent(publicationId)}` : "/reports"} />;
+}
+
+function InteractiveReportRedirect() {
+  const { publicationId } = useParams();
+  return <CourseRedirect to={publicationId ? `/interactive-reports/${encodeURIComponent(publicationId)}` : "/interactive-reports"} />;
+}
+
 export default function App() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const currentUser = useAuthStore((s) => s.currentUser);
+  const reportViewer = currentUser?.role === "report_viewer";
 
   useEffect(() => {
     initSync();
@@ -80,11 +94,24 @@ export default function App() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route element={<AppLayout />}><Route path="/published-courses" element={<PublishedCourseReportsPage />} /><Route path="/published-courses/:publicationId" element={<PublishedCourseReportsPage />} /></Route>
+        <Route element={<RoleGate allow="published_reports" />}>
+          <Route element={<ReportLayout />}>
+            <Route path="/interactive-reports/:publicationId?" element={<InteractiveCourseReportPage />} />
+          </Route>
+          <Route path="/reports/latest" element={<InteractiveReportRedirect />} />
+          <Route element={reportViewer ? <Outlet /> : <AppLayout />}>
+            <Route path="/reports" element={reportViewer ? <InteractiveReportRedirect /> : <PublishedCourseReportsPage />} />
+            <Route path="/reports/:publicationId" element={reportViewer ? <InteractiveReportRedirect /> : <PublishedCourseReportsPage />} />
+          </Route>
+        </Route>
+        <Route element={<RoleGate allow="functionality" featureKey="surveys" />}>
+          <Route element={<AppLayout />}><Route path="/reports/prepare/:id" element={<CourseReportPage />} /></Route>
+        </Route>
+        <Route path="/published-courses" element={<PublishedReportRedirect />} />
+        <Route path="/published-courses/:publicationId" element={<PublishedReportRedirect />} />
         <Route path="/no-access" element={<NoAccessPage />} />
 
-        <Route path="/interactive-reports" element={<Navigate to="/published-courses" replace />} />
-        <Route path="/report-assignments" element={<Navigate to="/published-courses" replace />} />
+        <Route path="/report-assignments" element={<Navigate to="/reports" replace />} />
 
         {/* Reportes: con sidebar — herramienta interna del usuario operativo
             para ver la información de forma genérica y dar visto bueno,
@@ -93,7 +120,7 @@ export default function App() {
           element={<RoleGate allow="report_template" templateKey="reports" />}
         >
           <Route element={<AppLayout />}>
-            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports/builder" element={<ReportsPage />} />
           </Route>
         </Route>
 

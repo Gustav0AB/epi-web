@@ -1,5 +1,5 @@
 import type { SubmissionStatus } from "@epi/shared";
-import { Badge } from "../../shared/components";
+import { Badge } from "@epi/ui";
 import { useI18n, type I18nKey } from "../../lib/i18n";
 
 const MAP: Record<SubmissionStatus, { key: I18nKey; color: "green" | "yellow" | "red" }> = {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Modal } from "../shared/components/Modal";
+import { Modal } from "@epi/ui";
 import { migrationResult, migrationProgress } from "../features/surveys/migration-result";
 
 describe("assistant fixes", () => {

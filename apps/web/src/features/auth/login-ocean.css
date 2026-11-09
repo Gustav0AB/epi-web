@@ -1,0 +1,185 @@
+.login-page {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Flex items can stack without a new wrapper or changing their layout. */
+.login-page > :not(.login-ocean) {
+  z-index: 1;
+}
+
+.login-ocean {
+  --swim-cycle: 66s;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 34% 0%, rgb(141 193 192 / 50%), transparent 63%),
+    linear-gradient(168deg, #457f92 0%, #255b73 42%, #133c55 72%, #102739 100%);
+  animation: login-ocean-reveal 5s ease-in-out both;
+}
+
+.login-ocean * {
+  pointer-events: none;
+}
+
+.login-ocean__rays {
+  position: absolute;
+  inset: -8% -14% 0;
+  background: conic-gradient(
+    from 128deg at 38% -18%,
+    transparent 0deg, rgb(208 237 221 / 13%) 9deg, transparent 18deg,
+    rgb(208 237 221 / 18%) 28deg, transparent 38deg,
+    rgb(208 237 221 / 9%) 47deg, transparent 58deg,
+    rgb(208 237 221 / 15%) 64deg, transparent 78deg
+  );
+  mask-image: linear-gradient(black, rgb(0 0 0 / 42%) 52%, transparent 90%);
+  transform-origin: 38% 0;
+  animation: login-ocean-rays 28s ease-in-out infinite alternate;
+}
+
+.login-ocean__swimmer {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 63vw;
+  opacity: .85;
+  animation: login-ocean-cross var(--swim-cycle) linear infinite both;
+}
+
+.login-ocean__heading {
+  animation: login-ocean-heading var(--swim-cycle) steps(1, end) infinite both;
+}
+
+.login-ocean__swimmer-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  animation: login-ocean-drift 9s ease-in-out infinite alternate;
+}
+
+.login-ocean__tail {
+  transform-origin: 196px 145px;
+  animation: login-ocean-tail 5.5s ease-in-out infinite alternate;
+}
+
+.login-ocean__pectoral {
+  transform-origin: 673px 175px;
+  animation: login-ocean-fin 7s ease-in-out infinite alternate;
+}
+
+.login-ocean__particles {
+  position: absolute;
+  inset: -24px;
+  background:
+    radial-gradient(circle at 21px 41px, rgb(219 240 234 / 31%) 0 1px, transparent 1.5px) 0 0 / 173px 197px,
+    radial-gradient(circle at 98px 116px, rgb(219 240 234 / 23%) 0 1px, transparent 1.5px) 0 0 / 227px 241px,
+    radial-gradient(circle at 41px 82px, rgb(219 240 234 / 20%) 0 1.5px, transparent 2px) 0 0 / 359px 289px;
+  animation: login-ocean-particles 26s ease-in-out infinite alternate;
+}
+
+@keyframes login-ocean-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Each 33s half-cycle is 26s of swimming and 7s completely offscreen. */
+@keyframes login-ocean-cross {
+  0%, 89.393939%, 100% { transform: translate3d(calc(-100% - 2rem), 0, 0); }
+  39.393939%, 50% { transform: translate3d(calc(100vw + 2rem), 0, 0); }
+}
+
+@keyframes login-ocean-heading {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(-1); }
+}
+
+@keyframes login-ocean-drift {
+  from { transform: translateY(-53%) rotate(-.7deg); }
+  to { transform: translateY(-47%) rotate(.7deg); }
+}
+
+@keyframes login-ocean-tail {
+  from { transform: scaleX(.86) rotate(-3deg); }
+  to { transform: scaleX(1) rotate(4deg); }
+}
+
+@keyframes login-ocean-fin {
+  from { transform: rotate(-4deg); }
+  to { transform: rotate(4deg); }
+}
+
+@keyframes login-ocean-rays {
+  from { transform: rotate(-2deg); opacity: .7; }
+  to { transform: rotate(3deg); opacity: 1; }
+}
+
+@keyframes login-ocean-particles {
+  from { transform: translate3d(-9px, 13px, 0); }
+  to { transform: translate3d(14px, -17px, 0); }
+}
+
+@media (max-width: 640px) {
+  .login-ocean__swimmer {
+    top: 22%;
+    width: min(104vw, 480px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-ocean,
+  .login-ocean * {
+    animation: none;
+  }
+
+  .login-ocean__swimmer {
+    left: 6%;
+    transform: translateY(-50%);
+    opacity: .55;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .login-page:has(> .login-ocean) .login-brand__turtle {
+    --turtle-reach: min(23vw, 220px);
+    --turtle-rise: clamp(38px, calc(24vh - 70px), 130px);
+    transform-box: fill-box;
+    transform-origin: center;
+    --turtle-cycle: 38s;
+    --turtle-delay: 60s;
+    animation: login-turtle-swim var(--turtle-cycle) linear var(--turtle-delay) infinite;
+  }
+
+  .login-page:has(> .login-ocean) .login-brand__fin {
+    transform-box: fill-box;
+    animation: login-turtle-fin var(--turtle-cycle) ease-in-out var(--turtle-delay) infinite;
+  }
+
+  .login-brand__fin--near {
+    --fin-stroke: -15deg;
+    transform-origin: 85% 16%;
+  }
+
+  .login-brand__fin--far {
+    --fin-stroke: 17deg;
+    transform-origin: 12% 85%;
+  }
+}
+
+@keyframes login-turtle-swim {
+  0% { transform: translate(0, 0) rotate(0); }
+  8% { transform: translate(calc(var(--turtle-reach) * -.35), calc(var(--turtle-rise) * -.24)) rotate(-8deg); }
+  16% { transform: translate(calc(var(--turtle-reach) * -1), calc(var(--turtle-rise) * -.62)) rotate(35deg); }
+  26% { transform: translate(calc(var(--turtle-reach) * -.67), calc(var(--turtle-rise) * -1)) rotate(95deg); }
+  37% { transform: translate(calc(var(--turtle-reach) * .14), calc(var(--turtle-rise) * -1)) rotate(145deg); }
+  47% { transform: translate(calc(var(--turtle-reach) * .8), calc(var(--turtle-rise) * -.72)) rotate(196deg); }
+  56% { transform: translate(calc(var(--turtle-reach) * .73), calc(var(--turtle-rise) * -.4)) rotate(247deg); }
+  65% { transform: translate(calc(var(--turtle-reach) * .31), calc(var(--turtle-rise) * -.13)) rotate(304deg); }
+  74%, 100% { transform: translate(0, 0) rotate(360deg); }
+}
+
+@keyframes login-turtle-fin {
+  0%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 74%, 100% { transform: rotate(0); }
+  5%, 15%, 25%, 35%, 45%, 55%, 65% { transform: rotate(var(--fin-stroke)); }
+}

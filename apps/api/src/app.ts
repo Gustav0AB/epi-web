@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import { requestLog } from "./shared/http-log.js";
 import path from "node:path";
 import { env } from "./config/env.js";
 import { usersRouter } from "./modules/users/users.routes.js";
@@ -20,7 +21,7 @@ export function createApp() {
 
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
-  app.use(morgan(env.NODE_ENV === "development" ? "dev" : "combined"));
+  app.use(morgan((tokens, req, res) => requestLog(req as express.Request, res as express.Response, tokens["response-time"]?.(req, res))));
   app.use(express.json({ limit: "8mb" }));
   app.use(express.text({ type: "text/csv", limit: "1mb" }));
   app.use(express.urlencoded({ extended: true }));

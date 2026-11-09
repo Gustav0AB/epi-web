@@ -1,3 +1,4 @@
+import { ApiError } from "./api-client";
 import { db } from "./db";
 import type { User, PaginationMeta } from "@epi/shared";
 
@@ -12,7 +13,7 @@ async function fetchUsersPage(
     headers: { Authorization: `Bearer ${token}` },
   });
   const json = await res.json();
-  if (!json.success) throw new Error(json.error?.message ?? "Failed to fetch users");
+  if (!json.success) throw new ApiError(json.error?.code ?? "UNKNOWN", json.error?.message);
   return { data: json.data as User[], meta: json.meta as PaginationMeta };
 }
 

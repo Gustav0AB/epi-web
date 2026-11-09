@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { equalWeights, scoringGroups, type CategoryWeightSetting, type QuestionVisibility, type SubcategoryWeightSetting, type SurveySetupQuestion } from "@epi/shared";
 import { useEffect } from "react";
-import { Button, Dropdown, Label, Pagination, Table, TextField } from "../../shared/components";
+import { Button, Dropdown, Label, Pagination, Table, TextField } from "@epi/ui";
 import { useI18n } from "../../lib/i18n";
 
 type Question = SurveySetupQuestion & { options: string[]; visibility?: QuestionVisibility };

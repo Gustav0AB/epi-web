@@ -1,15 +1,6 @@
 import { useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  Dropdown,
-  Label,
-  List,
-  Table,
-  TextField,
-} from "../shared/components";
-import type { Column, DropdownOption } from "../shared/components";
+import { Badge, Button, Card, Dropdown, Label, List, Table, TextField } from "@epi/ui";
+import type { Column, DropdownOption } from "@epi/ui";
 
 function Section({
   title,

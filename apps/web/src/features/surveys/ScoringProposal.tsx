@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { AnalysisType, SurveySetupQuestion } from "@epi/shared";
-import { Button } from "../../shared/components";
+import { Button } from "@epi/ui";
 import { applyAutomaticScoringProposal } from "./setup-scoring-proposal";
 
 type Question = SurveySetupQuestion & { options: string[] };

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { HistoricalImportResult, HistoricalSubmissionDto, SurveyDefinitionDto } from "@epi/shared";
-import { Button, Card, DatePicker, Label } from "../../shared/components";
+import { Button, Card, DatePicker, Label } from "@epi/ui";
 import { surveyApi } from "./api";
 import { useI18n } from "../../lib/i18n";
 

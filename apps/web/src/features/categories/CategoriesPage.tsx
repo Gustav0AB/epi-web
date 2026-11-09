@@ -1,8 +1,9 @@
+import { onlineRequest } from "../../lib/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CategoryDto, CategoryImportPreview, CategoryImportResult, OrganizationDto } from "@epi/shared";
 import { CATEGORY_CSV_COLUMNS, csvCell } from "@epi/shared";
-import { Badge, Button, Card, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
-import type { Column, DropdownOption } from "../../shared/components";
+import { Badge, Button, Card, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "@epi/ui";
+import type { Column, DropdownOption } from "@epi/ui";
 
 const NEW_CATEGORY_VALUE = "__new__";
 
@@ -19,7 +20,7 @@ import { useI18n } from "../../lib/i18n";
 async function importCategoriesCsv<T>(csv: string, organizationId: string, preview = false): Promise<T> {
   const token = useAuthStore.getState().token;
   const qs = organizationId ? `?organizationId=${organizationId}` : "";
-  const res = await fetch(`/api/categories/import${preview ? "/preview" : ""}${qs}`, {
+  return onlineRequest<T>(`/api/categories/import${preview ? "/preview" : ""}${qs}`, {
     method: "POST",
     headers: {
       "Content-Type": "text/csv",
@@ -27,9 +28,7 @@ async function importCategoriesCsv<T>(csv: string, organizationId: string, previ
     },
     body: csv,
   });
-  const json = await res.json();
-  if (!res.ok || !json.success) throw new Error(json.error.message);
-  return json.data;
+
 }
 
 function download(filename: string, csv: string) {

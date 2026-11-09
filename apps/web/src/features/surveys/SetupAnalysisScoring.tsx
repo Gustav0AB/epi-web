@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { assistantScoringReady, scaleOptionPoints, setAssistantScoring, questionClassification, activeAnalysisWeights, setAnalysisWeights, type AnalysisWeights, ANALYSIS_TYPES, configuredForAnalysis, type AnalysisType, type SurveySetupQuestion } from "@epi/shared";
-import { Button, Dropdown, Pagination, Table, TextField } from "../../shared/components";
+import { Button, Dropdown, Pagination, Table, TextField } from "@epi/ui";
 
 import type { AnalysisReuseScope } from "./setup-analysis-reuse";
 import { ScoringProposal } from "./ScoringProposal";

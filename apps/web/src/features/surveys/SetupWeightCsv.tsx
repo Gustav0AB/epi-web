@@ -1,7 +1,7 @@
 import { exportWeightCsv } from "./weight-csv";
 import { useRef, useState } from "react";
 import type { SurveySetupQuestion, WeightInput } from "@epi/shared";
-import { Button, Table, TextField } from "../../shared/components";
+import { Button, Table, TextField } from "@epi/ui";
 import { useI18n } from "../../lib/i18n";
 import { previewSetupWeights, type WeightCsvRow } from "./setup-weight-csv";
 

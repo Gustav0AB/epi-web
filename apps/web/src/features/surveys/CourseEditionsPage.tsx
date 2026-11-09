@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ExpectedParticipantsSchema, CreateCourseEditionSchema, type CourseEditionDetailDto, type CourseEditionDto, type CourseOptionsDto, type CourseResponseDto, type CourseResponsePage, type CourseEditionsPage } from "@epi/shared";
-import { Button, Card, Dropdown, Label, Modal, Pagination, Table, TextField } from "../../shared/components";
+import { Button, Card, Dropdown, Label, Modal, Pagination, Table, TextField } from "@epi/ui";
 import { surveyApi } from "./api";
 import { CourseResponseContextModal } from "./CourseResponseContextModal";
 import { useAuthStore } from "../../store/auth.store";

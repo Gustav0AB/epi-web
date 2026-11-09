@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { canConfigureAnalysis, QUESTION_ROLES, type SurveySetupQuestion } from "@epi/shared";
 import { useI18n } from "../../lib/i18n";
-import { Badge, Dropdown, Table } from "../../shared/components";
+import { Badge, Dropdown, Table } from "@epi/ui";
 import { analysisScoringText } from "./SetupAnalysisScoring";
 
 type Question = SurveySetupQuestion & { options: string[] };

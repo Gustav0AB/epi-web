@@ -9,8 +9,9 @@ import { subcategoryChoices } from "./category-options";
 import { SurveySetupQuestionSchema, QUESTION_ROLES, QUESTION_TYPES, type SurveySetupQuestion } from "@epi/shared";
 import { useEffect, useRef, useState } from "react";
 import type { JotformLabelDto, CategoryDto, SurveySetupDto, FormQuestionsPreviewDto, JotformAccountDto, JotformFormDto, JotformFormsPage, SiteDto } from "@epi/shared";
-import { Badge, Button, Card, CatalogNameField, Dropdown, Label, Modal, Pagination, Table, TextField } from "../../shared/components";
-import type { Column } from "../../shared/components";
+import { Badge, Button, Card, Dropdown, Label, Modal, Pagination, Table, TextField } from "@epi/ui";
+import { CatalogNameField } from "../../shared/components";
+import type { Column } from "@epi/ui";
 import { surveyApi } from "./api";
 import { useI18n } from "../../lib/i18n";
 

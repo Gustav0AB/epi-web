@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { selectCourseResultCategories, buildCourseReportPreview, courseResponseCoverage, mostImprovedKnowledge, CourseExpectationUpdateSchema, CourseResultsQuerySchema, scorePrePostAnswer, type CourseResultsDto, type PrePostQuestion } from "@epi/shared";
-import { CourseComparison, instrumentIndicatorCategory, orderCourseQuestions, rankedCourseQuestions } from "../features/surveys/CourseComparison";
+import { CourseComparison, courseIndexDonutCategories, instrumentIndicatorCategory, orderCourseQuestions, rankedCourseQuestions } from "../features/surveys/CourseComparison";
 import { CourseResultsPage, CourseResultsView } from "../features/surveys/CourseResultsPage";
 import { surveyApi } from "../features/surveys/api";
 const base = { valid: 0, blank: 0, nonScorable: 0, invalid: 0, configurationPending: 0, zeroMaximum: 0, points: null, applicableMaximum: null };
@@ -31,8 +31,8 @@ describe("E5 scoring and auditable bases", () => {
   expect(fetch.mock.calls[0]![0]).toBe("/api/surveys/courses/course%2Fid/results?from=2026-11-01&to=2026-11-05");
  });
  it("propagates access errors rather than returning zero results", async () => {
-  vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ json: () => Promise.resolve({ success: false, error: { message: "Curso no disponible" } }) }));
-  await expect(surveyApi.courseResults("hidden")).rejects.toThrow("Curso no disponible");
+  vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ json: () => Promise.resolve({ success: false, error: { code: "NOT_FOUND", message: "Curso no disponible" } }) }));
+  await expect(surveyApi.courseResults("hidden")).rejects.toMatchObject({ code: "NOT_FOUND" });
  });
  it("shows wrong-answer zero separately from no data and states that indices are pending", () => {
   const html = renderToStaticMarkup(<CourseResultsView result={result} />);
@@ -151,4 +151,25 @@ it("publishes only selected categories and uses proportional weights without alt
  expect(JSON.stringify(original)).toBe(source);
  expect(selectCourseResultCategories(original,["A","B","C"]).aggregates).toBe(original.aggregates);
  for (const selection of [[],["Unknown"],["A","A"]]) expect(()=>selectCourseResultCategories(original,selection)).toThrow();
+});
+
+it("connects index donut rings to selected versioned categories and the requested moment", () => {
+ const row = (level: "category" | "subcategory" | "index", category: string | null, subcategory: string | null, pre: number | null, post: number | null) => ({ definitionId:result.primaryDefinitionId,instrument:"Instrumento",version:1,level,category,subcategory,pre,post,change:pre===null||post===null?null:post-pre,preEffectiveWeights:[],postEffectiveWeights:[],issue:null });
+ const data: CourseResultsDto = { ...result,aggregates:[
+  row("index",null,null,40,80),
+  row("category","Learning",null,20,70),
+  row("subcategory","Learning","Knowledge",null,65),
+  row("subcategory","Learning","Attitudes",40,75),
+  row("category","Dispositions",null,60,90),
+  row("subcategory","Dispositions","Habits",60,90),
+ ],distributions:[{...result.distributions[0]!,categoryWeights:[{category:"Learning",weight:60},{category:"Dispositions",weight:40}],subcategoryWeights:[{category:"Learning",subcategory:"Knowledge",weight:30},{category:"Learning",subcategory:"Attitudes",weight:70},{category:"Dispositions",subcategory:"Habits",weight:100}]}] };
+ const post=courseIndexDonutCategories(data,"post",()=>"#123456")!;
+ expect(post.map(category=>[category.label,category.weight,category.value])).toEqual([["Learning",60,70],["Dispositions",40,90]]);
+ expect(post[0]?.children.map(child=>[child.label,child.weight,child.value])).toEqual([["Knowledge",30,65],["Attitudes",70,75]]);
+ expect(courseIndexDonutCategories(data,"pre",()=>"#123456")?.[0]?.children[0]?.value).toBeNull();
+ expect(courseIndexDonutCategories({...data,distributions:[]},"post",()=>"#123456")).toBeNull();
+ const html=renderToStaticMarkup(<CourseComparison result={data}/>);
+ expect(html).toContain("IAA · Post");
+ expect(html).toContain('viewBox="0 0 360 360"');
+ expect(html).not.toContain("foreignObject");
 });

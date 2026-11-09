@@ -9,6 +9,7 @@ export const CourseMembershipSchema = z.object({ expectedRevision: z.number().in
 export type CourseMembershipInput = z.infer<typeof CourseMembershipSchema>;
 export const CourseResponseQuerySchema = z.object({ linked: z.literal("true").optional(), page: z.coerce.number().int().min(1).default(1), definitionId: z.string().uuid().optional(), from: z.string().date().optional(), to: z.string().date().optional() }).refine(input => !input.from || !input.to || input.from <= input.to, "Rango de fechas inválido");
 export const CourseListQuerySchema = z.object({ school: z.string().trim().max(200).optional(), activity: z.string().trim().max(200).optional(), siteId: z.string().uuid().optional(), page: z.coerce.number().int().min(1).default(1),
+  status: z.enum(["DRAFT", "REVIEWED", "COMPLETED"]).optional(),
   year: z.coerce.number().int().min(1900).max(9999).optional(),
   from: z.string().date().optional(), to: z.string().date().optional(),
   moment: z.enum(["PRE", "POST", "BOTH"]).optional(), submittedOn: z.string().date().optional(),

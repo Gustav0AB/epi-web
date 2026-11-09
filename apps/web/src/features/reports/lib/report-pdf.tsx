@@ -1,6 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import type { ReportRow } from "@epi/shared";
-import Logo from "../../../assets/epi-logo.png";
+import Logo from "../../../assets/logo.svg";
+import LogoText from "../../../assets/logo-text.svg";
 import type { ReportSection } from "../ReportsPage";
 import { filterSectionRows } from "./section-rows";
 import { downloadBlob } from "./chart-export";
@@ -14,7 +15,9 @@ const INK = "#52514e";
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, color: INK, fontFamily: "Helvetica" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #e5e2db" },
-  logo: { width: 90, height: 34, objectFit: "contain" },
+  brand: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logo: { width: 38, height: 34 },
+  logoText: { width: 106, height: 17 },
   headerRight: { alignItems: "flex-end" },
   docTitle: { fontSize: 15, fontWeight: 700, color: "#1f2937" },
   docDate: { fontSize: 8, color: "#9ca3af", marginTop: 3 },
@@ -133,8 +136,10 @@ function ReportDocument({ title, appliedFilters, sections, rows, t, locale = "es
     <Document title={title}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image no acepta alt */}
-          <Image src={Logo} style={styles.logo} />
+          <View style={styles.brand}>
+            <Image src={Logo} style={styles.logo} />
+            <Image src={LogoText} style={styles.logoText} />
+          </View>
           <View style={styles.headerRight}>
             <Text style={styles.docTitle}>{title}</Text>
             <Text style={styles.docDate}>

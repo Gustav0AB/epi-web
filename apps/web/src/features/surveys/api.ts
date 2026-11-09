@@ -1,3 +1,4 @@
+import { onlineRequest } from "../../lib/api-client";
 import type { CourseReportDraftDto, CourseReportDraft, CourseResultsDto, CourseOptionsDto, CourseEditionsPage, CourseEditionDto, CourseEditionDetailDto, CourseResponsePage, CreateCourseEditionInput, CourseMembershipInput, SubmissionContextReviewInput } from "@epi/shared";
 import type { AssistantMigrationProgress } from "@epi/shared";
 import type {
@@ -38,20 +39,30 @@ import { useAuthStore } from "../../store/auth.store";
 // enruta a IndexedDB offline y solo maneja JSON — aquí necesitamos también CSV.
 async function call<T>(path: string, options?: RequestInit): Promise<T> {
   const token = useAuthStore.getState().token;
-  const res = await fetch(path, {
+  return onlineRequest<T>(path, {
     ...options,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
-  const json = (await res.json()) as ApiResponse<T>;
-  if (!json.success) throw new Error(json.error.message);
-  return json.data;
+
 }
 
+export type PublishedReportFilterOptions = {
+  sites: { id: string; name: string; programs: string[] }[];
+  definitions: { id: string; siteId: string; name: string; kind: string | null; version: number; program: string | null }[];
+  publications: { id: string; courseId: string; name: string; school: string; version: number; siteId: string; definitionId: string; dates: string[] }[];
+};
+
 export const surveyApi = {
-  publishedCourseReports: (page = 1) => call<import("@epi/shared").CourseReportPublicationsPage>(`/api/surveys/published-courses?page=${page}`),
+  publishedReportAggregate: (filters: { definitionId: string; siteId?: string; program?: string; from: string; to: string }) =>
+    call<{ template: import("@epi/shared").ReportDocumentTemplate; data: import("@epi/shared").ReportData } | null>(`/api/surveys/published-report-aggregate?${new URLSearchParams(filters)}`),
+  publishedReportFilterOptions: () => call<PublishedReportFilterOptions>("/api/surveys/published-report-options"),
+  publishedCourseReports: (page = 1, school = "") => {
+    const query = new URLSearchParams({ page: String(page), ...(school ? { school } : {}) });
+    return call<import("@epi/shared").CourseReportPublicationsPage>(`/api/surveys/published-courses?${query}`);
+  },
   publishedCourseReport: (id: string) => call<import("@epi/shared").CourseReportPublication>(`/api/surveys/published-courses/${encodeURIComponent(id)}`),
   courseReportHistory: (id: string, page = 1) => call<import("@epi/shared").CourseReportPublicationsPage>(`/api/surveys/courses/${encodeURIComponent(id)}/publications?page=${page}`),
   publishCourseEdition: (id: string, expectedRevision: number, expectedVersion: number) => call<import("@epi/shared").CourseReportPublication>(`/api/surveys/courses/${encodeURIComponent(id)}/publications`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedRevision, expectedVersion }) }),

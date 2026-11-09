@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/error-messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "../store/auth.store";
 import { reportsApi } from "../features/reports/api";
@@ -52,6 +53,6 @@ describe("reportsApi", () => {
       })
     );
 
-    await expect(reportsApi.assigned()).rejects.toThrow("No access");
+    await expect(reportsApi.assigned()).rejects.toThrow(errorMessage("UNKNOWN"));
   });
 });

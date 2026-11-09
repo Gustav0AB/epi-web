@@ -5,7 +5,8 @@ import { useI18n } from "../lib/i18n";
 import LogoutIcon from "@mui/icons-material/Logout";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import Logo from "../assets/epi-logo.png";
+import Logo from "../assets/logo.svg";
+import LogoText from "../assets/logo-text.svg";
 import { ChangePasswordModal } from "../features/users/components/ChangePasswordModal";
 
 const LAST_SEEN_KEY = "notifications-last-seen";
@@ -94,8 +95,9 @@ export function Header() {
   return (
     <>
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 sm:px-6">
-        <div className="flex items-center gap-2.5">
-          <img src={Logo} alt={t("app.name")} className="h-8 w-auto sm:h-10" />
+        <div className="flex min-w-0 items-center gap-2 pr-2">
+          <img src={Logo} alt="" className="h-8 w-auto shrink-0 sm:h-10" />
+          <img src={LogoText} alt={t("app.name")} className="h-5 min-w-0 object-contain object-left sm:h-7" />
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-3">

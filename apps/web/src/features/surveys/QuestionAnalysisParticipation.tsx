@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ANALYSIS_TYPES, canConfigureAnalysis, configuredForAnalysis, setAnalysisParticipation, type SurveySetupQuestion } from "@epi/shared";
-import { Button, Pagination, Table } from "../../shared/components";
+import { Button, Pagination, Table } from "@epi/ui";
 import { useI18n } from "../../lib/i18n";
 
 const labels = { pre_post: "Pre/Post", pre_post_post: "Pre/Post + Post-post" };

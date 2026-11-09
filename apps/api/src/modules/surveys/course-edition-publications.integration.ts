@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../../db/prisma.js";
 import { createApp } from "../../app.js";
 import { env } from "../../config/env.js";
-import { groupMigratedCourseResponse, courseResults, createCourseEdition, setCourseMembership, saveCourseReportDraft, getCourseReportDraft, setCourseExpectedParticipants, publishCourseEdition, publishedCourseReport, courseReportHistory, listPublishedCourseReports } from "./course-editions.service.js";
+import { publishedReportFilterOptions, groupMigratedCourseResponse, courseResults, createCourseEdition, setCourseMembership, saveCourseReportDraft, getCourseReportDraft, setCourseExpectedParticipants, publishCourseEdition, publishedCourseReport, courseReportHistory, listPublishedCourseReports } from "./course-editions.service.js";
 import { surveysService, setSubmissionContext, setSubmissionMoment, setSubmissionExclusion } from "./surveys.service.js";
 assert.equal(process.env.NODE_ENV,"test"); assert.equal(new URL(process.env.DATABASE_URL!).pathname,"/epi_setup_test");
 try {
@@ -39,6 +39,14 @@ try {
  assert.equal(published.snapshot.result.aggregates.find(row => row.level === "category")?.standardDeviation?.pre.value, null);
  assert.equal(published.version,1); assert.equal(published.snapshot.document.data.kpis.overallImprovement,-50); assert.equal(published.snapshot.component,"learning");
  assert.equal((await publishedCourseReport(published.id,viewer.id)).id,published.id);
+ const viewerOptions = await publishedReportFilterOptions(viewer.id);
+ assert.deepEqual(viewerOptions.sites.map(item => item.id), [site.id]);
+ assert.ok(viewerOptions.definitions.some(item => item.id === definition.id));
+ assert.ok(viewerOptions.publications.some(item => item.id === published.id));
+ const deniedOptions = await publishedReportFilterOptions(denied.id);
+ assert.ok(!deniedOptions.definitions.some(item => item.id === definition.id));
+ assert.ok(!deniedOptions.publications.some(item => item.id === published.id));
+
  assert.equal((await publishedCourseReport(published.id,operator.id)).id,published.id);
  assert.equal((await listPublishedCourseReports({},operator.id)).rows.some(row => row.id === published.id),true);
  assert.equal((await listPublishedCourseReports({},viewer.id)).rows.some(row => row.id === published.id),true);

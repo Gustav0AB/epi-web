@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import type { OrganizationDto } from "@epi/shared";
-import { Badge, Button, ConfirmModal, Label, Modal, Table, TextField } from "../../shared/components";
-import type { Column } from "../../shared/components";
+import { Badge, Button, ConfirmModal, Label, Modal, Table, TextField } from "@epi/ui";
+import type { Column } from "@epi/ui";
 import { apiClient } from "../../lib/api-client";
 import { useI18n } from "../../lib/i18n";
 

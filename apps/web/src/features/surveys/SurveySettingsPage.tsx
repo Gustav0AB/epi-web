@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import type { SurveyDefinitionDto } from "@epi/shared";
-import { Label } from "../../shared/components";
+import { Label } from "@epi/ui";
 import { JotformFormsCatalog } from "./JotformFormsCatalog";
 import { UnregisteredForms } from "./UnregisteredForms";
 import { surveyApi } from "./api";

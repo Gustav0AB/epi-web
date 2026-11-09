@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { JotformAccountDto } from "@epi/shared";
-import { Badge, Button, Card, Label, Table, TextField } from "../../shared/components";
-import type { Column } from "../../shared/components";
+import { Badge, Button, Card, Label, Table, TextField } from "@epi/ui";
+import type { Column } from "@epi/ui";
 import { apiClient } from "../../lib/api-client";
 import { useI18n } from "../../lib/i18n";
 

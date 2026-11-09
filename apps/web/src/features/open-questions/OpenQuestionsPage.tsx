@@ -1,8 +1,8 @@
 import { useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { QuestionWithWeight, SurveyDefinitionDto } from "@epi/shared";
-import { Button, Card, Dropdown, Label } from "../../shared/components";
-import type { DropdownOption } from "../../shared/components";
+import { Button, Card, Dropdown, Label } from "@epi/ui";
+import type { DropdownOption } from "@epi/ui";
 import { surveyApi } from "../surveys/api";
 import { useI18n } from "../../lib/i18n";
 

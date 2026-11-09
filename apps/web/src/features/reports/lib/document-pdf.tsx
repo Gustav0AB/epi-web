@@ -1,5 +1,6 @@
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
-import Logo from "../../../assets/epi-logo.png";
+import Logo from "../../../assets/logo.svg";
+import LogoText from "../../../assets/logo-text.svg";
 import type { ReportData, ReportTemplate } from "../templates/types";
 import { formatValue } from "./format";
 import { downloadBlob } from "./chart-export";
@@ -10,7 +11,9 @@ const INK = "#52514e";
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, color: INK, fontFamily: "Helvetica" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #e5e2db" },
-  logo: { width: 90, height: 34, objectFit: "contain" },
+  brand: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logo: { width: 38, height: 34 },
+  logoText: { width: 106, height: 17 },
   headerRight: { alignItems: "flex-end" },
   docTitle: { fontSize: 15, fontWeight: 700, color: "#1f2937" },
   docSubtitle: { fontSize: 9, color: "#6b7280", marginTop: 2 },
@@ -183,8 +186,10 @@ export function InstitutionalDocument({ template, data, appliedFilters, generate
     <Document title={template.title}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image no acepta alt */}
-          <Image src={Logo} style={styles.logo} />
+          <View style={styles.brand}>
+            <Image src={Logo} style={styles.logo} />
+            <Image src={LogoText} style={styles.logoText} />
+          </View>
           <View style={styles.headerRight}>
             <Text style={styles.docTitle}>{template.title}</Text>
             {template.subtitle && <Text style={styles.docSubtitle}>{template.subtitle}</Text>}

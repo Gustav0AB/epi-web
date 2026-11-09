@@ -1,5 +1,5 @@
 import type { CourseResultsDto } from "@epi/shared";
-import { Card } from "../../shared/components";
+import { Card } from "@epi/ui";
 
 export function CourseCalculationWarnings({ result }: { result: CourseResultsDto }) {
   const warnings = result.groups.flatMap(group => (["pre", "post"] as const).flatMap(moment => {

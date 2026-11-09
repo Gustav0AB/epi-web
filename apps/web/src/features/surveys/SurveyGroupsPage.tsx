@@ -1,7 +1,7 @@
 import { CourseSelectionReview } from "./CourseSelectionReview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SiteDto, SurveyDefinitionDto, SurveyFilterField, SurveyGroupSearchRow } from "@epi/shared";
-import { Badge, Button, Card, DatePicker, Dropdown, Label, Table } from "../../shared/components";
+import { Badge, Button, Card, DatePicker, Dropdown, Label, Table } from "@epi/ui";
 import { useAuthStore } from "../../store/auth.store";
 import { surveyApi } from "./api";
 import { currentYearRange, surveyFilterOptions } from "./survey-filter-options";

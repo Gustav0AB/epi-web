@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { FEATURES_REGISTRY } from "@epi/shared";
 import type { User, CreateUserDto, Role } from "@epi/shared";
-import { Badge, Button, Label, Table } from "../../shared/components";
-import type { Column } from "../../shared/components";
+import { Badge, Button, Label, Table } from "@epi/ui";
+import type { Column } from "@epi/ui";
 import { useAuthStore } from "../../store/auth.store";
 import { apiClient } from "../../lib/api-client";
 import { CreateUserModal } from "./components/CreateUserModal";

@@ -4,20 +4,21 @@ import { CourseAnswerReview } from "./CourseAnswerReview";
 import { useAuthStore } from "../../store/auth.store";
 import { CourseResultsView } from "./CourseResultsPage";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { CourseResultsDto, SiteDto, CourseSubmissionDto, SurveyGroupSearchRow } from "@epi/shared";
-import { Button, Card, Dropdown, Label, Modal, Table, TextField } from "../../shared/components";
+import { Button, Card, Dropdown, Label, Modal, Table, TextField } from "@epi/ui";
 import { surveyApi } from "./api";
 
 type Props = { groups: SurveyGroupSearchRow[]; sites: SiteDto[]; onBack: () => void };
 
 export function CourseSelectionReview({ groups, sites, onBack }: Props) {
   const role = useAuthStore(state => state.currentUser?.role);
+  const navigate = useNavigate();
   const [courseId, setCourseId] = useState(groups.find(group => group.courseId)?.courseId);
   const completed = groups.some(group => group.courseStatus === "COMPLETED");
   const [includedCategories, setIncludedCategories] = useState<string[]>([]);
   const [storedDraft, setStoredDraft] = useState<CourseReportDraftDto | null>(null);
   const [result, setResult] = useState<CourseResultsDto | null>(null);
-  const [publicationVersion, setPublicationVersion] = useState<number | null>(null);
   const [resultError, setResultError] = useState<string | null>(null);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [answerReview, setAnswerReview] = useState<{ submissionId: string | null; onlyBlanks: boolean } | null>(null);
@@ -47,9 +48,9 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    setResult(null); setPublicationVersion(null); setResultError(null);
-    if (courseId) void Promise.all([surveyApi.courseResults(courseId), surveyApi.courseReportHistory(courseId), surveyApi.courseReportDraft(courseId)]).then(([result, history, draft]) => {
-      if (!cancelled) { setResult(result); setStoredDraft(draft); setIncludedCategories(result.categorySelection?.included ?? draft.draft.categories ?? courseResultCategories(result)); setPublicationVersion(history.rows[0]?.version ?? 0); }
+    setResult(null); setResultError(null);
+    if (courseId) void Promise.all([surveyApi.courseResults(courseId), surveyApi.courseReportDraft(courseId)]).then(([result, draft]) => {
+      if (!cancelled) { setResult(result); setStoredDraft(draft); setIncludedCategories(result.categorySelection?.included ?? draft.draft.categories ?? courseResultCategories(result)); }
     }).catch(error => { if (!cancelled) setResultError(error instanceof Error ? error.message : "No se pudieron cargar los resultados"); });
     return () => { cancelled = true; };
   }, [courseId, revision]);
@@ -73,11 +74,11 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
   }
 
   async function complete() {
-    if (!courseId || !result || publicationVersion === null) return;
+    if (!courseId || !result || !storedDraft || !publicationPreview) return;
     setSaving(true); setError(null);
     try {
-      await surveyApi.completeCourse(courseId, result.revision, publicationVersion, includedCategories);
-      onBack();
+      await surveyApi.saveCourseReportDraft(courseId, result.revision, { ...storedDraft.draft, categories: includedCategories, from: undefined, to: undefined });
+      navigate(`/reports/prepare/${encodeURIComponent(courseId)}`);
     } catch (error) {
       setError(error instanceof Error ? error.message : "No se pudo completar el curso");
       setCompleteOpen(false); setRevision(value => value + 1);
@@ -121,7 +122,7 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
         <div className="flex flex-wrap items-end gap-4">
           <TextField label="Total de alumnos" disabled={confirmed || saving} type="number" min={1} step={1} value={participants} onChange={event => setParticipants(event.target.value)} />
           <Button disabled={confirmed || loading || saving || !pre || !post || !Number.isSafeInteger(Number(participants)) || Number(participants) < 1} onClick={() => setConfirmOpen(true)}>{completed ? "Curso completado" : confirmed ? "Curso revisado" : "Confirmar curso"}</Button>
-          {confirmed && !completed && (role === "system_admin" || role === "org_admin") && <Button disabled={loading || saving || !publicationPreview || publicationVersion === null} onClick={() => setCompleteOpen(true)}>Completar y publicar</Button>}
+          {confirmed && !completed && (role === "system_admin" || role === "org_admin") && <Button disabled={loading || saving || !publicationPreview || !storedDraft} onClick={() => setCompleteOpen(true)}>Completar y publicar</Button>}
         </div>
         <p className="mt-2 text-sm">{confirmed ? "Curso revisado. Puedes continuar con las categorías y los resultados." : "El total inicial corresponde a Pre. Se guarda al confirmar el curso."}</p>
         <dl className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -156,9 +157,8 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
     <Modal open={completeOpen} width="60rem" title="Completar y publicar curso" onClose={() => { if (!saving) setCompleteOpen(false); }} footer={<><Button variant="secondary" disabled={saving} onClick={() => setCompleteOpen(false)}>Cancelar</Button><Button loading={saving} onClick={() => void complete()}>Completar y publicar</Button></>}>
       <p className="font-semibold">Categorías que se publicarán</p><p>{includedCategories.join(", ") || "Ninguna"}</p>
       <p className="mt-3 font-semibold">Categorías excluidas de esta publicación</p><p>{availableCategories.filter(category => !includedCategories.includes(category)).join(", ") || "Ninguna"}</p>
-      <p className="my-3">¿Estás de acuerdo con publicar esta selección? El índice se recalcula con las categorías incluidas y sus pesos proporcionales.</p>
-      <p>Se validará la cobertura de al menos 80% en Pre y Post, las reglas y los datos pendientes. Se publicarán los resultados de todas las aplicaciones del curso con la plantilla guardada o la plantilla General predeterminada.</p>
-      <p className="mt-3">Los resultados publicados quedarán congelados y disponibles para los usuarios autorizados del sitio. Las respuestas posteriores al cierre requerirán una revisión aparte.</p>
+      <p className="my-3">Esta selección se guardará para preparar el reporte. Podrás revisar los resultados y agregar contenido antes de publicar.</p>
+      <p>La publicación final validará cobertura, reglas y datos pendientes; todavía no se publicará información.</p>
     </Modal>
     <Modal open={confirmOpen} width="60rem" title="Confirmar curso" onClose={() => { if (!saving) setConfirmOpen(false); }} footer={<><Button variant="secondary" disabled={saving} onClick={() => setConfirmOpen(false)}>Cancelar</Button><Button loading={saving} onClick={() => void confirm()}>Confirmar curso</Button></>}>
       <p>Se guardarán {pre} respuestas Pre y {post} respuestas Post como un curso revisado, con {participants} alumnos esperados. Sus respuestas se mostrarán dentro del curso.</p>

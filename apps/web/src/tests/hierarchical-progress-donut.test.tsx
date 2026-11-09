@@ -35,8 +35,22 @@ describe("HierarchicalProgressDonut (standalone)", () => {
  });
  it("supports no data, an optional legend and independent instances", () => {
   expect(renderToStaticMarkup(<HierarchicalProgressDonut title="EPI" value={null} categories={[]} />)).toContain("No hay categorías");
-  expect(renderToStaticMarkup(<HierarchicalProgressDonut title="EPI" value={null} categories={categories} showLegend={false} />)).not.toContain("<figcaption");
+  expect(renderToStaticMarkup(<HierarchicalProgressDonut title="EPI" value={null} categories={categories} showLegend={false} />)).not.toContain("Categorías del índice");
   const html = renderToStaticMarkup(<><HierarchicalProgressDonut title="Uno" value={0} categories={categories} /><HierarchicalProgressDonut title="Dos" value={100} categories={categories} /></>); const ids = [...html.matchAll(/id="([^"]+)"/g)].map(m => m[1]); expect(new Set(ids).size).toBe(ids.length);
+ });
+ it("shows categories before the donut and a persistent detail panel without tooltips", () => {
+  const html = renderToStaticMarkup(<HierarchicalProgressDonut title="Índice general" value={73} categories={categories} />);
+  expect(html.indexOf("Categorías del índice")).toBeLessThan(html.indexOf("<svg"));
+  expect(html.indexOf('aria-label="Detalle de categoría"')).toBeGreaterThan(html.indexOf("</svg>"));
+  expect(html).toContain('aria-pressed="true"');
+  expect(html).toContain("Biodiversidad");
+  expect(html).toContain("Peso del índice");
+  expect(html).not.toContain('role="tooltip"');
+  const svg = html.slice(html.indexOf("<svg"), html.indexOf("</svg>"));
+  expect(svg.match(/<text /g)).toHaveLength(1);
+  expect(svg).toContain(">73%</text>");
+  expect(svg).toContain(donutArcPath(52,105,0,144));
+  expect(svg).toContain(donutArcPath(112,166,0,72));
  });
  it("rejects invalid arc geometry instead of generating NaN paths", () => {
   for(const args of [[0,1,0,10],[10,5,0,10],[10,20,20,10],[10,20,0,400],[10,20,NaN,10]]) expect(() => donutArcPath(...args as [number,number,number,number])).toThrow();

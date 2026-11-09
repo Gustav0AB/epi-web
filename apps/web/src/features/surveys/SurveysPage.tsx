@@ -8,9 +8,9 @@ import type {
   SurveyListItem,
 } from "@epi/shared";
 import { SUBMISSION_STATUSES } from "@epi/shared";
-import { Button, Card, DatePicker, Label, Table } from "../../shared/components";
-import type { Column, DropdownOption } from "../../shared/components";
-import { Dropdown } from "../../shared/components";
+import { Button, Card, DatePicker, Label, Table } from "@epi/ui";
+import type { Column, DropdownOption } from "@epi/ui";
+import { Dropdown } from "@epi/ui";
 import { surveyApi } from "./api";
 import { StatusBadge } from "./StatusBadge";
 import { useI18n } from "../../lib/i18n";

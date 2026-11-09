@@ -6,7 +6,7 @@ import type { Config } from "tailwindcss";
  * via CSS custom properties injected by ThemeProvider.
  */
 export default {
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  content: ["./index.html", "./src/**/*.{ts,tsx}", "../../../epi-ui/src/**/*.{ts,tsx}", "../../../epi-login/src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
