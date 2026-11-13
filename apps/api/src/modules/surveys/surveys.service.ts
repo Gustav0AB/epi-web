@@ -1,10 +1,11 @@
+import { relativeChange, learningContextIssues } from "@epi/shared";
 import { assertSubmissionCourseEditable } from "./surveys.repository.js";
 import { normalizeFormQuestions } from "./jotform-client.js";
 import { questionVisibility } from "./question-visibility.js";
 import { schoolCatalog } from "./school-catalog.js";
 import { configuredActivityContext } from "./activity-context.js";
 import { prisma } from "../../db/prisma.js";
-import { schoolContext, configuredSchoolContext, originalSubmissionDay, schoolGroupingContext } from "./school-context.js";
+import { schoolContext, configuredSchoolContext, originalSubmissionDay, schoolGroupingContext, resolvedStoredSchoolContext } from "./school-context.js";
 import { resolveSurveyMoment } from "./survey-moment.js";
 import { resolveParticipantIdentifier } from "./participant-identifier.js";
 import { applySetupQuestions } from "./jotform-questions.js";
@@ -129,6 +130,18 @@ export const surveysService = {
   listGroups: (userId: string) => resolveScope(userId).then((scope) => surveysRepository.distinctGroups(scope)),
   getDefinitionFilters: (id: string, userId: string) =>
     resolveScope(userId).then((scope) => surveysRepository.getDefinitionFilters(id, scope)),
+  referenceInstruments: async (userId: string) => {
+    const actor = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true, organizationId: true } });
+    if (actor.role !== "SYSTEM_ADMIN" && (actor.role !== "ORG_ADMIN" || !actor.organizationId)) throw Object.assign(new Error("Sin permisos para consultar configuraciones"), { statusCode: 403 });
+    return prisma.surveyDefinition.findMany({ where: actor.role === "SYSTEM_ADMIN" ? {} : { site: { organizationId: actor.organizationId } }, select: { id: true, instrumentName: true, jotformFormId: true, version: true, configurationVersion: true, site: { select: { id: true, name: true, organizationId: true } } }, orderBy: [{ instrumentName: "asc" }, { version: "desc" }] });
+  },
+  reusableConfiguration: async (id: string, userId: string) => {
+    const actor = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { role: true, organizationId: true } });
+    if (actor.role !== "SYSTEM_ADMIN" && (actor.role !== "ORG_ADMIN" || !actor.organizationId)) throw Object.assign(new Error("Sin permisos para consultar configuraciones"), { statusCode: 403 });
+    const definition = await prisma.surveyDefinition.findFirst({ where: { id, ...(actor.role === "SYSTEM_ADMIN" ? {} : { site: { organizationId: actor.organizationId } }) }, select: { analysisWeights: true, questions: { include: { weight: true }, orderBy: { externalId: "asc" } } } });
+    if (!definition) throw Object.assign(new Error("Instrumento no disponible"), { statusCode: 404 });
+    return definition;
+  },
   getDefinitionQuestions: (id: string, userId: string) =>
     resolveScope(userId).then((scope) => surveysRepository.getDefinitionQuestions(id, scope)),
   countSince: (from: Date, userId: string) =>
@@ -431,7 +444,7 @@ export async function listUnregisteredForms(): Promise<UnregisteredFormDto[]> {
 export async function listJotformLabels(accountId: string) {
   const account = (await surveysRepository.listJotformAccounts()).find((item) => item.id === accountId);
   if (!account) throw Object.assign(new Error("Cuenta Jotform no encontrada"), { statusCode: 404 });
-  return jotformClient.listLabels(account.apiKey);
+  return (await jotformClient.listLabels(account.apiKey)).filter(label => !(account.excludedLabelIds ?? []).includes(label.id));
 }
 
 /** GET /user/forms → guarda/actualiza el catálogo local y regresa el diff. */
@@ -525,19 +538,35 @@ export async function listJotformAccounts() {
     id: a.id,
     name: a.name,
     apiKeyPreview: maskApiKey(a.apiKey),
+    excludedLabelIds: a.excludedLabelIds ?? [],
     createdAt: a.createdAt.toISOString(),
   }));
 }
 
 export async function createJotformAccount(input: CreateJotformAccountInput) {
+  const labels = await jotformClient.listLabels(input.apiKey);
+  if (input.excludedLabelIds.some(id => !labels.some(label => label.id === id))) throw Object.assign(new Error("Hay etiquetas que ya no existen en la cuenta"), { statusCode: 400 });
   await jotformClient.listForms(input.apiKey);
   const account = await surveysRepository.createJotformAccount(input);
   return {
     id: account.id,
     name: account.name,
     apiKeyPreview: maskApiKey(account.apiKey),
+    excludedLabelIds: account.excludedLabelIds ?? [],
     createdAt: account.createdAt.toISOString(),
   };
+}
+
+export async function jotformAccountLabels(id: string) {
+  const account = (await surveysRepository.listJotformAccounts()).find(item => item.id === id);
+  if (!account) throw Object.assign(new Error("Cuenta Jotform no encontrada"), { statusCode: 404 });
+  return { labels: await jotformClient.listLabels(account.apiKey), excludedLabelIds: account.excludedLabelIds ?? [] };
+}
+export async function updateJotformAccountLabels(id: string, excludedLabelIds: string[]) {
+  const { labels } = await jotformAccountLabels(id);
+  if (excludedLabelIds.some(value => !labels.some(label => label.id === value))) throw Object.assign(new Error("Hay etiquetas que ya no existen en la cuenta"), { statusCode: 400 });
+  await surveysRepository.updateJotformAccountLabels(id, [...new Set(excludedLabelIds)]);
+  return { saved: true };
 }
 
 export async function deleteJotformAccount(id: string) {
@@ -634,6 +663,10 @@ export async function registerDefinition(
   const effectiveQuestions = applyMatrixDefaults(applySetupQuestions(scoredQuestions, setup?.draft.questions, setup?.draft.scoringWeightsVersion), setup?.draft.matrixDefaults);
   const configuredQuestions = setup?.draft.configurationMode === "instrument" ? effectiveQuestions.map(instrumentQuestion) : effectiveQuestions;
   if (setup?.draft.matrixDefaults?.some(group => !scoredQuestions.some(question => question.sourceContext?.matrix?.externalId === group.externalId))) throw Object.assign(new Error("Las matrices cambiaron; revisa sus reglas generales"), { statusCode: 409 });
+  if (setup?.draft.scoringWeightsVersion === 4 && setup.draft.instrumentKind === "LEARNING") {
+    const issues = learningContextIssues(configuredQuestions.filter(question => !question.sourceContext?.matrixParent));
+    if (issues.length) throw Object.assign(new Error(issues.join(" ")), { statusCode: 400, code: "BAD_REQUEST" });
+  }
   if (setup) await validateSetupQuestionCatalog(configuredQuestions, input.siteId, setup.draft.scoringWeightsVersion === 4);
   if (configuredQuestions.some(question => question.classification != null) && setup?.draft.scoringWeightsVersion !== 3 && setup?.draft.scoringWeightsVersion !== 4) throw Object.assign(new Error("La clasificación independiente requiere scoringWeightsVersion=3 o 4"), { statusCode: 400 });
   if ((setup?.draft.scoringWeightsVersion === 3 || setup?.draft.scoringWeightsVersion === 4) && setup.draft.instrumentKind !== "CQS" && configuredQuestions.some(question => (question.role ?? "SCORED") === "SCORED" && question.type !== "OPEN_TEXT" && question.analysisParticipation == null)) throw Object.assign(new Error("Configura la participación de cada pregunta evaluable, incluso si no participa en ningún análisis"), { statusCode: 400 });
@@ -840,7 +873,7 @@ export async function courseDetail(input: CourseDetailQuery, userId: string): Pr
     activityContext: ActivityContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.activityContext).data ?? null,
     contextRevision: row.contextRevision,
     confirmedContext: row.reviewSchool && row.reviewDate ? { school: row.reviewSchool, date: row.reviewDate, activity: row.reviewActivity, gender: row.reviewGender, age: row.reviewAge } : null,
-    schoolContext: SchoolContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext).data ?? null,
+    schoolContext: resolvedStoredSchoolContext((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext) ?? null,
     answers: row.answers.map((answer) => ({ questionId: answer.questionId, text: answer.question.text, value: answer.value })),
   }));
 }
@@ -858,28 +891,28 @@ export async function saveCourseExpectation(input: CourseExpectationInput, userI
 
 function reviewGroupSchool(row: { participant: { school: string | null } | null; reviewSchool?: string | null; rawJsonData?: unknown; surveyDefinition?: { configurationVersion?: number | null } | null }) {
   if (row.surveyDefinition?.configurationVersion !== 4) return row.participant?.school?.trim() || "Sin escuela";
-  const detected = SchoolContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext);
-  return row.reviewSchool?.trim() || detected.data?.school?.trim() || row.participant?.school?.trim() || "Sin escuela";
+  const detected = resolvedStoredSchoolContext((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext);
+  return row.reviewSchool?.trim() || detected?.school?.trim() || row.participant?.school?.trim() || "Sin escuela";
 }
 
 function reviewGroupDate(row: { receivedAt: Date; reviewDate?: string | null; rawJsonData?: unknown; surveyDefinition?: { configurationVersion?: number | null } | null }) {
   const received = row.receivedAt.toISOString().slice(0, 10);
   if (row.surveyDefinition?.configurationVersion !== 4) return received;
   const raw = row.rawJsonData as Prisma.JsonObject | null;
-  const detected = SchoolContextSchema.safeParse(raw?.schoolContext).data;
+  const detected = resolvedStoredSchoolContext(raw?.schoolContext);
   return row.reviewDate ?? detected?.groupingDate ?? detected?.extractedDate ?? originalSubmissionDay(raw?.created_at) ?? received;
 }
 
-function reviewRowKey(row: { receivedAt: Date; participant: { school: string | null } | null; reviewSchool?: string | null; reviewDate?: string | null; rawJsonData?: unknown; surveyDefinition: { siteId: string; configurationVersion?: number | null } | null }, reviewContext: boolean) {
+function reviewRowKey(row: { receivedAt: Date; participant: { school: string | null } | null; reviewSchool?: string | null; reviewDate?: string | null; reviewActivity?: string | null; rawJsonData?: unknown; surveyDefinition: { siteId: string; configurationVersion?: number | null } | null }, reviewContext: boolean) {
   const date = reviewContext ? reviewGroupDate(row) : row.receivedAt.toISOString().slice(0, 10);
   const school = reviewContext ? reviewGroupSchool(row) : row.participant?.school?.trim() || "Sin escuela";
   const siteId = row.surveyDefinition?.siteId ?? null;
-  return JSON.stringify(reviewContext && row.surveyDefinition?.configurationVersion === 4 ? [siteId, row.surveyDefinition && "id" in row.surveyDefinition ? row.surveyDefinition.id : null, ActivityContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.activityContext).data?.activity ?? (row.surveyDefinition && "activityName" in row.surveyDefinition ? row.surveyDefinition.activityName : null), date] : [siteId, date, school]);
+  return JSON.stringify(reviewContext && row.surveyDefinition?.configurationVersion === 4 ? [siteId, row.surveyDefinition && "id" in row.surveyDefinition ? row.surveyDefinition.id : null, row.reviewActivity ?? ActivityContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.activityContext).data?.activity ?? (row.surveyDefinition && "activityName" in row.surveyDefinition ? row.surveyDefinition.activityName : null), date, school.trim().replace(/\s+/g, " ").toLocaleLowerCase()] : [siteId, date, school]);
 }
 
 export function summarizeGroupSearchRows(
   rows: {
-    courseMembership?: { application: { course: { id: string; status: string; name: string; expectedParticipants?: number | null } } } | null;
+    courseMembership?: { application: { course: { id: string; status: string; name: string; school?: string; isOpenPublic?: boolean; expectedParticipants?: number | null } } } | null;
     reviewExcluded: boolean;
     status: SubmissionStatus;
     receivedAt: Date;
@@ -896,7 +929,7 @@ export function summarizeGroupSearchRows(
   const groups = new Map<
     string,
     {
-      courseId?: string; courseStatus?: "REVIEWED" | "COMPLETED"; courseName?: string; confirmedParticipants?: number | null; dates: Set<string>;
+      isOpenPublic?: boolean; courseId?: string; courseStatus?: "REVIEWED" | "COMPLETED"; courseName?: string; courseSchool?: string; confirmedParticipants?: number | null; dates: Set<string>;
       siteId: string | null;
       school: string;
       date: string;
@@ -923,7 +956,7 @@ export function summarizeGroupSearchRows(
     const key = confirmed ? course.id : reviewRowKey(row, reviewContext);
     let acc = groups.get(key);
     if (!acc) {
-      acc = { ...(confirmed ? { courseId: course.id, courseStatus: course.status as "REVIEWED" | "COMPLETED", courseName: course.name, confirmedParticipants: course.expectedParticipants } : {}), dates: new Set(), siteId, school, date, students: new Set(), schools: new Map(), excludedCount: 0, pendingCount: 0, versioned: false, savedCount: 0, errorCount: 0, preCount: 0, postCount: 0, cqsCount: 0, pre: [], post: [] };
+      acc = { ...(confirmed ? { courseId: course.id, courseStatus: course.status as "REVIEWED" | "COMPLETED", courseName: course.name, isOpenPublic: course.isOpenPublic, courseSchool: course.isOpenPublic ? "Abierto al público" : course.school, confirmedParticipants: course.expectedParticipants } : {}), dates: new Set(), siteId, school, date, students: new Set(), schools: new Map(), excludedCount: 0, pendingCount: 0, versioned: false, savedCount: 0, errorCount: 0, preCount: 0, postCount: 0, cqsCount: 0, pre: [], post: [] };
       groups.set(key, acc);
     }
     acc.dates.add(date);
@@ -956,7 +989,7 @@ export function summarizeGroupSearchRows(
     const manualExpectedParticipants = expectedByCourse.get(id) ?? null;
     const expected = manualExpectedParticipants ?? g.preCount;
     return {
-      ...(g.courseId ? { courseId: g.courseId, courseStatus: g.courseStatus, courseName: g.courseName, confirmedParticipants: g.confirmedParticipants, dates: [...g.dates].sort() } : {}),
+      ...(g.courseId ? { isOpenPublic: g.isOpenPublic ?? false, courseId: g.courseId, courseStatus: g.courseStatus, courseName: g.courseName, confirmedParticipants: g.confirmedParticipants, dates: [...g.dates].sort() } : {}),
       ...(g.versioned ? { versioned: true, savedCount: g.savedCount } : {}),
       ...(reviewContext ? { contextNeedsReview: g.schools.size > 1 || g.schools.has("Sin escuela") } : {}),
       excludedCount: g.excludedCount,
@@ -965,7 +998,7 @@ export function summarizeGroupSearchRows(
       manualExpectedParticipants,
       id,
       siteId: g.siteId,
-      school: reviewContext ? [...new Map([...g.schools.keys()].filter(school => school !== "Sin escuela").map(school => [school.toLocaleLowerCase(), school])).values()].sort((a, b) => a.localeCompare(b)).join(", ") || "Sin escuela" : g.school,
+      school: g.courseSchool ?? (reviewContext ? [...new Map([...g.schools.keys()].filter(school => school !== "Sin escuela").map(school => [school.toLocaleLowerCase(), school])).values()].sort((a, b) => a.localeCompare(b)).join(", ") || "Sin escuela" : g.school),
       date: g.date,
       studentsResponded: reviewContext ? Math.max(g.preCount, g.postCount) : g.students.size,
       expectedParticipants: expected,
@@ -977,7 +1010,7 @@ export function summarizeGroupSearchRows(
       preCount: g.preCount,
       postCount: g.postCount,
       cqsCount: g.cqsCount,
-      improvementPercent: !g.versioned && pre !== null && post !== null ? rounded(post - pre) : null,
+      improvementPercent: !g.versioned && relativeChange(pre, post) !== null ? rounded(relativeChange(pre, post)!) : null,
     };
   });
 
@@ -1115,7 +1148,7 @@ function emptyReportRow(name: string) { return { category: name, subcategory: nu
 export function makeDetailRow(name: string, rows: { pre: boolean; score: number; max: number }[]) {
   const average = (pre: boolean) => { const values = rows.filter((r) => r.pre === pre && r.max > 0); return values.length ? Math.round(values.reduce((sum, r) => sum + (r.score / r.max) * 100, 0) / values.length * 10) / 10 : null; };
   const pre = average(true), post = average(false);
-  return { category: name, subcategory: null, pre, post, change: pre !== null && post !== null ? Math.round((post - pre) * 10) / 10 : null };
+  return { category: name, subcategory: null, pre, post, change: relativeChange(pre, post) !== null ? Math.round(relativeChange(pre, post)! * 10) / 10 : null };
 }
 
 // % por (categoría, subcategoría): promedio de score/maxPossible por submission,
@@ -1156,7 +1189,7 @@ export function aggregateCategoryResults(
         subcategory: b.subcategory,
         pre,
         post,
-        change: pre !== null && post !== null ? Math.round((post - pre) * 10) / 10 : null,
+        change: relativeChange(pre, post) !== null ? Math.round(relativeChange(pre, post)! * 10) / 10 : null,
       };
     })
     .sort((a, b) => a.category.localeCompare(b.category) || (a.subcategory ?? "").localeCompare(b.subcategory ?? ""));

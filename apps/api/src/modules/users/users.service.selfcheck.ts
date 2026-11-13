@@ -82,6 +82,14 @@ usersRepository.create = (async (dto) => rawUser(dto)) as typeof usersRepository
 const dto = { name: "Test", username: "test", email: "test@example.com", password: "password123", role: "functionality_user" as const,
   organizationId: ORG_A, siteIds: [SITE_A], featureKeys: [], reportTemplateKeys: [] };
 await usersService.create(systemAdmin, dto);
+await assert.rejects(() => usersService.create(systemAdmin, { ...dto, role: "system_admin" }), /Solo puede existir/);
+await assert.rejects(() => usersService.update(systemAdmin, "u1", { role: "system_admin" }), /Solo puede existir/);
+const findUser = usersRepository.findById;
+usersRepository.findById = (async () => rawUser({ role: "SYSTEM_ADMIN", organizationId: null, siteIds: [] })) as typeof usersRepository.findById;
+await assert.rejects(() => usersService.update(systemAdmin, "u1", { isActive: false }), /debe permanecer activo/);
+await assert.rejects(() => usersService.update(systemAdmin, "u1", { role: "functionality_user" }), /debe permanecer activo/);
+await assert.rejects(() => usersService.delete(systemAdmin, "u1"), /no se puede eliminar/);
+usersRepository.findById = findUser;
 await assert.rejects(() => usersService.create(systemAdmin, { ...dto, siteIds: [] }), /at least one site/);
 await assert.rejects(() => usersService.create(systemAdmin, { ...dto, siteIds: [SITE_B] }), /siteIds must belong/);
 const schemaDto = { ...dto, organizationId: "00000000-0000-4000-8000-000000000001" };

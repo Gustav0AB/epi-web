@@ -1,0 +1,30 @@
+{
+  "name": "@epi/login",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "@epi/ui": "^0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/react": "^18.3.3",
+    "@epi/ui": "0.1.0"
+  }
+}

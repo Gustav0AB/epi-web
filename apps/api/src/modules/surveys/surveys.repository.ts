@@ -391,8 +391,8 @@ export const surveysRepository = {
         surveyMoment: true,
         participantId: true,
         surveyDefinition: { select: { id: true, siteId: true, activityName: true, configurationVersion: true } },
-        ...(args.includeContext ? { rawJsonData: true, reviewSchool: true, reviewDate: true, processingError: true } : {}),
-        courseMembership: { select: { application: { select: { course: { select: { id: true, status: true, name: true, expectedParticipants: true } } } } } },
+        ...(args.includeContext ? { rawJsonData: true, reviewSchool: true, reviewDate: true, reviewActivity: true, processingError: true } : {}),
+        courseMembership: { select: { application: { select: { course: { select: { id: true, status: true, name: true, school: true, isOpenPublic: true, expectedParticipants: true } } } } } },
         participant: { select: { school: true } },
         results: {
           select: {
@@ -677,7 +677,9 @@ export const surveysRepository = {
   // ── catálogo de formularios de Jotform (GET /user/forms cacheado) ────
 
   async listJotformForms(query: JotformFormsQuery) {
+    const exclusions = await prisma.jotformAccount.findMany({ where: { excludedLabelIds: { isEmpty: false } }, select: { id: true, excludedLabelIds: true } });
     const where: Prisma.JotformFormWhereInput = {
+      ...(exclusions.length ? { AND: [{ OR: [{ accountId: null }, { NOT: exclusions.map(account => ({ accountId: account.id, labelIds: { hasSome: account.excludedLabelIds } })) }] }] } : {}),
       ...(query.labelId ? { labelIds: { has: query.labelId } } : query.withoutLabels ? { labelIds: { isEmpty: true } } : {}),
       ...(query.accountId ? { accountId: query.accountId } : {}),
       ...(query.search ? { OR: [
@@ -686,6 +688,11 @@ export const surveysRepository = {
       ] } : {}),
     };
     return prisma.$transaction(async (tx) => {
+      if (query.registered) {
+        const definitions = await tx.surveyDefinition.findMany({ distinct: ["jotformFormId"], select: { jotformFormId: true } });
+        const ids = definitions.map(definition => definition.jotformFormId);
+        where.id = query.registered === "true" ? { in: ids } : { notIn: ids };
+      }
       const total = await tx.jotformForm.count({ where });
       const pageSize = 5;
       const totalPages = Math.ceil(total / pageSize);
@@ -733,12 +740,16 @@ export const surveysRepository = {
     return prisma.jotformAccount.findMany({ orderBy: { createdAt: "desc" } });
   },
 
-  createJotformAccount(data: { name: string; apiKey: string }) {
+  createJotformAccount(data: { name: string; apiKey: string; excludedLabelIds: string[] }) {
     return prisma.jotformAccount.upsert({
       where: { apiKey: data.apiKey },
       create: data,
-      update: { name: data.name },
+      update: { name: data.name, excludedLabelIds: data.excludedLabelIds },
     });
+  },
+
+  updateJotformAccountLabels(id: string, excludedLabelIds: string[]) {
+    return prisma.jotformAccount.update({ where: { id }, data: { excludedLabelIds } });
   },
 
   deleteJotformAccount(id: string) {

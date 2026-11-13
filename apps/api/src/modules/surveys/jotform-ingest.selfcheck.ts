@@ -70,15 +70,18 @@ console.log("✓ jotform-ingest (normalizeJotform) self-check passed");
 
 const { schoolContext } = await import("./school-context.js");
 assert.deepStrictEqual(schoolContext("  10/10/2026 - CBTIS   62  "), { original: "  10/10/2026 - CBTIS   62  ", school: "CBTIS 62", extractedDate: "2026-10-10", needsReview: false });
-assert.strictEqual(schoolContext("29/02/2024 - School")?.extractedDate, "2024-02-29");
-for (const text of ["29/02/2025 - School", "31/04/2026 - School", "10/10/2026 - ", "2026-10-10 - School", "1/2/26 - School"]) {
+assert.strictEqual(schoolContext("02/29/2024 - School")?.extractedDate, "2024-02-29");
+for (const text of ["02/29/2025 - School", "04/31/2026 - School", "10/10/2026 - ", "2026-10-10 - School", "13/02/2026 - School"]) {
   assert.strictEqual(schoolContext(text)?.needsReview, true);
   assert.strictEqual(schoolContext(text)?.extractedDate, null);
 }
 assert.strictEqual(schoolContext("CBTIS 230")?.school, "CBTIS 230");
 assert.strictEqual(schoolContext("CBTIS 230")?.extractedDate, null);
 for (const value of [null, undefined, "  ", 230, { school: "School" }]) assert.strictEqual(schoolContext(value), null);
-const schoolValue = "15/10/2026 - CBTIS 62";
+assert.deepStrictEqual(schoolContext("8/17/26 - Abington Friends Middle School"), { original: "8/17/26 - Abington Friends Middle School", school: "Abington Friends Middle School", extractedDate: "2026-08-17", needsReview: false });
+assert.strictEqual(schoolContext("03/04/2026 - School")?.extractedDate, "2026-03-04");
+assert.strictEqual(schoolContext("1/2/26 - School")?.extractedDate, "2026-01-02");
+const schoolValue = "10/15/2026 - CBTIS 62";
 const fromWebhook = liftIdentifiers(normalizeJotform({ formID: "school", submissionID: "1", rawRequest: JSON.stringify({ escuela: schoolValue }) })) as any;
 const fromHistory = liftIdentifiers(normalizeJotform({ form_id: "school", id: "1", answers: { "1": { name: "escuela", answer: schoolValue } } })) as any;
 assert.deepStrictEqual(fromWebhook.schoolContext, fromHistory.schoolContext);
@@ -113,7 +116,7 @@ for (const [timestamp, zone] of [["2026-11-04 02:00:00", "UTC"], [undefined, "UT
   assert.strictEqual(schoolGroupingContext(plainSchool, timestamp, zone).needsReview, true);
   assert.strictEqual(schoolGroupingContext(plainSchool, timestamp, zone).groupingDate, null);
 }
-assert.strictEqual(schoolGroupingContext(schoolContext("31/04/2026 - School")!, "2026-11-04T02:00:00Z", "UTC").groupingDate, null);
+assert.strictEqual(schoolGroupingContext(schoolContext("04/31/2026 - School")!, "2026-11-04T02:00:00Z", "UTC").groupingDate, null);
 assert.strictEqual((normalizeJotform({ ...submissionsApiBody, created_at: "2026-11-04 02:00:00" }) as any).created_at, "2026-11-04 02:00:00");
 
 const { configuredActivityContext } = await import("./activity-context.js");

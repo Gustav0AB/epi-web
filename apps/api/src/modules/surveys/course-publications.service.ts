@@ -44,7 +44,7 @@ export async function publishCourse(input: PublishCourseInput, userId: string) {
       if (!coverage.meetsResponseCoverage) throw failure("Publication requires at least 80% separately in Pre, Post and CQS", 400);
       const answers = await surveysRepository.completedWithAnswers({ submissionIds: courseRows.map(row => row.id), scope: { siteIds: [key.siteId] } }, tx);
       const report = buildReportDetail(answers, { excludedQuestionIds: input.excludedQuestionIds });
-      if (report.overallImprovement === null) throw failure("Publication requires at least one comparable included question", 400);
+      if (!report.questions.some(question => !question.excluded && question.pre !== null && question.post !== null)) throw failure("Publication requires at least one comparable included question", 400);
       return tx.coursePublication.create({ data: {
         ...key, version: input.expectedVersion + 1, actorId: userId, surveyDefinitionIds: definitionIds,
         snapshot: { schemaVersion: 1, coverage, report, excludedQuestionIds: input.excludedQuestionIds, cqsSatisfaction: null } as unknown as Prisma.InputJsonValue,

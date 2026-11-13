@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { jotformClient } from "./jotform-client.js";
-import { syncJotformForms } from "./surveys.service.js";
+import { syncJotformForms, listJotformLabels, jotformAccountLabels, updateJotformAccountLabels } from "./surveys.service.js";
 import { surveysRepository } from "./surveys.repository.js";
 
 const originalFetch = globalThis.fetch;
@@ -153,6 +153,11 @@ try {
   globalThis.fetch = async () => response(++calls === 1 ? [form("1")] : []);
   assert.deepEqual(await syncJotformForms("account"), { added: ["1"], total: 1 });
   assert.equal(writes, 1);
+  surveysRepository.listJotformAccounts = (async () => [{ id: "account", apiKey: "test-key", name: "Test", excludedLabelIds: ["blocked"], createdAt: new Date(), updatedAt: new Date() }]) as unknown as typeof originalAccounts;
+  globalThis.fetch = async () => response([{ id: "allowed", name: "Permitida" }, { id: "blocked", name: "Excluida" }]);
+  assert.deepEqual((await listJotformLabels("account")).map(label => label.id), ["allowed"]);
+  assert.equal((await jotformAccountLabels("account")).labels.length, 2);
+  await assert.rejects(() => updateJotformAccountLabels("account", ["missing"]), { statusCode: 400 });
   console.log("✓ Jotform pagination, response errors and complete sync self-check passed");
 } finally {
   globalThis.fetch = originalFetch;

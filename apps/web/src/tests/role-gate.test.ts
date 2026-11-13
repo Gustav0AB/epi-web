@@ -30,7 +30,7 @@ describe("getDefaultRoute", () => {
   it("sends functionality users to their first available feature", () => {
     expect(getDefaultRoute(user({ featureKeys: ["home"] }))).toBe("/home");
     expect(getDefaultRoute(user({ featureKeys: ["surveys"] }))).toBe("/courses");
-    expect(getDefaultRoute(user({ featureKeys: ["scoring"] }))).toBe("/instruments/scoring");
+    expect(getDefaultRoute(user({ featureKeys: ["scoring"] }))).toBe("/reports");
     expect(getDefaultRoute(user({ featureKeys: ["open_questions"] }))).toBe("/courses/open-questions");
     expect(getDefaultRoute(user({ featureKeys: [] }))).toBe("/reports");
   });

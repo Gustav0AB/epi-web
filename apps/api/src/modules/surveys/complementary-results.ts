@@ -1,4 +1,4 @@
-import { SurveySetupQuestionSchema, type CourseComplementResultsDto, type CourseResultsDto, type ComplementDistribution } from "@epi/shared";
+import { relativeChange, SurveySetupQuestionSchema, type CourseComplementResultsDto, type CourseResultsDto, type ComplementDistribution } from "@epi/shared";
 import { courseResultBases, courseResultsAnswers, type ResultsDefinition, type ResultsReceipt } from "./course-results.js";
 import { aggregateCourseQuestions } from "./course-aggregation.js";
 export function complementaryResults(primary: CourseResultsDto, definition: ResultsDefinition, receipts: ResultsReceipt[]): CourseComplementResultsDto {
@@ -25,7 +25,7 @@ export function complementaryResults(primary: CourseResultsDto, definition: Resu
  const comparison=definition.instrumentKind!=="FOLLOW_UP" ? [] : keys.map(key=>{
   const before=main.find(row=>JSON.stringify([row.category,row.subcategory])===key);const after=follow.find(row=>JSON.stringify([row.category,row.subcategory])===key);
   const pre=before?.pre ?? null;const post=before?.post ?? null;const value=after?.post ?? null;const [category,subcategory]=JSON.parse(key) as [string,string|null];
-  return {category,subcategory,pre,post,followUp:value,fromPre:pre===null || value===null ? null : value-pre,fromPost:post===null || value===null ? null : value-post,issue:after?.issue ?? before?.issue ?? (!after ? "Sin evaluación de seguimiento para esta clasificación" : null)};
+  return {category,subcategory,pre,post,followUp:value,fromPre:relativeChange(pre,value),fromPost:relativeChange(post,value),issue:after?.issue ?? before?.issue ?? (!after ? "Sin evaluación de seguimiento para esta clasificación" : null)};
  });
  return {courseId:primary.courseId,courseName:primary.name,definitionId:definition.id,instrument:definition.instrumentName || "Instrumento",version:definition.version,kind:definition.instrumentKind as "FOLLOW_UP"|"CQS",receipts:bases.postReceipts,excluded:bases.excludedReceipts,contextPending:bases.contextPendingReceipts,sourcePending:bases.sourcePendingReceipts,comparison,distributions,questions:bases.questions,pending:definition.instrumentKind==="CQS" ? ["Se muestran únicamente respuestas del instrumento de calidad seleccionado. La fórmula de satisfacción CQS sigue pendiente de validación."] : ["Comparación por categoría/subcategoría, sin emparejar personas. Se conserva la versión de cada instrumento; no se copian reglas desde el instrumento principal.","Las reglas antiguas de pre_post_post no se convierten automáticamente: revisa la configuración del instrumento complementario si no hay resultados."]};
 }

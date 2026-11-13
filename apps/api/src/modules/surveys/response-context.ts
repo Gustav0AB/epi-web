@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { ActivityContextSchema, SchoolContextSchema, type ResponseGroupingContext } from "@epi/shared";
-import { originalSubmissionDay, schoolContext } from "./school-context.js";
+import { ActivityContextSchema, type ResponseGroupingContext } from "@epi/shared";
+import { originalSubmissionDay, schoolContext, resolvedStoredSchoolContext } from "./school-context.js";
 
 export function configuredDemographics(answers: { questionId: string; value: unknown }[], questions: { externalId: string; role?: string }[]) {
   function value(role: string) {
@@ -19,13 +19,13 @@ export function configuredDemographics(answers: { questionId: string; value: unk
 type ContextRow = { reviewSchool: string | null; reviewDate: string | null; reviewActivity: string | null; reviewGender: string | null; reviewAge: number | null; rawJsonData: unknown; surveyDefinition: { activityName: string | null } | null };
 export function responseGroupingContext(row: ContextRow): ResponseGroupingContext {
   const raw = row.rawJsonData != null && typeof row.rawJsonData === "object" && !Array.isArray(row.rawJsonData) ? row.rawJsonData as Record<string, unknown> : {};
-  const school = SchoolContextSchema.safeParse(raw.schoolContext);
+  const school = resolvedStoredSchoolContext(raw.schoolContext);
   const legacyParticipant = raw.participant != null && typeof raw.participant === "object" ? raw.participant as Record<string, unknown> : {};
   const legacySchool = schoolContext(legacyParticipant.school);
   const activity = ActivityContextSchema.safeParse(raw.activityContext);
   const demographics = raw.demographicContext != null && typeof raw.demographicContext === "object" ? raw.demographicContext as Record<string, { original?: unknown; value?: unknown; configured?: boolean }> : {};
-  const detectedSchool = school.success ? school.data.school : legacySchool?.school ?? null;
-  const detectedDate = school.success ? school.data.groupingDate ?? school.data.extractedDate : legacySchool?.extractedDate ?? null;
+  const detectedSchool = school ? school.school : legacySchool?.school ?? null;
+  const detectedDate = school ? school.groupingDate ?? school.extractedDate : legacySchool?.extractedDate ?? null;
   const gender = row.reviewGender ?? (demographics.gender?.configured ? typeof demographics.gender.value === "string" ? demographics.gender.value : null : typeof legacyParticipant.gender === "string" ? legacyParticipant.gender : null);
   const sourceAge = demographics.age?.configured ? demographics.age.value : legacyParticipant.age;
   const age = row.reviewAge ?? (typeof sourceAge === "number" && Number.isSafeInteger(sourceAge) && sourceAge >= 0 ? sourceAge : null);
@@ -33,9 +33,9 @@ export function responseGroupingContext(row: ContextRow): ResponseGroupingContex
   const context = {
     school: normalized(row.reviewSchool ?? detectedSchool), date: row.reviewDate ?? detectedDate ?? originalSubmissionDay(raw.created_at),
     activity: normalized(row.reviewActivity ?? (activity.success ? activity.data.activity : row.surveyDefinition?.activityName ?? null)),
-    dateSource: row.reviewDate ? "manual" as const : (school.success ? school.data.dateSource ?? (school.data.extractedDate ? "school_field" as const : null) : legacySchool?.extractedDate ? "school_field" as const : null) ?? (originalSubmissionDay(raw.created_at) ? "submitted_at" as const : null),
-    originalSchool: school.success ? school.data.original : legacySchool?.original ?? null,
-    submittedAt: school.success ? school.data.originalSubmittedAt ?? (typeof raw.created_at === "string" ? raw.created_at : null) : typeof raw.created_at === "string" ? raw.created_at : null,
+    dateSource: row.reviewDate ? "manual" as const : (school ? school.dateSource ?? (school.extractedDate ? "school_field" as const : null) : legacySchool?.extractedDate ? "school_field" as const : null) ?? (originalSubmissionDay(raw.created_at) ? "submitted_at" as const : null),
+    originalSchool: school ? school.original : legacySchool?.original ?? null,
+    submittedAt: school ? school.originalSubmittedAt ?? (typeof raw.created_at === "string" ? raw.created_at : null) : typeof raw.created_at === "string" ? raw.created_at : null,
     gender, age, originalGender: demographics.gender?.original ?? legacyParticipant.gender ?? null, originalAge: demographics.age?.original ?? legacyParticipant.age ?? null,
   };
   return { ...context, needsReview: !context.school || !context.date || !context.activity };

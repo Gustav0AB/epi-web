@@ -19,11 +19,11 @@ assert.equal(changed, false);
 await catalogService.updateSite(admin, "a1", { name: "Changed" });
 assert.equal(changed, true);
 await assert.rejects(() => catalogService.updateSite({ ...admin, role: "system_admin" }, "a1", { organizationId: "org-b" }), /Reassign users/);
-catalogRepository.createSite = (async (data, creatorId) => {
+catalogRepository.createSite = (async (data: { organizationId: string | null }, creatorId: string | undefined) => {
   assert.equal(data.organizationId, "org-a");
   assert.equal(creatorId, "admin");
   return { id: "new-site", ...data };
-}) as typeof catalogRepository.createSite;
+}) as unknown as typeof catalogRepository.createSite;
 await catalogService.createSite(admin, { name: "New site" });
 await assert.rejects(() => catalogService.createSite(admin, { name: "New site", organizationId: "org-b" }), /own organization/);
 console.log("✓ catalog.service self-check passed");

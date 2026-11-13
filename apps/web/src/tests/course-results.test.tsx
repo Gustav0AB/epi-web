@@ -3,13 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { selectCourseResultCategories, buildCourseReportPreview, courseResponseCoverage, mostImprovedKnowledge, CourseExpectationUpdateSchema, CourseResultsQuerySchema, scorePrePostAnswer, type CourseResultsDto, type PrePostQuestion } from "@epi/shared";
-import { CourseComparison, courseIndexDonutCategories, instrumentIndicatorCategory, orderCourseQuestions, rankedCourseQuestions } from "../features/surveys/CourseComparison";
+import { CourseComparison, courseChartRows, courseIndexDonutCategories, instrumentIndicatorCategory, orderCourseQuestions, rankedCourseQuestions } from "../features/surveys/CourseComparison";
 import { CourseResultsPage, CourseResultsView } from "../features/surveys/CourseResultsPage";
 import { surveyApi } from "../features/surveys/api";
 const base = { valid: 0, blank: 0, nonScorable: 0, invalid: 0, configurationPending: 0, zeroMaximum: 0, points: null, applicableMaximum: null };
 const result: CourseResultsDto = { courseId: "course", name: "Curso de prueba", school: "Escuela A", siteId: "site", activity: "Visita", revision: 3, calculatedAt: "2026-11-05T18:00:00Z", methodology: "pending", primaryDefinitionId: "v1", aggregates: [], coverageThreshold: 80, expectedParticipants: null, expectedParticipantsPre: null, expectedParticipantsPost: null, preReceipts: 1, postReceipts: 0, excludedReceipts: 1, contextPendingReceipts: 1, sourcePendingReceipts: 0, complementaryReceipts: 2, unsupportedVersionReceipts: 0, distributions: [{ definitionId: "v1", instrument: "Aprendizaje", version: 1, categoryWeights: [{ category: "Learning", weight: 100 }], subcategoryWeights: [{ category: "Learning", subcategory: "Knowledge", weight: 100 }] }], groups: [{ definitionId: "v1", instrument: "Aprendizaje", version: 1, category: "Learning", subcategory: "Knowledge", pre: { receipts: 1, complete: 0, incomplete: 1, withoutData: 0, validAnswers: 1 }, post: { receipts: 0, complete: 0, incomplete: 0, withoutData: 0, validAnswers: 0 } }], questions: [{ id: "internal-question", definitionId: "v1", instrument: "Aprendizaje", version: 1, text: "Una pregunta larga que debe poder consultarse completa sin deformar la tabla de trazabilidad", category: "Learning", subcategory: "Knowledge", factor: 1, maximum: 1, configurationReady: true, rule: "Respuesta correcta", options: [{ value: "Sí", score: 1 },{ value: "No", score: 0 },{ value: "No sé", score: null }], pre: { ...base, valid: 1, points: 0, applicableMaximum: 1 }, post: { ...base, blank: 2 } }], pending: ["Agregación pendiente", "Base esperada por confirmar"] };
 afterEach(() => vi.unstubAllGlobals());
 describe("E5 scoring and auditable bases", () => {
+ it("identifies an open public course as a course type in the report", () => {
+  const report = buildCourseReportPreview({ ...result, isOpenPublic: true, school: "Abierto al público" }, { templateKey: "course-impacts-general", textContent: {} });
+  expect(JSON.stringify(report.template)).toContain("Tipo de curso: Abierto al público");
+ });
+
  it("keeps missing coverage unknown and evaluates the exact 80 percent boundary", () => {
   expect(courseResponseCoverage(10, null)).toEqual({ percent: null, meetsThreshold: null });
   expect(courseResponseCoverage(0, 50)).toEqual({ percent: 0, meetsThreshold: false });
@@ -35,11 +40,11 @@ describe("E5 scoring and auditable bases", () => {
   await expect(surveyApi.courseResults("hidden")).rejects.toMatchObject({ code: "NOT_FOUND" });
  });
  it("shows wrong-answer zero separately from no data and states that indices are pending", () => {
-  const html = renderToStaticMarkup(<CourseResultsView result={result} />);
-  expect(html).toContain("Puntos sumados: 0"); expect(html).toContain("Máximo respondido: 1"); expect(html).toContain("Puntos sumados: Sin datos"); expect(html).toContain("Índice, cambio Pre/Post e IAA: metodología aprobada"); expect(html).toContain("Base esperada por confirmar"); expect(html).not.toContain("internal-question");
+  const html = renderToStaticMarkup(<CourseResultsView result={result} details="methodology" onDetailsClose={() => {}} />);
+  expect(html).toContain("Puntos sumados: 0"); expect(html).toContain("Máximo respondido: 1"); expect(html).toContain("Puntos sumados: Sin datos"); expect(html).toContain("Cambio relativo Pre/Post: metodología aprobada"); expect(html).toContain("Base esperada por confirmar"); expect(html).not.toContain("internal-question");
  });
  it("renders version provenance, full-question tooltip and non-scorable options", () => {
-  const html = renderToStaticMarkup(<CourseResultsView result={result} />);
+  const html = renderToStaticMarkup(<CourseResultsView result={result} details="methodology" onDetailsClose={() => {}} />);
   expect(html).toContain(`title="${result.questions[0]!.text}"`); expect(html).toContain("v1"); expect(html).toContain("No puntuable"); expect(html).toContain("Incompletos:"); expect(html).toContain("Puntos por opción"); expect(html).toContain("Learning / Knowledge: 100%");
  });
  it("makes no request or mutation on initial server rendering", () => {
@@ -70,18 +75,20 @@ it("ranks positive, zero and negative changes using valid scoring bases, without
   row("baja", 4, 2), row("igual", 2, 2), row("sube", 1, 3), row("empate", 2, 4),
   { ...row("otra", 0, 4), definitionId: "v2" }, { ...row("sin-post", 0, 4), post: base },
  ] };
- expect(rankedCourseQuestions(comparable).map(item => [item.id,item.change,item.rank])).toEqual([["empate",50,1],["sube",50,1],["igual",0,3],["baja",-50,4],["sin-post",null,null]]);
+ expect(rankedCourseQuestions(comparable).map(item => [item.id,item.change,item.rank])).toEqual([["sube",200,1],["empate",100,2],["igual",0,3],["baja",-50,4],["sin-post",null,null]]);
  const html = renderToStaticMarkup(<CourseComparison result={comparable} />);
  expect(html).toContain("Información por pregunta");
- expect(html).toMatch(/<details><summary[^>]*>Información por pregunta/);
- expect(html).toMatch(/<details><summary[^>]*>Información por categoría/);
+ expect(html).toContain("Filtrar preguntas por categoría");
+ expect(html).toContain("Filtrar categorías");
+ expect(html.indexOf("Información por categoría")).toBeLessThan(html.indexOf("Información por pregunta"));
+ expect(html.indexOf("Información por pregunta")).toBeLessThan(html.indexOf("Gráficas Pre/Post e índice"));
  expect(html).toContain("Categorías incluidas");
  expect(html).toContain("Greatest Improvement");
  const grouped = rankedCourseQuestions(comparable).map(row => ({ ...row, category: ["baja","sube"].includes(row.id) ? "B" : "A", subcategory: "Una" }));
  expect(orderCourseQuestions(grouped, "category-desc").map(row => row.id)).toEqual(["empate","igual","sin-post","sube","baja"]);
  expect(orderCourseQuestions(grouped, "category-asc").map(row => row.id)).toEqual(["igual","empate","sin-post","baja","sube"]);
  expect(orderCourseQuestions(grouped, "global-asc").map(row => row.id)).toEqual(["baja","igual","empate","sube","sin-post"]);
- expect(orderCourseQuestions(grouped, "global-desc").map(row => row.id)).toEqual(["empate","sube","igual","baja","sin-post"]);
+ expect(orderCourseQuestions(grouped, "global-desc").map(row => row.id)).toEqual(["sube","empate","igual","baja","sin-post"]);
  expect(renderToStaticMarkup(<CourseComparison result={result} />)).toContain("Sin datos");
 });
 
@@ -100,7 +107,7 @@ it("distinguishes excluded blanks from actual question-weight redistribution", (
  }] };
  const ordinary = renderToStaticMarkup(<CourseCalculationWarnings result={output} />);
  expect(ordinary).toContain("2 respuestas en blanco");
- expect(ordinary).toMatch(/<details><summary[^>]*>Advertencias del cálculo/);
+ expect(ordinary).toContain("grupos con observaciones");
  expect(ordinary).toContain("Todas las preguntas conservan");
  expect(ordinary).not.toContain("se redistribuyó");
  output.questions[1] = { ...second, pre: { ...base, blank: 3 } };
@@ -120,7 +127,7 @@ it("shows competency and disposition indicators only for configured instrument c
  const category = (name: string) => ({ definitionId: result.primaryDefinitionId, instrument: "Instrumento", version: 1, level: "category" as const, category: name, subcategory: null, pre: 30, post: 50, change: 20, preEffectiveWeights: [], postEffectiveWeights: [], issue: null });
  const html = renderToStaticMarkup(<CourseComparison result={{ ...result, aggregates: [category("Competencies"), category("Dispositions")] }} />);
  expect(html).toContain("Mayor mejora en competencias");
- expect(html).toContain("Competencies: +20 pp");
+ expect(html).toContain("Competencies: +20%");
  expect(html).not.toContain("Self Efficacy");
  const absent = renderToStaticMarkup(<CourseComparison result={{ ...result, aggregates: [category("Environmental Knowledge")] }} />);
  expect(absent).not.toContain("Mayor mejora en competencias");
@@ -143,7 +150,7 @@ it("publishes only selected categories and uses proportional weights without alt
  expect(selected.questions.map(row=>row.category)).toEqual(["A","B"]);
  expect(selected.groups.map(row=>row.category)).toEqual(["A","B"]);
  const index=selected.aggregates.find(row=>row.level==="index")!;
- expect(index.pre).toBe(56);expect(index.post).toBe(76);expect(index.change).toBe(20);
+ expect(index.pre).toBe(56);expect(index.post).toBe(76);expect(index.change).toBeCloseTo(35.71428571428572);
  expect(selected.distributions[0]?.categoryWeights).toEqual([{category:"A",weight:40},{category:"B",weight:60}]);
  expect(JSON.stringify(buildCourseReportPreview(selected,{templateKey:"course-impacts-general",textContent:{}},true).data)).not.toContain("Pregunta C");
  const preview = buildCourseReportPreview(original,{templateKey:"course-impacts-general",textContent:{},categories:["A","B"]},true);
@@ -172,4 +179,12 @@ it("connects index donut rings to selected versioned categories and the requeste
  expect(html).toContain("IAA · Post");
  expect(html).toContain('viewBox="0 0 360 360"');
  expect(html).not.toContain("foreignObject");
+});
+
+it("charts category and subcategory levels without merging repeated names", () => {
+ const row = (level: "category" | "subcategory", category: string, subcategory: string | null) => ({ definitionId: "v1", instrument: "Learning", version: 1, level, category, subcategory, pre: 40, post: 60, change: 20, preEffectiveWeights: [], postEffectiveWeights: [], issue: null });
+ const rows = [row("category", "A", null), row("subcategory", "A", "General"), row("subcategory", "B", "General")];
+ expect(courseChartRows(rows, "category").map(item => item.name)).toEqual(["A"]);
+ expect(courseChartRows(rows, "subcategory").map(item => item.name)).toEqual(["A / General", "B / General"]);
+ expect(courseChartRows(rows, "subcategory")[0]).toMatchObject({ pre: 40, post: 60 });
 });

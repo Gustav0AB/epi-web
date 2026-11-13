@@ -6,13 +6,11 @@ import { useI18n, type I18nKey } from "../lib/i18n";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuOpenIcon from "@mui/icons-material/MenuOpen";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
-import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import PollOutlinedIcon from "@mui/icons-material/PollOutlined";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
-import SettingsSuggestOutlinedIcon from "@mui/icons-material/SettingsSuggestOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 
 type NavItem = {
@@ -32,11 +30,9 @@ type NavItem = {
 const navItems: NavItem[] = [
   { to: "/home", label: "nav.home", kind: "functionality", featureKey: FEATURE_KEYS.HOME, icon: <HomeOutlinedIcon className="shrink-0" /> },
   { to: "/courses", label: "nav.courses", kind: "functionality_any", featureKeys: [FEATURE_KEYS.SURVEYS, FEATURE_KEYS.OPEN_QUESTIONS], icon: <PollOutlinedIcon className="shrink-0" /> },
-  { to: "/instruments", label: "nav.instruments", kind: "functionality", featureKey: FEATURE_KEYS.SCORING, icon: <TuneOutlinedIcon className="shrink-0" /> },
+  { to: "/instruments", label: "nav.instruments", kind: "admin_tier", icon: <TuneOutlinedIcon className="shrink-0" /> },
   { to: "/reports", label: "nav.reports", kind: "published", icon: <AssessmentOutlinedIcon className="shrink-0" /> },
-  { to: "/users", label: "nav.users", kind: "user_management", icon: <PeopleOutlinedIcon className="shrink-0" /> },
   { to: "/organization-management", label: "nav.organizationManagement", kind: "admin_tier", icon: <CorporateFareOutlinedIcon className="shrink-0" /> },
-  { to: "/settings", label: "nav.settings", kind: "system_admin", icon: <SettingsSuggestOutlinedIcon className="shrink-0" /> },
   { to: "/audit-log", label: "nav.auditLog", kind: "system_admin", icon: <HistoryOutlinedIcon className="shrink-0" /> },
 ];
 

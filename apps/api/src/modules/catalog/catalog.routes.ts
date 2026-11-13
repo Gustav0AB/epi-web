@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import {
@@ -61,8 +62,9 @@ async function previewCategoryImport(csv: string, organizationId: string, db: Pi
 catalogRouter.get(
   "/organizations",
   requireAuth,
-  wrap(async (_req, res) => {
-    res.json(apiSuccess(await prisma.organization.findMany({ orderBy: { name: "asc" } })));
+  wrap(async (req, res) => {
+    const where = req.user!.role === "system_admin" ? {} : { id: { in: req.user!.organizationId ? [req.user!.organizationId] : [] } };
+    res.json(apiSuccess(await prisma.organization.findMany({ where, orderBy: { name: "asc" } })));
   })
 );
 
@@ -134,6 +136,15 @@ catalogRouter.post(
   })
 );
 
+catalogRouter.get("/sites/:id/catalog-sources", requireAuth, requireRole("system_admin", "org_admin"), wrap(async (req, res) => {
+  res.json(apiSuccess(await catalogService.catalogSources(req.user!, req.params.id!)));
+}));
+catalogRouter.post("/sites/:id/duplicate-catalogs", requireAuth, requireRole("system_admin", "org_admin"), wrap(async (req, res) => {
+  const sourceId = req.body?.sourceSiteId;
+  if (typeof sourceId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceId)) { res.status(400).json(apiError("BAD_REQUEST", "Selecciona un sitio de origen válido")); return; }
+  res.json(apiSuccess(await catalogService.duplicateSiteCatalogs(req.user!, req.params.id!, sourceId)));
+}));
+
 catalogRouter.patch(
   "/sites/:id",
   requireAuth,
@@ -169,13 +180,35 @@ catalogRouter.get(
           ? { organizationId: req.query.organizationId as string }
           : {}
         : { organizationId: req.user!.organizationId! };
-    res.json(
-      apiSuccess(
-        await prisma.category.findMany({ where, orderBy: [{ name: "asc" }, { subcategory: "asc" }] })
-      )
-    );
+    const user = await usersRepository.findById(req.user!.sub);
+    if (!user) { res.status(403).json(apiError("FORBIDDEN", "Usuario no disponible")); return; }
+    const allowed = await allowedSiteIds({ ...user, role: user.role.toLowerCase() });
+    const siteId = typeof req.query.siteId === "string" ? req.query.siteId : undefined;
+    if (siteId && allowed !== undefined && !allowed.includes(siteId)) { res.status(403).json(apiError("FORBIDDEN", "Sitio no autorizado")); return; }
+    const categories = await prisma.category.findMany({ where: { ...where, ...(siteId ? { siteLinks: { some: { siteId } } } : {}) }, include: { siteLinks: { ...(allowed !== undefined ? { where: { siteId: { in: allowed } } } : {}), select: { siteId: true } } }, orderBy: [{ name: "asc" }, { subcategory: "asc" }] });
+    res.json(apiSuccess(categories.map(({ siteLinks, ...category }) => ({ ...category, siteIds: siteLinks.map(link => link.siteId) }))));
   })
 );
+
+catalogRouter.put("/categories/:id/sites", requireAuth, requireRole("system_admin", "org_admin"), wrap(async (req, res) => {
+  const parsed = z.object({ siteIds: z.array(z.string().uuid()).max(500).refine(ids => new Set(ids).size === ids.length) }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json(apiError("BAD_REQUEST", "Selecciona sitios válidos")); return; }
+  const category = await prisma.category.findUnique({ where: { id: req.params.id! } });
+  if (!category || req.user!.role !== "system_admin" && category.organizationId !== req.user!.organizationId) { res.status(404).json(apiError("NOT_FOUND", "Categoría no disponible")); return; }
+  const user = await usersRepository.findById(req.user!.sub);
+  if (!user) { res.status(403).json(apiError("FORBIDDEN", "Usuario no disponible")); return; }
+  const allowed = await allowedSiteIds({ ...user, role: user.role.toLowerCase() });
+  if (allowed !== undefined && parsed.data.siteIds.some(id => !allowed.includes(id))) { res.status(403).json(apiError("FORBIDDEN", "Sitio no autorizado")); return; }
+  const sites = await prisma.site.findMany({ where: { id: { in: parsed.data.siteIds }, organizationId: category.organizationId }, select: { id: true } });
+  if (sites.length !== parsed.data.siteIds.length) { res.status(400).json(apiError("BAD_REQUEST", "Los sitios deben pertenecer a la organización de la categoría")); return; }
+  await prisma.$transaction(async tx => {
+    const previous = await tx.categorySite.findMany({ where: { categoryId: category.id }, select: { siteId: true } });
+    await tx.categorySite.deleteMany({ where: { categoryId: category.id, ...(allowed !== undefined ? { siteId: { in: allowed } } : {}) } });
+    await tx.categorySite.createMany({ data: parsed.data.siteIds.map(siteId => ({ categoryId: category.id, siteId })), skipDuplicates: true });
+    await tx.auditLog.create({ data: { actorId: req.user!.sub, actorUsername: req.user!.username, actorRole: req.user!.role, actorOrganizationId: req.user!.organizationId, action: "CATEGORY_SITES_CHANGE", targetType: "Category", targetId: category.id, metadata: { previous: previous.map(item => item.siteId), selected: parsed.data.siteIds } } });
+  }, { isolationLevel: "Serializable" });
+  res.json(apiSuccess({ saved: true }));
+}));
 
 catalogRouter.post(
   "/categories",

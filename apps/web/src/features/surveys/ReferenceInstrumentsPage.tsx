@@ -1,0 +1,17 @@
+import { useEffect, useState } from "react";
+import { Button, Card, Label, Table } from "@epi/ui";
+import { apiClient } from "../../lib/api-client";
+
+type Reference = { id: string; instrumentName: string | null; jotformFormId: string; version: number; site: { name: string } };
+type Configuration = { questions: { id: string; text: string; type: string; role: string; options: string[]; isFilter: boolean; classification: { category?: string; subcategory?: string | null } | null; analysisScoring: { maxScore?: number | null; correctAnswer?: string | null }[] | null; weight: { factor?: number } | null }[] };
+
+export function ReferenceInstrumentsPage() {
+  const [items, setItems] = useState<Reference[]>([]);
+  const [selected, setSelected] = useState<Reference | null>(null);
+  const [configuration, setConfiguration] = useState<Configuration | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { let active = true; void apiClient.get<Reference[]>("/api/surveys/reference-instruments").then(value => { if (active) setItems(value); }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "No se pudieron cargar los instrumentos"); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, []);
+  useEffect(() => { let active = true; setConfiguration(null); if (selected) void apiClient.get<Configuration>(`/api/surveys/definitions/${encodeURIComponent(selected.id)}/reuse-configuration`).then(value => { if (active) setConfiguration(value); }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "No se pudo cargar la configuración"); }); return () => { active = false; }; }, [selected]);
+  return <div className="space-y-4"><Label variant="title">Instrumentos de referencia</Label><p>Consulta la configuración de los instrumentos de tu organización. Las respuestas permanecen limitadas a los sitios autorizados.</p>{error && <p role="alert" className="text-danger">{error}</p>}<Card><Table rows={items} loading={loading} keyExtractor={row => row.id} emptyText="No hay instrumentos disponibles." columns={[{ key: "instrument", header: "Instrumento", render: row => row.instrumentName || row.jotformFormId }, { key: "site", header: "Sitio", render: row => row.site.name }, { key: "version", header: "Versión" }, { key: "view", header: "Configuración", render: row => <Button variant="secondary" size="sm" onClick={() => { setError(null); setSelected(row); }}>Ver preguntas</Button> }]} /></Card>{selected && <Card><h2 className="font-semibold">{selected.instrumentName || selected.jotformFormId} · {selected.site.name}</h2>{!configuration ? <p role="status">Cargando configuración…</p> : <Table rows={configuration.questions} keyExtractor={row => row.id} pageSize={10} columns={[{ key: "text", header: "Pregunta" }, { key: "type", header: "Tipo" }, { key: "role", header: "Rol" }, { key: "category", header: "Categoría", render: row => [row.classification?.category, row.classification?.subcategory].filter(Boolean).join(" / ") || "—" }, { key: "score", header: "Puntuación", render: row => row.analysisScoring?.[0]?.maxScore != null ? `Máximo: ${row.analysisScoring[0].maxScore} · Peso: ${row.weight?.factor ?? 1}` : "Sin configurar" }, { key: "filter", header: "Filtro", render: row => row.isFilter ? "Sí" : "No" }, { key: "options", header: "Opciones", render: row => row.options.join(", ") || "—" }]} />}</Card>}</div>;
+}

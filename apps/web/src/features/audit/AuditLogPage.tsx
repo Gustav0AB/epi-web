@@ -6,13 +6,35 @@ import { apiClient } from "../../lib/api-client";
 import { useI18n, type I18nKey } from "../../lib/i18n";
 
 const ACTION_LABELS: Record<string, I18nKey> = {
+  CATEGORY_SITES_CHANGE: "auditLog.action.categorySitesChange",
+  SURVEY_VERSION_REPROCESS: "auditLog.action.versionReprocess",
+  SURVEY_VERSION_REPROCESS_PROGRESS: "auditLog.action.versionProgress",
+  SURVEY_VERSION_REPROCESS_ERROR: "auditLog.action.versionError",
+  COURSE_MAIN_SCHOOL_CHANGE: "auditLog.action.courseMainSchoolChange",
   LOGIN: "auditLog.action.login",
   USER_CREATE: "auditLog.action.userCreate",
   USER_DELETE: "auditLog.action.userDelete",
   USER_ROLE_CHANGE: "auditLog.action.userRoleChange",
   PASSWORD_RESET: "auditLog.action.passwordReset",
   CATEGORY_IMPORT: "auditLog.action.categoryImport",
+  SITE_CATALOG_DUPLICATE: "auditLog.action.siteCatalogDuplicate",
+  SITE_CREATE: "auditLog.action.siteCreate",
+  SITE_UPDATE: "auditLog.action.siteUpdate",
+  SITE_DELETE: "auditLog.action.siteDelete",
+  CATEGORY_CREATE: "auditLog.action.categoryCreate",
+  CATEGORY_UPDATE: "auditLog.action.categoryUpdate",
+  CATEGORY_DELETE: "auditLog.action.categoryDelete",
+  CATEGORY_REACTIVATE: "auditLog.action.categoryReactivate",
 };
+
+const detailLabels: Record<string, string> = { isOpenPublic: "Abierto al público", school: "Escuela principal", name: "Nombre", organizationId: "Organización", programs: "Programas", activityTypes: "Tipos de actividad", isActive: "Activo", subcategory: "Subcategoría" };
+function catalogDetails(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || !("current" in metadata)) return null;
+  const record = metadata as { previous?: Record<string, unknown> | null; current?: Record<string, unknown> | null };
+  const fields = new Set([...Object.keys(record.previous ?? {}), ...Object.keys(record.current ?? {})]);
+  const display = (value: unknown) => value == null ? "—" : Array.isArray(value) ? value.join(", ") || "—" : typeof value === "boolean" ? value ? "Sí" : "No" : String(value);
+  return [ ...("sourceSiteName" in metadata ? [<p key="source">Sitio de origen: {String((metadata as { sourceSiteName: unknown }).sourceSiteName)}</p>] : []), ...[...fields].filter(field => JSON.stringify(record.previous?.[field]) !== JSON.stringify(record.current?.[field])).map(field => <p key={field}><strong>{detailLabels[field] ?? field}:</strong> {display(record.previous?.[field])} → {display(record.current?.[field])}</p>) ];
+}
 
 export function AuditLogPage() {
   const { t } = useI18n();
@@ -65,7 +87,7 @@ export function AuditLogPage() {
     {
       key: "metadata",
       header: t("auditLog.table.details"),
-      render: (l) => (l.metadata ? <span className="font-mono text-xs text-gray-500">{JSON.stringify(l.metadata)}</span> : "—"),
+      render: (l) => (l.metadata ? <div className="text-xs text-gray-600">{catalogDetails(l.metadata) ?? JSON.stringify(l.metadata)}</div> : "—"),
     },
   ];
 

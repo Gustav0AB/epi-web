@@ -28,7 +28,7 @@ async function access(userId: string) {
 function courseWhere(scope: Awaited<ReturnType<typeof access>>["scope"]): Prisma.CourseEditionWhereInput {
   return { primaryDefinition: scopeToDefinitionWhere(scope) ?? {} };
 }
-const courseDto = (course: Course): CourseEditionDto => ({ id: course.id, siteId: course.siteId, primaryDefinitionId: course.primaryDefinitionId, name: course.name, school: course.school, activity: course.activity, expectedParticipants: course.expectedParticipants, expectedParticipantsPre: course.expectedParticipantsPre, expectedParticipantsPost: course.expectedParticipantsPost, revision: course.revision, createdAt: course.createdAt.toISOString() });
+const courseDto = (course: Course): CourseEditionDto => ({ id: course.id, siteId: course.siteId, primaryDefinitionId: course.primaryDefinitionId, name: course.name, isOpenPublic: course.isOpenPublic, school: course.isOpenPublic ? "Abierto al público" : course.school, activity: course.activity, expectedParticipants: course.expectedParticipants, expectedParticipantsPre: course.expectedParticipantsPre, expectedParticipantsPost: course.expectedParticipantsPost, revision: course.revision, createdAt: course.createdAt.toISOString() });
 async function audit(tx: Prisma.TransactionClient, actor: Awaited<ReturnType<typeof access>>["actor"], action: string, targetId: string, metadata: Prisma.InputJsonValue) {
   await tx.auditLog.create({ data: { actorId: actor.id, actorUsername: actor.username, actorRole: actor.role, actorOrganizationId: actor.organizationId, action, targetType: "CourseEdition", targetId, metadata } });
 }
@@ -76,6 +76,7 @@ export async function listCourseEditions(input: unknown, userId: string) {
   };
   const where: Prisma.CourseEditionWhereInput = {
     ...courseWhere(scope), ...(query.status ? { status: query.status } : {}), ...(query.siteId ? { siteId: query.siteId } : {}),
+    ...(query.courseType ? { isOpenPublic: query.courseType === "PUBLIC" } : {}),
     ...(query.school ? { school: { contains: query.school, mode: "insensitive" } } : {}),
     ...(query.activity ? { activity: { contains: query.activity, mode: "insensitive" } } : {}),
     ...(from || to || query.submittedOn || query.moment ? { OR: [
@@ -117,6 +118,22 @@ export async function setCourseExpectedParticipants(id: string, input: unknown, 
     await audit(tx, actor, "COURSE_EXPECTED_PARTICIPANTS_SAVE", id, { previous: { pre: course.expectedParticipantsPre, post: course.expectedParticipantsPost }, expectedParticipantsPre: data.expectedParticipantsPre, expectedParticipantsPost: data.expectedParticipantsPost, revision: data.expectedRevision + 1 });
     return { saved: true, revision: data.expectedRevision + 1 };
   });
+}
+export async function setCourseMainSchool(id: string, input: unknown, userId: string) {
+  const data = z.object({ expectedRevision: z.number().int().nonnegative(), school: z.string().trim().max(200), isOpenPublic: z.boolean().default(false) }).strict().parse(input);
+  const { actor, scope } = await access(userId);
+  return prisma.$transaction(async tx => {
+    const course = await readCourse(id, scope, tx);
+    if (course.status !== "REVIEWED") throw fail("Solo se puede corregir la identidad de un curso revisado", 409);
+    await lockCourse(course, data.expectedRevision, tx, scope);
+    const rows = await tx.submission.findMany({ where: { surveyDefinitionId: course.primaryDefinitionId, reviewExcluded: false, courseMembership: { application: { courseId: id } } }, include: responseInclude });
+    const school = rows.map(row => responseGroupingContext(row).school).find(value => value && normalized(value) === normalized(data.school));
+    if (!data.isOpenPublic && !school) throw fail("Selecciona una escuela detectada en las respuestas del curso");
+    if (data.isOpenPublic && data.school) throw fail("Un curso abierto al público no tiene escuela principal");
+    await tx.courseEdition.update({ where: { id }, data: { school: data.isOpenPublic ? "" : school!, isOpenPublic: data.isOpenPublic } });
+    await audit(tx, actor, "COURSE_MAIN_SCHOOL_CHANGE", id, { previous: { school: course.school, isOpenPublic: course.isOpenPublic }, current: { school: data.isOpenPublic ? "" : school!, isOpenPublic: data.isOpenPublic }, revision: data.expectedRevision + 1 });
+    return { saved: true, revision: data.expectedRevision + 1 };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 export async function courseResponseCandidates(id: string, input: unknown, userId: string) {
   const query = CourseResponseQuerySchema.parse(input); const { scope } = await access(userId); const course = await readCourse(id, scope);
@@ -270,9 +287,9 @@ async function calculateCourseResults(id: string, query: { from?: string | undef
     const receipts = rows.map(row => ({ definition: byId.get(row.surveyDefinitionId!)!, rawJsonData: row.rawJsonData, moment: row.surveyMoment, gender: responseGroupingContext(row).gender, excluded: row.reviewExcluded, contextPending: responseDto(course, row, allowed).issues.some(issue => issue !== "Respuesta excluida") }));
     const bases = courseResultBases(receipts, definitions);
     const aggregates = addCourseStandardDeviations(aggregateCourseQuestions(bases.questions, definitions), receipts, definitions);
-    return { schoolDistribution, courseId: course.id, name: course.name, school: course.school, siteId: course.siteId, activity: course.activity, revision: course.revision, expectedParticipants: course.expectedParticipants, expectedParticipantsPre: course.expectedParticipantsPre, expectedParticipantsPost: course.expectedParticipantsPost, calculatedAt: new Date().toISOString(), methodology: "approved_pre_post_v1", primaryDefinitionId: course.primaryDefinitionId, aggregates, coverageThreshold: 80, ...bases, distributions: definitions.filter(definition => definition.instrumentKind === "LEARNING").map(definition => { const parsed = AnalysisWeightsSchema.safeParse(definition.analysisWeights); const weights = parsed.success ? parsed.data.find(item => item.analysisType === "pre_post") : null; return { definitionId: definition.id, instrument: definition.instrumentName || "Instrumento", version: definition.version, standardDeviation: weights?.standardDeviation ?? "disabled", categoryWeights: weights?.categoryWeights ?? null, subcategoryWeights: weights?.subcategoryWeights ?? null }; }), pending: [
+    return { schoolDistribution, courseId: course.id, name: course.name, isOpenPublic: course.isOpenPublic, school: course.isOpenPublic ? "Abierto al público" : course.school, siteId: course.siteId, activity: course.activity, revision: course.revision, expectedParticipants: course.expectedParticipants, expectedParticipantsPre: course.expectedParticipantsPre, expectedParticipantsPost: course.expectedParticipantsPost, calculatedAt: new Date().toISOString(), methodology: "approved_pre_post_v1", primaryDefinitionId: course.primaryDefinitionId, aggregates, coverageThreshold: 80, ...bases, distributions: definitions.filter(definition => definition.instrumentKind === "LEARNING").map(definition => { const parsed = AnalysisWeightsSchema.safeParse(definition.analysisWeights); const weights = parsed.success ? parsed.data.find(item => item.analysisType === "pre_post") : null; return { definitionId: definition.id, instrument: definition.instrumentName || "Instrumento", version: definition.version, standardDeviation: weights?.standardDeviation ?? "disabled", categoryWeights: weights?.categoryWeights ?? null, subcategoryWeights: weights?.subcategoryWeights ?? null }; }), pending: [
       "CQS y seguimiento se consultan por separado; no se incorporan a la comparación de aprendizaje.",
-      "Resultados separados por versión; cambio = Post − Pre en puntos porcentuales, sin emparejar personas.",
+      "Resultados separados por versión; cambio relativo respecto de Pre, sin emparejar personas. Si Pre es cero o faltan datos, el cambio no está disponible.",
       "Cobertura: envíos admitidos de cada momento / participantes esperados del curso para ese momento × 100; umbral 80%. Los conteos no identifican personas únicas ni autorizan publicación.",
       "CQS y seguimiento son complementarios y no intervienen en estas puntuaciones.",
     ] };
@@ -381,6 +398,33 @@ export async function publishedReportAggregate(input: unknown, userId: string) {
   }
 }
 
+export async function internalCourseReport(input: unknown, userId: string) {
+  const { courseIds } = z.object({ courseIds: z.array(z.string().uuid()).min(1).max(50).refine(ids => new Set(ids).size === ids.length, "No repitas cursos") }).parse(input);
+  const { scope } = await access(userId);
+  const courses = await prisma.courseEdition.findMany({ where: { ...courseWhere(scope), id: { in: courseIds }, status: { in: ["REVIEWED", "COMPLETED"] } }, select: { id: true, name: true, school: true } });
+  if (courses.length !== courseIds.length) throw fail("Uno o más cursos no están revisados o no están disponibles en tu alcance", 403);
+  const results: CourseResultsDto[] = [];
+  for (const id of courseIds) results.push(await courseResults(id, {}, userId));
+  let report;
+  try { report = aggregatePublishedCourses(results); }
+  catch (error) { throw fail(error instanceof Error ? error.message : "No se pudieron combinar los cursos"); }
+  report.template = { ...report.template, title: `${report.template.title} — Consulta interna`, blocks: report.template.blocks.map(block => block.id === "course-review-context" ? { ...block, title: "Consulta interna", content: `Consulta temporal de ${courses.length} cursos revisados. No es una publicación.\nCursos: ${courses.map(course => `${course.name} (${course.school})`).join(", ")}\nEnvíos Pre: ${results.reduce((sum, result) => sum + result.preReceipts, 0)}; Post: ${results.reduce((sum, result) => sum + result.postReceipts, 0)}.` } : block) };
+  return { ...report, courses: courses.map(course => ({ id: course.id, name: course.name, school: course.school })) };
+}
+
+export async function homeSummary(userId: string) {
+  const { scope } = await access(userId);
+  const definition = scopeToDefinitionWhere(scope) ?? {};
+  const [reviewed, pending, responses, reports, recent] = await prisma.$transaction([
+    prisma.courseEdition.count({ where: { ...courseWhere(scope), status: { in: ["REVIEWED", "COMPLETED"] } } }),
+    prisma.courseEdition.count({ where: { ...courseWhere(scope), status: "DRAFT" } }),
+    prisma.submission.count({ where: { surveyDefinition: { is: definition } } }),
+    prisma.courseEditionPublication.count({ where: publicationWhere(scope) }),
+    prisma.submission.findMany({ where: { surveyDefinition: { is: definition } }, select: { id: true, receivedAt: true, surveyDefinition: { select: { instrumentName: true, programName: true, site: { select: { name: true } } } } }, orderBy: [{ receivedAt: "desc" }, { id: "desc" }], take: 8 }),
+  ]);
+  return { reviewed, pending, responses, reports, recent: recent.map(row => ({ id: row.id, receivedAt: row.receivedAt.toISOString(), instrument: row.surveyDefinition?.instrumentName ?? "Sin nombre", program: row.surveyDefinition?.programName ?? "Sin definir", site: row.surveyDefinition?.site.name ?? "Sin definir" })) };
+}
+
 export async function listPublishedCourseReports(input: unknown, userId: string) {
   const query = CourseListQuerySchema.parse(input); const { scope } = await access(userId);
   const where: Prisma.CourseEditionPublicationWhereInput = { ...publicationWhere(scope), ...(query.school ? { school: { contains: query.school, mode: "insensitive" } } : {}) };
@@ -427,7 +471,7 @@ export async function publishCourseEdition(courseId: string, input: unknown, use
       if (await tx.submission.count({ where: { courseMembership: { application: { courseId } }, reviewExcluded: false, isDuplicate: true } })) throw fail("Revisa o excluye los envíos marcados como duplicados", 409);
       if (result.questions.some(question => !question.configurationReady || [question.pre, question.post].some(base => base.invalid || base.configurationPending || base.zeroMaximum || base.valid && (base.points === null || base.applicableMaximum === null)))) throw fail("Revisa las reglas y respuestas no válidas antes de publicar", 409);
       const index = result.aggregates.find(row => row.level === "index" && row.definitionId === course.primaryDefinitionId);
-      if (!index || index.change === null || result.aggregates.some(row => row.issue)) throw fail("Se requieren resultados Pre/Post y distribuciones completas para publicar");
+      if (!index || index.pre === null || index.post === null || result.aggregates.some(row => row.issue)) throw fail("Se requieren resultados Pre/Post y distribuciones completas para publicar");
       const snapshot: CourseReportPublication["snapshot"] = { schemaVersion: 1, component: "learning", result, draft: draft.draft, document: buildCourseReportPreview(result, draft.draft, true) };
       const row = await tx.courseEditionPublication.create({ data: { courseId, version: data.expectedVersion + 1, actorId: actor.id, name: result.name, school: result.school, surveyDefinitionIds: definitions.map(definition => definition.id), snapshot: snapshot as unknown as Prisma.InputJsonValue }, include: publicationInclude });
       if (complete) {
@@ -467,7 +511,7 @@ export async function splitCourseApplication(id: string, applicationId: string, 
     if (!application) throw fail("Aplicación no disponible en este curso", 404);
     const separated = await tx.courseEdition.create({ data: {
       siteId: course.siteId, primaryDefinitionId: course.primaryDefinitionId,
-      school: course.school, activity: course.activity,
+      school: course.school, isOpenPublic: course.isOpenPublic, activity: course.activity,
       name: `${course.activity} · ${application.date} · ${application.moment}`.slice(0, 200),
       createdBy: actor.id,
     } });
@@ -485,6 +529,8 @@ export async function splitCourseApplication(id: string, applicationId: string, 
 export async function confirmCourseSelection(input: unknown, userId: string) {
   const data = z.object({
     participants: z.number().int().min(1).max(2147483647),
+    school: z.string().trim().max(200),
+    isOpenPublic: z.boolean().default(false),
     responses: z.array(z.object({ id: z.string().uuid(), contextRevision: z.number().int().nonnegative() }).strict()).min(1).max(2000)
       .refine(rows => new Set(rows.map(row => row.id)).size === rows.length, "Respuestas repetidas"),
   }).strict().parse(input);
@@ -504,13 +550,14 @@ export async function confirmCourseSelection(input: unknown, userId: string) {
     const contexts = rows.map(row => responseGroupingContext(row));
     const dates = new Set(contexts.map(context => context.date));
     const activities = new Set(contexts.map(context => normalized(context.activity)));
-    if (dates.has(null) || dates.size > 2 || activities.size !== 1 || activities.has("")) throw fail("Selecciona una o dos fechas con la misma actividad");
+    if (dates.has(null) || activities.size !== 1 || activities.has("")) throw fail("Selecciona respuestas con fechas válidas y la misma actividad");
     if (!rows.some(row => !row.reviewExcluded && row.surveyMoment === "PRE") || !rows.some(row => !row.reviewExcluded && row.surveyMoment === "POST")) throw fail("El curso requiere respuestas Pre y Post");
     if (rows.some(row => !["PRE", "POST"].includes(row.surveyMoment))) throw fail("Corrige los momentos antes de confirmar");
     const schools = new Map<string, number>();
     for (const context of contexts) if (context.school) schools.set(context.school, (schools.get(context.school) ?? 0) + 1);
-    const school = [...schools].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
-    if (!school) throw fail("Revisa la escuela antes de confirmar");
+    const school = [...schools.keys()].find(value => normalized(value) === normalized(data.school));
+    if (!data.isOpenPublic && !school) throw fail("Selecciona una escuela detectada en las respuestas del curso");
+    if (data.isOpenPublic && data.school) throw fail("Un curso abierto al público no tiene escuela principal");
     for (const row of rows) {
       const membership = row.courseMembership;
       const unresolved = (row.rawJsonData as Prisma.JsonObject | null)?.unresolvedAnswers;
@@ -522,7 +569,7 @@ export async function confirmCourseSelection(input: unknown, userId: string) {
     const activity = contexts[0]!.activity!;
     const course = await tx.courseEdition.create({ data: {
       siteId: definition.siteId, primaryDefinitionId: definitionId, status: "REVIEWED",
-      name: `${activity} · ${[...dates].sort().join(" / ")}`.slice(0, 200), school, activity,
+      name: `${activity} · ${[...dates].sort().join(" / ")}`.slice(0, 200), school: data.isOpenPublic ? "" : school!, isOpenPublic: data.isOpenPublic, activity,
       expectedParticipants: data.participants, expectedParticipantsPre: data.participants, expectedParticipantsPost: data.participants, createdBy: actor.id,
     } });
     for (const row of rows) {
@@ -534,7 +581,7 @@ export async function confirmCourseSelection(input: unknown, userId: string) {
       await tx.courseMembership.upsert({ where: { submissionId: row.id }, create: { submissionId: row.id, applicationId: application.id, contextRevision: row.contextRevision + 1, createdBy: actor.id }, update: { applicationId: application.id, contextRevision: row.contextRevision + 1, createdBy: actor.id } });
       if (row.courseMembership) await tx.courseEdition.update({ where: { id: row.courseMembership.application.courseId }, data: { revision: { increment: 1 } } });
     }
-    await audit(tx, actor, "COURSE_CONFIRM", course.id, { responseIds: ids, participants: data.participants, dates: [...dates] });
+    await audit(tx, actor, "COURSE_CONFIRM", course.id, { responseIds: ids, participants: data.participants, dates: [...dates], school: data.isOpenPublic ? null : school, isOpenPublic: data.isOpenPublic });
     return { saved: true, courseId: course.id };
   }, { timeout: 30000 });
 }

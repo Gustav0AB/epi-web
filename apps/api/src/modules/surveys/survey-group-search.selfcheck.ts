@@ -38,7 +38,7 @@ const result = summarizeGroupSearchRows([
 assert.equal(result.totalGroups, 1);
 assert.equal(result.rows[0]!.studentsResponded, 2);
 assert.equal(result.rows[0]!.cqsCount, 1);
-assert.equal(result.rows[0]!.improvementPercent, 30);
+assert.equal(result.rows[0]!.improvementPercent, 60);
 
 console.log("✓ survey-group-search self-check passed");
 
@@ -152,7 +152,11 @@ const schools = summarizeGroupSearchRows([
   dated("2026-08-28", "PRE", "Escuela A"),
   dated("2026-08-28", "PRE", "Escuela A"),
 ], [], true);
-assert.equal(schools.totalGroups, 1);
-assert.equal(schools.rows[0]?.school, "Escuela A, Escuela B");
-assert.equal(schools.rows[0]?.preCount, 3);
-assert.equal(schools.rows[0]?.contextNeedsReview, true);
+assert.equal(schools.totalGroups, 2);
+assert.equal(schools.rows.find(row => row.school === "Escuela A")?.preCount, 2);
+assert.equal(schools.rows.find(row => row.school === "Escuela B")?.preCount, 1);
+const missingSchool = { ...dated("2026-08-28", "POST"), participant: { school: null } };
+const separated = summarizeGroupSearchRows([dated("2026-08-28", "PRE", "Escuela A"), dated("2026-08-28", "POST", "escuela a"), missingSchool], [], true);
+assert.equal(separated.totalGroups, 2);
+assert.equal(separated.rows.find(row => row.school === "Sin escuela")?.contextNeedsReview, true);
+assert.equal(separated.rows.find(row => row.school !== "Sin escuela")?.postCount, 1);

@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import type { CategoryImportPreview, CategoryImportResult } from "@epi/shared";
 import { prisma } from "../../db/prisma.js";
 import { createApp } from "../../app.js";
+import { catalogService } from "./catalog.service.js";
 import { env } from "../../config/env.js";
 
 assert.equal(process.env.NODE_ENV, "test");
@@ -59,6 +60,55 @@ try {
     assert.equal(await prisma.category.count({ where: { organizationId: organization.id, name } }), 1);
     assert.equal((await (await request(concurrentCsv)).json() as { data: CategoryImportResult }).data.applied, 0);
   }
+  const actor = { sub: user.id, username: user.username, role: "org_admin", organizationId: organization.id, featureKeys: [] };
+  const createdSite = await catalogService.createSite(actor, { name: "Sitio creado", programs: ["Local"], activityTypes: ["Curso"] });
+  assert((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).siteIds.includes(createdSite.id));
+  await catalogService.updateSite(actor, createdSite.id, { programs: ["Local", "Nuevo"] });
+  await catalogService.deleteSite(actor, createdSite.id);
+  const category = await catalogService.createCategory(actor, { name: "Naturaleza", subcategory: "Bosque" });
+  await catalogService.updateCategory(actor, category.id, { subcategory: "Costa" });
+  await catalogService.deleteCategory(actor, category.id);
+  await catalogService.createCategory(actor, { name: "Naturaleza", subcategory: "Costa" });
+  const categoryUrl = `http://127.0.0.1:${address.port}/api/categories/${category.id}/sites`;
+  const catRequest = (url: string, method = "GET", body?: unknown) => fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const availableBefore = await catRequest(`http://127.0.0.1:${address.port}/api/categories?siteId=${site.id}`);
+  assert(!(await availableBefore.json() as { data: { id: string }[] }).data.some(item => item.id === category.id));
+  assert.equal((await catRequest(categoryUrl, "PUT", { siteIds: [site.id] })).status, 200);
+  const availableAfter = await catRequest(`http://127.0.0.1:${address.port}/api/categories?siteId=${site.id}`);
+  assert((await availableAfter.json() as { data: { id: string }[] }).data.some(item => item.id === category.id));
+  assert.equal((await catRequest(categoryUrl, "PUT", { siteIds: [foreign.id] })).status, 403);
+  assert.equal((await catRequest(`http://127.0.0.1:${address.port}/api/categories?siteId=${foreign.id}`)).status, 403);
+  const changes = await prisma.auditLog.findMany({ where: { actorId: user.id, action: { not: "CATEGORY_SITES_CHANGE" }, targetId: { in: [createdSite.id, category.id] } }, orderBy: { createdAt: "asc" } });
+  assert.deepEqual(changes.map(item => item.action), ["SITE_CREATE", "SITE_UPDATE", "SITE_DELETE", "CATEGORY_CREATE", "CATEGORY_UPDATE", "CATEGORY_DELETE", "CATEGORY_REACTIVATE"]);
+  assert.deepEqual((changes[1]!.metadata as any).previous.programs, ["Local"]);
+  assert.deepEqual((changes[1]!.metadata as any).current.programs, ["Local", "Nuevo"]);
+  assert.equal((changes[4]!.metadata as any).previous.subcategory, "Bosque");
+  assert.equal((changes[4]!.metadata as any).current.subcategory, "Costa");
+  assert(changes.every(item => item.actorOrganizationId === organization.id));
+  const destination = await catalogService.createSite(actor, { name: "Destino copia", programs: ["Local", "Otro"], activityTypes: ["Visita"] });
+  const source = await prisma.site.create({ data: { name: "Origen no asignado", organizationId: organization.id, programs: ["local", "Visiting", "Otro"], activityTypes: ["Taller"] } });
+  const foreignSite = await prisma.site.create({ data: { name: "Origen extranjero", organizationId: foreign.id } });
+  const sources = await catalogService.catalogSources(actor, destination.id);
+  assert(sources.some(item => item.id === source.id));
+  assert(!sources.some(item => item.id === foreignSite.id));
+  await assert.rejects(() => catalogService.duplicateSiteCatalogs(actor, destination.id, foreignSite.id));
+  const copied = await catalogService.duplicateSiteCatalogs(actor, destination.id, source.id);
+  assert.deepEqual(copied.programs, ["Local", "Otro", "Visiting"]);
+  assert.deepEqual(copied.activityTypes, ["Visita", "Taller"]);
+  const copyLog = await prisma.auditLog.findFirstOrThrow({ where: { action: "SITE_CATALOG_DUPLICATE", targetId: destination.id } });
+  assert.equal((copyLog.metadata as any).sourceSiteId, source.id);
+  assert.deepEqual((await catalogService.duplicateSiteCatalogs(actor, destination.id, source.id)).programs, copied.programs);
+
+  await prisma.$executeRawUnsafe(`CREATE FUNCTION test_reject_site_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'SITE_UPDATE' AND NEW.metadata->'current'->>'name' = 'Rechazar' THEN RAISE EXCEPTION 'fallo de auditoria simulado'; END IF; RETURN NEW; END $$`);
+  await prisma.$executeRawUnsafe(`CREATE TRIGGER test_reject_site_audit BEFORE INSERT ON audit_logs FOR EACH ROW EXECUTE FUNCTION test_reject_site_audit()`);
+  try {
+    await assert.rejects(() => catalogService.updateSite(actor, createdSite.id, { name: "Rechazar" }));
+    assert.equal((await prisma.site.findUniqueOrThrow({ where: { id: createdSite.id } })).name, "Sitio creado");
+  } finally {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER test_reject_site_audit ON audit_logs`);
+    await prisma.$executeRawUnsafe(`DROP FUNCTION test_reject_site_audit()`);
+  }
+
   assert((await prisma.auditLog.count({ where: { actorId: user.id, action: "CATEGORY_IMPORT" } })) > 0);
   console.log("✓ category import HTTP/PostgreSQL: preview, additive writes, scope, audit and concurrency passed");
 } finally {

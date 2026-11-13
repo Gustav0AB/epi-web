@@ -1,4 +1,4 @@
-import { combineCourseWeights as combine } from "@epi/shared";
+import { relativeChange, combineCourseWeights as combine } from "@epi/shared";
 import { AnalysisWeightsSchema, type CourseAggregate, type PrePostQuestionBase } from "@epi/shared";
 import type { ResultsDefinition } from "./course-results.js";
 type Weighted = { key: string; weight: number; value: number | null };
@@ -14,7 +14,7 @@ export function aggregateCourseQuestions(questions: PrePostQuestionBase[], defin
     const configured = parsed.success ? parsed.data.find(item => item.analysisType === "pre_post") : null;
     function append(level: CourseAggregate["level"], category: string | null, subcategory: string | null, pre: Weighted[], post: Weighted[], issue: string | null = null) {
       const before = issue ? { value: null, weights: [] } : combine(pre); const after = issue ? { value: null, weights: [] } : combine(post);
-      const row: CourseAggregate = { definitionId: definition.id, instrument: definition.instrumentName || "Instrumento", version: definition.version, level, category, subcategory, pre: before.value, post: after.value, change: before.value === null || after.value === null ? null : after.value - before.value, preEffectiveWeights: before.weights, postEffectiveWeights: after.weights, issue };
+      const row: CourseAggregate = { definitionId: definition.id, instrument: definition.instrumentName || "Instrumento", version: definition.version, level, category, subcategory, pre: before.value, post: after.value, change: relativeChange(before.value, after.value), preEffectiveWeights: before.weights, postEffectiveWeights: after.weights, issue };
       rows.push(row); return row;
     }
     const categories = [...new Set(source.flatMap(question => question.category ? [question.category] : []))];

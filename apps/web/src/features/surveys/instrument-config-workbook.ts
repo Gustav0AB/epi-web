@@ -1,9 +1,9 @@
 import ExcelJS from "exceljs";
 import { unzipSync } from "fflate";
 import type { CategoryDto, SurveySetupDraft } from "@epi/shared";
-import { categoryLabel, configColumns, questionColumns, scoreColumns, instrumentConfigRows, questionRoles, responseTypes, type ConfigQuestion, type ConfigRow } from "./instrument-config-table";
+import { blankInstrumentConfig, categoryLabel, configColumns, questionColumns, scoreColumns, instrumentConfigRows, questionRoles, responseTypes, type ConfigQuestion, type ConfigRow } from "./instrument-config-table";
 
-export function createInstrumentWorkbook(draft: SurveySetupDraft, questions: ConfigQuestion[], categories: CategoryDto[]) {
+export function createInstrumentWorkbook(draft: SurveySetupDraft, questions: ConfigQuestion[], categories: CategoryDto[], blank = false) {
   const workbook = new ExcelJS.Workbook();
   const note = workbook.addWorksheet("Instrucciones");
   const lists = workbook.addWorksheet("Catálogos");
@@ -11,7 +11,8 @@ export function createInstrumentWorkbook(draft: SurveySetupDraft, questions: Con
   const sheet = workbook.addWorksheet("Preguntas", frozen);
   const scores = workbook.addWorksheet("Ponderaciones", frozen);
   const visible = questions.filter(question => !question.sourceContext?.matrixParent);
-  const { headers, rows } = instrumentConfigRows(draft, questions);
+  const { headers, rows: configuredRows } = instrumentConfigRows(draft, questions);
+  const rows = blank ? configuredRows.map(blankInstrumentConfig) : configuredRows;
   const questionsHeaders = [...questionColumns, ...headers.filter(header => /^(Respuesta|Etiqueta de filtro|Momento) \d+$/.test(header))];
   const scoreHeaders = [...questionColumns.slice(0, 2), ...scoreColumns, ...headers.filter(header => /^No puntuable \d+$/.test(header))];
   let listColumn = 1;
@@ -32,7 +33,7 @@ export function createInstrumentWorkbook(draft: SurveySetupDraft, questions: Con
   choicesRange("Momentos", ["PRE", "POST"]);
   [
     "Preguntas corresponde al paso 2: tipo, rol, subcategoría, filtro y configuración de respuestas.",
-    "Ponderaciones corresponde al paso 3: método, máximo, peso, correcta, inversión y porcentajes. No incluye cálculos.",
+    "Ponderaciones corresponde a los pasos 3 y 4: porcentajes, método, máximo, peso, correcta e inversión. No incluye cálculos.",
     "Puedes importar solo Preguntas; deja Ponderaciones vacía o elige omitirla en la vista previa.",
     "En Ponderaciones, los campos vacíos conservan sus valores actuales. Usa el mismo porcentaje en cada grupo.",
     "Selecciona Sí/No para filtro, inversión y respuestas no puntuables. La categoría se obtiene de la subcategoría.",
@@ -41,7 +42,7 @@ export function createInstrumentWorkbook(draft: SurveySetupDraft, questions: Con
     "Reutiliza el libro entre instrumentos: las preguntas se reconocen por texto y sección si se repiten. Las opciones deben coincidir en orden.",
     "Si cambia el texto o la sección, edítalos en las dos pestañas. Edita las respuestas de referencia en Preguntas para que coincidan con el destino.",
     "El catálogo es de referencia; no modifica catálogos, preguntas ni respuestas de origen.",
-    "Revisa la vista previa y guarda manualmente cada paso. La aplicación calcula los puntos e influencia fuera del Excel.",
+    "Revisa la vista previa y confirma al final. Puedes guardar un borrador en cualquier paso. La aplicación calcula los puntos e influencia fuera del Excel.",
   ].forEach(value => note.addRow([value]));
   note.getColumn(1).width = 105;
   note.eachRow(row => { row.height = 32; row.alignment = { wrapText: true, vertical: "middle" }; });

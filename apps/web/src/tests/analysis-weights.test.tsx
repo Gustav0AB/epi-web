@@ -73,3 +73,12 @@ it("validates and preserves instrument standard-deviation settings when weights 
  expect(renderToStaticMarkup(<AnalysisWeightsSummary instrumentMode questions={questions} weights={configured} includeIaa />)).toContain("Muestral");
  expect(renderToStaticMarkup(<SetupAnalysisScoring instrumentMode questions={questions} onChange={() => {}} weights={configured} onWeightsChange={() => {}} />)).toContain("Desviación estándar del instrumento");
 });
+
+it("separates category weights from the question scoring table", () => {
+ const groups = renderToStaticMarkup(<SetupAnalysisScoring view="groups" questions={questions} onChange={() => {}} weights={[pre, follow]} onWeightsChange={() => {}} />);
+ const items = renderToStaticMarkup(<SetupAnalysisScoring view="questions" questions={questions} onChange={() => {}} weights={[pre, follow]} onWeightsChange={() => {}} />);
+ expect(groups).toContain('aria-label="Peso de Learning / Knowledge"');
+ expect(groups).not.toContain('aria-label="Peso de pregunta:');
+ expect(items).not.toContain('aria-label="Peso de Learning / Knowledge"');
+ expect(items).toContain('aria-label="Peso de pregunta: Pregunta 0"');
+});

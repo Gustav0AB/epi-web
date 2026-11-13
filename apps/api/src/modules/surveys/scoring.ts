@@ -1,3 +1,4 @@
+import { relativeChange } from "@epi/shared";
 // Motor de ponderación. Puro y sin dependencias: fácil de verificar aislado.
 // ponytail: el rubro de puntuación es la perilla de calibración del negocio.
 // Si mañana un Likert 1-5 debe normalizarse a 0-100, se ajusta AQUÍ.
@@ -49,7 +50,11 @@ export function aggregate(scored: Scored[]): Scored[] {
 
 export function overallImprovement(questions: { pre: number | null; post: number | null; excluded: boolean }[]): number | null {
   const comparable = questions.filter((q) => !q.excluded && q.pre !== null && q.post !== null);
-  return comparable.length ? Math.round(comparable.reduce((sum, q) => sum + q.post! - q.pre!, 0) / comparable.length * 10) / 10 : null;
+  if (!comparable.length) return null;
+  const pre = comparable.reduce((sum, q) => sum + q.pre!, 0) / comparable.length;
+  const post = comparable.reduce((sum, q) => sum + q.post!, 0) / comparable.length;
+  const change = relativeChange(pre, post);
+  return change === null ? null : Math.round(change * 10) / 10;
 }
 
 export function categoryQuestionResults(questions: { category: string; subcategory: string | null; pre: number | null; post: number | null; excluded: boolean }[]) {

@@ -75,6 +75,7 @@ export type CategoryDto = {
   subcategory: string | null;
   isActive: boolean;
   organizationId: string;
+  siteIds?: string[];
 };
 
 export type CategoryImportResult = {

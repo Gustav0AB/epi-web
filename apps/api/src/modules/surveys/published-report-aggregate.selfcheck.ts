@@ -26,7 +26,7 @@ const second = course(base(0, 3), base(2, 3));
 const report = aggregatePublishedCourses([first, second]);
 assert.equal(report.data.series.categoryComparison?.[0]?.pre, 25);
 assert.equal(report.data.series.categoryComparison?.[0]?.post, 75);
-assert.equal(report.data.kpis.overallImprovement, 50);
+assert.equal(report.data.kpis.overallImprovement, 200);
 assert.throws(() => aggregatePublishedCourses([{ ...first, categorySelection: { included: ["C"], excluded: [] } }, second]), /categorías/);
 assert.throws(() => aggregatePublishedCourses([{ ...first, primaryDefinitionId: "otro" }, second]), /configuraciones/);
 assert.throws(() => aggregatePublishedCourses([{ ...first, questions: first.questions.map(q => ({ ...q, factor: 2 })) }, second]), /configuraciones/);

@@ -30,7 +30,7 @@ assert.deepEqual(makeDetailRow("Total", [
   { pre: true, score: 3, max: 5 },
   { pre: false, score: 0, max: 0 },
   { pre: false, score: 4, max: 5 },
-]), { category: "Total", subcategory: null, pre: 60, post: 80, change: 20 });
+]), { category: "Total", subcategory: null, pre: 60, post: 80, change: 33.3 });
 assert.equal(makeDetailRow("Total", [{ pre: true, score: 0, max: 5 }]).pre, 0);
 
 console.log("scoring self-check passed");
@@ -48,16 +48,16 @@ assert.equal(ReportFiltersSchema.parse({ courseDate: "2026-06-01", siteId: exclu
 assert.equal(overallImprovement([]), null);
 assert.equal(overallImprovement([{ pre: 40, post: null, excluded: false }, { pre: null, post: 80, excluded: false }]), null);
 const comparableQuestions = [{ pre: 20, post: 80, excluded: false }, { pre: 90, post: 60, excluded: false }, { pre: 0, post: 100, excluded: true }];
-assert.equal(overallImprovement(comparableQuestions), 15);
+assert.equal(overallImprovement(comparableQuestions), 27.3);
 assert.equal(overallImprovement(comparableQuestions.map(q => ({ ...q, excluded: true }))), null);
-assert.equal(overallImprovement([{ pre: 80, post: 20, excluded: false }]), -60);
-assert.equal(overallImprovement([{ pre: 0, post: 0, excluded: false }]), 0);
-assert.equal(overallImprovement([{ pre: 0, post: 10, excluded: false }, { pre: 0, post: 0, excluded: false }, { pre: 0, post: 0, excluded: false }]), 3.3);
+assert.equal(overallImprovement([{ pre: 80, post: 20, excluded: false }]), -75);
+assert.equal(overallImprovement([{ pre: 0, post: 0, excluded: false }]), null);
+assert.equal(overallImprovement([{ pre: 0, post: 10, excluded: false }, { pre: 0, post: 0, excluded: false }, { pre: 0, post: 0, excluded: false }]), null);
 
 const categoryQuestion = (pre: number | null, post: number | null, excluded = false) => ({ category: "Learning", subcategory: null, pre, post, excluded });
-assert.deepEqual(categoryQuestionResults([categoryQuestion(30, 80), categoryQuestion(20, 80)]), [{ category: "Learning", subcategory: null, pre: 25, post: 80, change: 55 }]);
+assert.deepEqual(categoryQuestionResults([categoryQuestion(30, 80), categoryQuestion(20, 80)]), [{ category: "Learning", subcategory: null, pre: 25, post: 80, change: 220 }]);
 assert.deepEqual(categoryQuestionResults([categoryQuestion(30, null), categoryQuestion(null, 80)])[0], { category: "Learning", subcategory: null, pre: 30, post: 80, change: null });
-assert.equal(categoryQuestionResults([categoryQuestion(30, 80), categoryQuestion(0, 100, true)])[0]!.change, 50);
+assert.equal(categoryQuestionResults([categoryQuestion(30, 80), categoryQuestion(0, 100, true)])[0]!.change, 166.7);
 assert.deepEqual(categoryQuestionResults([categoryQuestion(null, null), categoryQuestion(0, 100, true)]), []);
 assert.equal(categoryQuestionResults([{ ...categoryQuestion(0, 10), category: "A||B" }, { ...categoryQuestion(0, 20), category: "A", subcategory: "B||" }]).length, 2);
 

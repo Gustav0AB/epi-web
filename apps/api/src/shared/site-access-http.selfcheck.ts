@@ -8,7 +8,7 @@ import { env } from "../config/env.js";
 import { surveysRepository } from "../modules/surveys/surveys.repository.js";
 
 const user = { id: "viewer", username: "viewer", role: "FUNCTIONALITY_USER", organizationId: "org-a",
-  siteIds: ["a1"], excludedSurveyDefinitionIds: [], isActive: true, mustChangePassword: false, sessionValidAfter: null };
+  siteIds: ["a1"], excludedSurveyDefinitionIds: [], isActive: true, mustChangePassword: false, sessionValidAfter: null, userFeatures: [{ featureKey: "surveys" }] };
 prisma.user.findUnique = (async () => user) as unknown as typeof prisma.user.findUnique;
 const sites = [{ id: "a1", organizationId: "org-a" }, { id: "a2", organizationId: "org-a" }, { id: "b1", organizationId: "org-b" }];
 prisma.site.findMany = (async (args: { where: { organizationId?: string; id?: { in: string[] } } }) => sites.filter((site) =>
@@ -19,6 +19,8 @@ prisma.participant.findMany = (async (args: { where: unknown }) => {
   seenParticipantWhere = args.where;
   return [];
 }) as unknown as typeof prisma.participant.findMany;
+const organizations = [{ id: "org-a", name: "Organización A" }, { id: "org-b", name: "Organización B" }];
+prisma.organization.findMany = (async (args: { where: { id?: { in: string[] } } }) => organizations.filter(org => !args.where.id || args.where.id.in.includes(org.id))) as unknown as typeof prisma.organization.findMany;
 prisma.category.findMany = (async () => []) as typeof prisma.category.findMany;
 let filterScope: unknown;
 surveysRepository.getDefinitionFilters = async (_id, scope) => { filterScope = scope; return []; };
@@ -38,6 +40,9 @@ async function request(path: string, method = "GET") {
 }
 try {
   assert.equal((await fetch(`${base}/api/sites`)).status, 401);
+  const orgResponse = await request("/api/organizations");
+  assert.deepEqual(((await orgResponse.json()) as { data: { id: string }[] }).data.map(org => org.id), ["org-a"]);
+  assert.equal((await request("/api/audit-logs")).status, 403);
   const res = await request("/api/sites?organizationId=org-b");
   assert.equal(res.status, 200);
   assert.deepEqual(((await res.json()) as { data: { id: string }[] }).data.map((site: { id: string }) => site.id), ["a1"]);
@@ -45,9 +50,13 @@ try {
   assert.deepEqual(seenScope, ["a1"]);
   assert.equal((await request("/api/surveys/definitions/def1/questions")).status, 403);
   assert.equal(typeof questionScope, "undefined");
+  user.userFeatures = [{ featureKey: "scoring" }];
   const scoringToken = jwt.sign({ sub: user.id, username: user.username, role: "functionality_user", organizationId: "org-a", featureKeys: ["scoring"] }, env.JWT_SECRET);
   assert.equal((await fetch(`${base}/api/surveys/definitions/def1/questions`, { headers: { Authorization: `Bearer ${scoringToken}` } })).status, 200);
   assert.deepEqual((questionScope as { siteIds: string[] }).siteIds, ["a1"]);
+  assert.equal((await request("/api/surveys/submission-b/reprocess", "POST")).status, 403);
+  user.userFeatures = [{ featureKey: "surveys" }];
+  assert.equal((await request("/api/surveys/definitions")).status, 200);
   assert.equal((await request("/api/surveys/definitions/def1/filters")).status, 200);
   assert.deepEqual((filterScope as { siteIds: string[] }).siteIds, ["a1"]);
   assert.equal((await request("/api/surveys/groups")).status, 200);
@@ -73,9 +82,11 @@ try {
   assert.equal((await request("/api/surveys/jotform/labels?accountId=00000000-0000-4000-8000-000000000001")).status, 403);
   assert.equal((await request("/api/surveys/definitions/def1/source-contract")).status, 403);
   assert.equal((await request("/api/surveys/jotform/forms/form1/migration")).status, 403);
+  assert.equal((await request("/api/surveys/jotform/forms/form1/reprocess-versions")).status, 403);
   assert.equal((await request("/api/surveys/definitions/def1/migrate", "POST")).status, 403);
   assert.equal((await request("/api/surveys/definitions/def1/migration-settings", "PATCH")).status, 403);
   user.role = "SYSTEM_ADMIN";
+  assert.deepEqual(((await (await request("/api/organizations")).json()) as { data: { id: string }[] }).data.map(org => org.id), ["org-a", "org-b"]);
   assert.equal((await request("/api/surveys/definitions/def1/migration-settings", "PATCH")).status, 400);
   prisma.surveyDefinition.findFirst = (async () => ({ id: "def1" })) as unknown as typeof prisma.surveyDefinition.findFirst;
   prisma.assistantImport.findUnique = (async () => null) as unknown as typeof prisma.assistantImport.findUnique;
@@ -102,6 +113,8 @@ try {
   }
   user.role = "FUNCTIONALITY_USER";
   assert.equal((await request("/api/surveys/jotform/forms/form1/setup")).status, 403);
+  assert.equal((await request("/api/surveys/jotform/accounts/labels-preview", "POST")).status, 403);
+  assert.equal((await request("/api/surveys/jotform/accounts/form1/labels")).status, 403);
   assert.equal((await request("/api/surveys/schools")).status, 403);
   assert.equal((await request("/api/surveys/jotform/labels?accountId=00000000-0000-4000-8000-000000000001")).status, 403);
   user.role = "SYSTEM_ADMIN";

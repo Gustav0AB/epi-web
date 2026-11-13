@@ -4,7 +4,6 @@ import { useAuthStore } from "../store/auth.store";
 import { useI18n } from "../lib/i18n";
 import LogoutIcon from "@mui/icons-material/Logout";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import Logo from "../assets/logo.svg";
 import LogoText from "../assets/logo-text.svg";
 import { ChangePasswordModal } from "../features/users/components/ChangePasswordModal";
@@ -145,18 +144,6 @@ export function Header() {
 
             {menuOpen && (
               <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-                {isSystemAdmin && (
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      navigate("/settings");
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <SettingsOutlinedIcon fontSize="small" />
-                    {t("header.settings")}
-                  </button>
-                )}
                 <button
                   onClick={() => {
                     setMenuOpen(false);

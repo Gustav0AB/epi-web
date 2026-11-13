@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { FEATURES_REGISTRY } from "@epi/shared";
+import { ensureDefaultAdmin } from "./default-admin.js";
 
 const prisma = new PrismaClient();
 
@@ -45,32 +46,6 @@ async function seedInstitutionalPositions() {
   console.log(`Seeded ${DEFAULT_INSTITUTIONAL_POSITIONS.length} institutional positions.`);
 }
 
-async function seedAdminUser() {
-  const username = "admin";
-  const email = "admin@epi.local";
-
-  // Fix existing admin whose username was set to email by the migration default
-  const byEmail = await prisma.user.findUnique({ where: { email } });
-  if (byEmail) {
-    if (byEmail.username !== username) {
-      await prisma.user.update({ where: { email }, data: { username } });
-      console.log("Updated admin username to:", username);
-    } else {
-      console.log("Default admin user already exists, skipping.");
-    }
-    return;
-  }
-
-  const password = await bcrypt.hash("Admin1234!", 12);
-
-  await prisma.user.create({
-    data: { name: "System Admin", username, email, password, role: "SYSTEM_ADMIN", mustChangePassword: true },
-  });
-
-  console.log("Created default admin user:");
-  console.log("  Username: admin");
-  console.log("  Password: Admin1234!");
-}
 
 async function removeDemoUsers() {
   const { count } = await prisma.user.deleteMany({
@@ -366,7 +341,7 @@ async function main() {
   await seedFeatures();
   await seedReportTemplates();
   await seedInstitutionalPositions();
-  await seedAdminUser();
+  await ensureDefaultAdmin(prisma);
   if (process.env.SEED_DEMO !== "true") {
     await removeDemoUsers();
     return;

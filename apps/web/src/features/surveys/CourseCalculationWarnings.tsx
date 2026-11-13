@@ -1,5 +1,4 @@
 import type { CourseResultsDto } from "@epi/shared";
-import { Card } from "@epi/ui";
 
 export function CourseCalculationWarnings({ result }: { result: CourseResultsDto }) {
   const warnings = result.groups.flatMap(group => (["pre", "post"] as const).flatMap(moment => {
@@ -15,6 +14,6 @@ export function CourseCalculationWarnings({ result }: { result: CourseResultsDto
       : "Los promedios consideran las respuestas válidas de cada pregunta. Todas las preguntas conservan participación en la ponderación.";
     return [{ key: JSON.stringify([group.definitionId, group.category, group.subcategory, moment]), title: `${group.instrument} · ${group.category ?? "Categoría pendiente"} / ${group.subcategory ?? "Subcategoría pendiente"} · ${moment === "pre" ? "Pre" : "Post"}`, blanks, adjustment }];
   }));
-  if (!warnings.length) return null;
-  return <Card><details><summary className="cursor-pointer font-semibold">Advertencias del cálculo · {warnings.length} grupos con observaciones</summary><ul className="mt-4 space-y-4">{warnings.map(warning => <li key={warning.key}><h3 className="font-medium">{warning.title}</h3><p>{warning.blanks} respuestas en blanco o ausentes quedaron fuera del cálculo.</p><p className="text-sm">{warning.adjustment}</p></li>)}</ul></details></Card>;
+  if (!warnings.length) return <p>No hay advertencias de cálculo.</p>;
+  return <div><p>{warnings.length} grupos con observaciones</p><ul className="mt-4 space-y-4">{warnings.map(warning => <li key={warning.key}><h3 className="font-medium">{warning.title}</h3><p>{warning.blanks} respuestas en blanco o ausentes quedaron fuera del cálculo.</p><p className="text-sm">{warning.adjustment}</p></li>)}</ul></div>;
 }

@@ -1,3 +1,4 @@
+import { prisma } from "../../db/prisma.js";
 import { usersRepository } from "../users/users.repository.js";
 import { allowedSiteIds } from "../../shared/site-scope.js";
 import { catalogRepository } from "./catalog.repository.js";
@@ -78,11 +79,29 @@ export const catalogService = {
       if (!organizationId) throw forbidden("An organization is required to create sites");
     }
     try {
-      return await catalogRepository.createSite({ name: dto.name, organizationId, ...(dto.programs ? { programs: dto.programs } : {}), ...(dto.activityTypes ? { activityTypes: dto.activityTypes } : {}) }, requester.role === "org_admin" ? requester.sub : undefined);
+      return await catalogRepository.createSite({ name: dto.name, organizationId, ...(dto.programs ? { programs: dto.programs } : {}), ...(dto.activityTypes ? { activityTypes: dto.activityTypes } : {}) }, requester.role === "org_admin" ? requester.sub : undefined, requester);
     } catch (err) {
       if (isUniqueConstraintError(err)) throw conflict("A site with that name already exists");
       throw err;
     }
+  },
+
+  async catalogSources(requester: JwtPayload, targetId: string) {
+    const target = await catalogRepository.findSiteById(targetId);
+    if (!target) throw notFound("Sitio no encontrado");
+    assertOrgAccess(requester, target.organizationId);
+    await assertAssignedSite(requester, targetId);
+    if (!target.organizationId) throw badRequest("El sitio debe pertenecer a una organización");
+    return catalogRepository.catalogSources(target.organizationId, targetId);
+  },
+  async duplicateSiteCatalogs(requester: JwtPayload, targetId: string, sourceId: string) {
+    const target = await catalogRepository.findSiteById(targetId);
+    const source = await catalogRepository.findSiteById(sourceId);
+    if (!target || !source) throw notFound("Sitio no encontrado");
+    assertOrgAccess(requester, target.organizationId);
+    await assertAssignedSite(requester, targetId);
+    if (!target.organizationId || target.organizationId !== source.organizationId || targetId === sourceId) throw badRequest("Selecciona otro sitio de la misma organización");
+    return catalogRepository.duplicateSiteCatalogs(targetId, sourceId, requester);
   },
 
   async updateSite(requester: JwtPayload, id: string, dto: UpdateSiteDto) {
@@ -98,8 +117,9 @@ export const catalogService = {
     if (dto.organizationId !== undefined && dto.organizationId !== existing.organizationId && await catalogRepository.countAssignedUsers(id)) {
       throw conflict("Reassign users before moving this site to another organization");
     }
+    if (dto.organizationId !== undefined && dto.organizationId !== existing.organizationId && await prisma.categorySite.count({ where: { siteId: id } })) throw conflict("Desvincula las categorías antes de cambiar la organización del sitio");
     try {
-      return await catalogRepository.updateSite(id, dto);
+      return await catalogRepository.updateSite(id, dto, requester);
     } catch (err) {
       if (isUniqueConstraintError(err)) throw conflict("A site with that name already exists");
       throw err;
@@ -116,7 +136,7 @@ export const catalogService = {
     if (surveyDefinitions > 0) {
       throw conflict("Cannot delete a site that still has survey definitions");
     }
-    await catalogRepository.deleteSite(id);
+    await catalogRepository.deleteSite(id, requester);
   },
 
   // ── Categorías (por organización) ───────────────────────────────────
@@ -136,11 +156,11 @@ export const catalogService = {
     const existing = await catalogRepository.findCategoryByKey(organizationId, dto.name, dto.subcategory ?? null);
     if (existing) {
       if (existing.isActive) throw conflict("That category/subcategory pair already exists in this organization");
-      return catalogRepository.reactivateCategory(existing.id);
+      return catalogRepository.reactivateCategory(existing.id, requester);
     }
 
     try {
-      return await catalogRepository.createCategory({ ...dto, organizationId });
+      return await catalogRepository.createCategory({ ...dto, organizationId }, requester);
     } catch (err) {
       if (isUniqueConstraintError(err)) throw conflict("That category/subcategory pair already exists in this organization");
       throw err;
@@ -156,8 +176,9 @@ export const catalogService = {
       throw forbidden("org_admin cannot move categories to another organization");
     }
 
+    if (dto.organizationId !== undefined && dto.organizationId !== existing.organizationId && await prisma.categorySite.count({ where: { categoryId: id } })) throw conflict("Desvincula los sitios antes de cambiar la organización de la categoría");
     try {
-      return await catalogRepository.updateCategory(id, dto);
+      return await catalogRepository.updateCategory(id, dto, requester);
     } catch (err) {
       if (isUniqueConstraintError(err)) throw conflict("That category/subcategory pair already exists in this organization");
       throw err;
@@ -168,7 +189,7 @@ export const catalogService = {
     const existing = await catalogRepository.findCategoryById(id);
     if (!existing) throw notFound("Category not found");
     assertOrgAccess(requester, existing.organizationId);
-    await catalogRepository.deleteCategory(id);
+    await catalogRepository.deleteCategory(id, requester);
   },
 
   // org_admin siempre importa a su propia organización; system_admin debe indicarla.

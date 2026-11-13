@@ -1,6 +1,6 @@
 import { onlineRequest } from "../../lib/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CategoryDto, CategoryImportPreview, CategoryImportResult, OrganizationDto } from "@epi/shared";
+import type { CategoryDto, CategoryImportPreview, CategoryImportResult, OrganizationDto, SiteDto } from "@epi/shared";
 import { CATEGORY_CSV_COLUMNS, csvCell } from "@epi/shared";
 import { Badge, Button, Card, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "@epi/ui";
 import type { Column, DropdownOption } from "@epi/ui";
@@ -45,6 +45,9 @@ export function CategoriesPage() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const isSystemAdmin = currentUser?.role === "system_admin";
 
+  const [sites, setSites] = useState<SiteDto[]>([]);
+  const [siteCategory, setSiteCategory] = useState<CategoryDto | null>(null);
+  const [assignedSites, setAssignedSites] = useState<string[]>([]);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [orgs, setOrgs] = useState<OrganizationDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,12 +69,13 @@ export function CategoriesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, o] = await Promise.all([
+      const [c, o, availableSites] = await Promise.all([
         apiClient.get<CategoryDto[]>("/api/categories"),
         isSystemAdmin ? apiClient.get<OrganizationDto[]>("/api/organizations") : Promise.resolve([]),
+        apiClient.get<SiteDto[]>("/api/sites"),
       ]);
       setCategories(c);
-      setOrgs(o);
+      setOrgs(o); setSites(availableSites);
     } catch {
       // silently fail
     } finally {
@@ -153,6 +157,14 @@ export function CategoriesPage() {
     }
   }
 
+  async function saveCategorySites() {
+    if (!siteCategory) return;
+    setSaving(true); setError(null);
+    try { await apiClient.put(`/api/categories/${encodeURIComponent(siteCategory.id)}/sites`, { siteIds: assignedSites }); setSiteCategory(null); await load(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudieron guardar los sitios."); }
+    finally { setSaving(false); }
+  }
+
   function downloadCategoriesCsv() {
     const header = CATEGORY_CSV_COLUMNS.join(",");
     const lines = categories.length
@@ -222,6 +234,7 @@ export function CategoriesPage() {
       align: "right",
       render: (c) => (
         <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={() => { setError(null); setSiteCategory(c); setAssignedSites(c.siteIds ?? []); }}>Asignar sitios ({c.siteIds?.length ?? 0})</Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
             {t("common.edit")}
           </Button>
@@ -303,6 +316,11 @@ export function CategoriesPage() {
         )}
       </Card>
 
+      <Modal open={!!siteCategory} title="Asignar categoría a sitios" onClose={() => { if (!saving) setSiteCategory(null); }} footer={<><Button variant="secondary" onClick={() => setSiteCategory(null)}>Cancelar</Button><Button loading={saving} onClick={() => void saveCategorySites()}>Guardar sitios</Button></>}>
+        <p className="mb-3 text-sm">Sin sitios asignados, esta categoría no aparece en la configuración de instrumentos.</p>
+        {error && <p role="alert" className="text-danger">{error}</p>}
+        {sites.filter(site => site.organizationId === siteCategory?.organizationId && site.isActive).map(site => <label key={site.id} className="flex items-center gap-2 py-1"><input type="checkbox" checked={assignedSites.includes(site.id)} onChange={event => setAssignedSites(current => event.target.checked ? [...current, site.id] : current.filter(id => id !== site.id))} />{site.name}</label>)}
+      </Modal>
       <Modal
         open={!!importPreview}
         onClose={() => { if (!importSaving) setImportPreview(null); }}

@@ -31,10 +31,11 @@ export function SurveySetupReview({ questions, quality }: { questions: Question[
       <p role="status" className="pb-1 text-sm">{rows.length} preguntas</p>
     </div>
     <Table rows={rows} pageSize={10} keyExtractor={question => question.externalId} emptyText="No hay preguntas con este rol." columns={[
-      { key: "text", header: t("jotformCatalog.question"), render: question => <CompactText text={question.text} width="w-44" /> },
+      { key: "text", header: t("jotformCatalog.question"), render: question => <CompactText text={question.text.replace(/<\/?strong\b[^>]*>/gi, "")} width="w-44" /> },
       { key: "role", header: "Tipo y rol", render: question => <div className="min-w-28 space-y-1"><p>{t(`surveySetup.types.${question.type}`)}</p><Badge>{t(`surveySetup.roles.${question.role ?? "SCORED"}`)}</Badge>{question.isFilter && question.role !== "FILTER" && <Badge color="blue">Filtro</Badge>}</div> },
       { key: "classification", header: "Categoría / Subcategoría", render: question => <div className="w-32 break-words">{question.classification?.category || "—"}{question.classification?.subcategory && <p className="text-xs">{question.classification.subcategory}</p>}</div> },
       { key: "score", header: "Puntuación", render: question => !canConfigureAnalysis(question) ? "—" : quality ? "CQS pendiente" : <CompactText text={analysisScoringText(question)} width="w-40" /> },
+      { key: "factor", header: "Peso", render: question => !quality && canConfigureAnalysis(question) ? String(question.weight?.factor ?? 1) : "—" },
       { key: "answers", header: "Respuestas", render: question => !question.options.length ? "—" : <details className="w-28">
         <summary className="cursor-pointer whitespace-nowrap">{question.options.length} opciones</summary>
         <ul className="mt-1 max-h-48 list-disc space-y-1 overflow-y-auto break-words pl-4">{question.options.map((value, index) => {

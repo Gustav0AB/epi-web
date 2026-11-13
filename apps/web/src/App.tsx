@@ -1,3 +1,5 @@
+import { ReferenceInstrumentsPage } from "./features/surveys/ReferenceInstrumentsPage";
+import { InternalCourseReportPage } from "./features/reports/InternalCourseReportPage";
 import { InteractiveCourseReportPage } from "./features/reports/InteractiveCourseReportPage";
 import { CourseReportPage } from "./features/reports/CourseReportPage";
 import { PublishedCourseReportsPage } from "./features/reports/PublishedCourseReportsPage";
@@ -12,11 +14,9 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { HomePage } from "./pages/HomePage";
 import { UsersPage } from "./features/users/UsersPage";
 import { SurveyGroupsPage } from "./features/surveys/SurveyGroupsPage";
-import { ScoringPage } from "./features/surveys/ScoringPage";
 import { SurveySettingsPage } from "./features/surveys/SurveySettingsPage";
 import { JotformAccountsPage } from "./features/surveys/JotformAccountsPage";
 import { ReportsPage } from "./features/reports/ReportsPage";
-import { SettingsPage } from "./features/settings/SettingsPage";
 import { OrganizationsPage } from "./features/organizations/OrganizationsPage";
 import { SitesPage } from "./features/sites/SitesPage";
 import { CategoriesPage } from "./features/categories/CategoriesPage";
@@ -43,14 +43,16 @@ function Workspace({ area }: { area: "courses" | "instruments" | "organizations"
   const tabs = area === "instruments" ? [
     ["/instruments/forms", "Formularios", system],
     ["/instruments/accounts", "Cuentas Jotform", system],
-    ["/instruments/scoring", "Ponderaciones", feature("scoring")],
     ["/instruments/categories", "Catálogo de categorías", admin],
+    ["/instruments/references", "Instrumentos de referencia", admin],
   ] : [
     ["/organization-management/organizations", "Organizaciones", system],
     ["/organization-management/sites", "Sitios", admin],
+    ["/organization-management/users", "Usuarios", admin],
   ];
   return <div className="space-y-4">
-    <nav aria-label={area === "instruments" ? "Área de instrumentos" : "Organizaciones y sitios"} className="flex flex-wrap gap-2 border-b pb-2">
+    <nav aria-label={area === "instruments" ? "Área de instrumentos" : "Organizaciones, sitios y usuarios"} className="flex flex-wrap gap-2 border-b pb-2">
+      {area === "organizations" && user?.role === "org_admin" && <span aria-disabled="true" title="Solo el administrador del sistema puede administrar organizaciones" className="cursor-not-allowed rounded px-3 py-2 text-sm text-gray-400">Organizaciones</span>}
       {tabs.filter(([, , allowed]) => allowed).map(([to, label]) =>
         <NavLink key={String(to)} to={String(to)} end={to !== "/courses/review"} className={({ isActive }) => `rounded px-3 py-2 text-sm font-medium ${isActive ? "bg-primary text-white" : "text-primary hover:bg-gray-100"}`}>{label}</NavLink>)}
     </nav>
@@ -61,7 +63,7 @@ function Workspace({ area }: { area: "courses" | "instruments" | "organizations"
 function WorkspaceIndex({ area }: { area: "courses" | "instruments" }) {
   const user = useAuthStore(state => state.currentUser);
   if (area === "courses") return user?.role === "system_admin" || user?.role === "org_admin" || user?.featureKeys.includes("surveys") ? <SurveyGroupsPage /> : <NoAccessPage />;
-  return <CourseRedirect to={user?.role === "system_admin" ? "/instruments/forms" : user?.role === "org_admin" ? "/instruments/categories" : "/instruments/scoring"} />;
+  return <CourseRedirect to={user?.role === "system_admin" ? "/instruments/forms" : user?.role === "org_admin" ? "/instruments/categories" : "/no-access"} />;
 }
 
 function CourseRedirect({ to }: { to: string }) {
@@ -105,7 +107,7 @@ export default function App() {
           </Route>
         </Route>
         <Route element={<RoleGate allow="functionality" featureKey="surveys" />}>
-          <Route element={<AppLayout />}><Route path="/reports/prepare/:id" element={<CourseReportPage />} /></Route>
+          <Route element={<AppLayout />}><Route path="/reports/prepare/:id" element={<CourseReportPage />} /><Route path="/reports/internal" element={<InternalCourseReportPage />} /></Route>
         </Route>
         <Route path="/published-courses" element={<PublishedReportRedirect />} />
         <Route path="/published-courses/:publicationId" element={<PublishedReportRedirect />} />
@@ -154,17 +156,19 @@ export default function App() {
               <Route path="forms" element={<SurveySettingsPage />} />
               <Route path="accounts" element={<JotformAccountsPage />} />
             </Route>
-            <Route element={<RoleGate allow="functionality" featureKey="scoring" />}>
-              <Route path="scoring" element={<ScoringPage />} />
+            <Route element={<RoleGate allow="system_admin" />}>
+              <Route path="scoring" element={<CourseRedirect to="/instruments/forms" />} />
             </Route>
             <Route element={<RoleGate allow="admin_tier" />}>
               <Route path="categories" element={<CategoriesPage />} />
+              <Route path="references" element={<ReferenceInstrumentsPage />} />
             </Route>
           </Route>
           <Route element={<RoleGate allow="admin_tier" />}>
             <Route path="/organization-management" element={<Workspace area="organizations" />}>
               <Route index element={<CourseRedirect to="/organization-management/sites" />} />
               <Route path="sites" element={<SitesPage />} />
+              <Route path="users" element={<UsersPage />} />
               <Route element={<RoleGate allow="system_admin" />}>
                 <Route path="organizations" element={<OrganizationsPage />} />
               </Route>
@@ -175,14 +179,14 @@ export default function App() {
         {/* Gestión de usuarios: system_admin (cualquier org) u org_admin (solo la propia) */}
         <Route element={<RoleGate allow="user_management" />}>
           <Route element={<AppLayout />}>
-            <Route path="/users" element={<UsersPage />} />
+            <Route path="/users" element={<CourseRedirect to="/organization-management/users" />} />
           </Route>
         </Route>
 
         {/* Plantillas de reporte y organizaciones: solo system_admin */}
         <Route element={<RoleGate allow="system_admin" />}>
           <Route element={<AppLayout />}>
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings" element={<Navigate to="/reports" replace />} />
             <Route path="/audit-log" element={<AuditLogPage />} />
           </Route>
         </Route>

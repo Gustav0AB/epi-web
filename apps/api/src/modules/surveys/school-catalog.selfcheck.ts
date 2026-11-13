@@ -15,6 +15,7 @@ assert.equal(schoolCatalog([{ ...row("legacy", null), rawJsonData: { participant
 assert.equal(schoolCatalog([{ ...row("ambiguous", null), rawJsonData: { schoolContext: { original: null }, participant: { school: "Must not fall back" } } }]).schools.length, 0);
 assert.equal(schoolCatalog([{ ...row("unassigned", "School"), surveyDefinition: null }]).schools.length, 0);
 assert.equal(schoolCatalog([{ ...row("ambiguous-name", "Unresolved"), rawJsonData: { schoolContext: { original: "Unresolved", school: null } } }]).schools.length, 0);
+assert.equal(schoolCatalog([{ ...row("dated", null), rawJsonData: { schoolContext: { original: "8/17/26 - Abington Friends Middle School", school: null } } }]).schools[0]?.name, "Abington Friends Middle School");
 assert.equal(schoolCatalog([row("no-date", "School")]).schools.length, 1, "Missing a grouping date must not hide a valid school");
 assert.equal(schoolCatalog([row("a", "CBTIS 230"), row("b", "CBTIS230")]).schools.length, 2, "Do not guess school equivalences");
 prisma.submission.findMany = (async (args: { where: unknown; select: { surveyDefinition: unknown } }) => {

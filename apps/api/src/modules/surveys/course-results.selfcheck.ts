@@ -44,7 +44,7 @@ assert.equal(aggregates.find(row => row.level === "index")!.pre,62.5); assert.eq
 const missing = structuredClone(qs); missing[1]!.pre.points = null; missing[1]!.pre.applicableMaximum = null;
 aggregates = aggregateCourseQuestions(missing,[weightedDefinition]); assert.equal(aggregates[0]!.pre,100); assert.deepEqual(aggregates[0]!.preEffectiveWeights,[{ key: "scale", weight: 100 }]);
 const zeroQs = structuredClone(qs); zeroQs.forEach(question => { question.pre.points = 0; question.post = { ...question.pre, points: question.pre.applicableMaximum }; });
-aggregates = aggregateCourseQuestions(zeroQs,[weightedDefinition]); assert.equal(aggregates[0]!.pre,0); assert.equal(aggregates[0]!.post,100); assert.equal(aggregates[0]!.change,100);
+aggregates = aggregateCourseQuestions(zeroQs,[weightedDefinition]); assert.equal(aggregates[0]!.pre,0); assert.equal(aggregates[0]!.post,100); assert.equal(aggregates[0]!.change,null);
 const invalidWeights = { ...weightedDefinition, analysisWeights: [{ ...weights[0], categoryWeights: [{ category: "Learning", weight: 80 }] }] };
 assert.equal(aggregateCourseQuestions(qs,[invalidWeights]).find(row => row.level === "index")!.pre,null);
 const missingCategory = { ...weightedDefinition, analysisWeights: null }; assert.ok(aggregateCourseQuestions(qs,[missingCategory]).find(row => row.level === "category")!.issue);
@@ -66,7 +66,7 @@ const followReceipts = [receipt([{questionId:"scale",value:"Neutral"},{questionI
 const untouched = JSON.stringify([primaryResult,followDefinition,followReceipts]);
 const complement = complementaryResults(primaryResult,followDefinition,followReceipts);
 assert.equal(complement.comparison.find(row=>row.subcategory === "Attitudes")!.followUp,80);
-assert.equal(complement.comparison.find(row=>row.subcategory === "Attitudes")!.fromPre,17.5);
+assert(Math.abs(complement.comparison.find(row=>row.subcategory === "Attitudes")!.fromPre! - 28) < 1e-9);
 assert.equal(complement.comparison.find(row=>row.subcategory === "Attitudes")!.fromPost,null);
 assert.equal(complement.receipts,1);assert.equal(complement.excluded,1);assert.equal(complement.contextPending,1);assert.equal(complement.sourcePending,1);
 assert.equal(complement.distributions[0]!.options.find(option=>option.value === "Neutral")!.count,1);

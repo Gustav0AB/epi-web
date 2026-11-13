@@ -20,6 +20,11 @@ export function SitesPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<SiteDto | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [duplicateTarget, setDuplicateTarget] = useState<SiteDto | null>(null);
+  const [catalogSources, setCatalogSources] = useState<SiteDto[]>([]);
+  const [sourceSite, setSourceSite] = useState("");
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [deleting, setDeleting] = useState<SiteDto | null>(null);
   const [name, setName] = useState("");
   const [programs, setPrograms] = useState("Local, Visiting, Otro");
@@ -100,6 +105,19 @@ export function SitesPage() {
     }
   }
 
+  async function openDuplicate(site: SiteDto) {
+    setDuplicateTarget(site); setSourceSite(""); setCatalogSources([]); setDuplicateError(null); setDuplicateBusy(true);
+    try { setCatalogSources(await apiClient.get<SiteDto[]>(`/api/sites/${encodeURIComponent(site.id)}/catalog-sources`)); }
+    catch (reason) { setDuplicateError(reason instanceof Error ? reason.message : "No se pudieron cargar los sitios"); }
+    finally { setDuplicateBusy(false); }
+  }
+  async function duplicateCatalogs() {
+    if (!duplicateTarget || !sourceSite) return;
+    setDuplicateBusy(true); setDuplicateError(null);
+    try { await apiClient.post(`/api/sites/${encodeURIComponent(duplicateTarget.id)}/duplicate-catalogs`, { sourceSiteId: sourceSite }); setDuplicateTarget(null); await load(); }
+    catch (reason) { setDuplicateError(reason instanceof Error ? reason.message : "No se pudieron duplicar los catálogos"); }
+    finally { setDuplicateBusy(false); }
+  }
   const columns: Column<SiteDto>[] = [
     { key: "name", header: t("users.table.name") },
     ...(isSystemAdmin
@@ -124,6 +142,7 @@ export function SitesPage() {
       align: "right",
       render: (s) => (
         <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={() => void openDuplicate(s)}>Duplicar catálogos</Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
             {t("common.edit")}
           </Button>
@@ -195,6 +214,13 @@ export function SitesPage() {
           )}
         </div>
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+      </Modal>
+
+      <Modal open={!!duplicateTarget} onClose={() => { if (!duplicateBusy) setDuplicateTarget(null); }} title="Duplicar catálogos" footer={<><Button variant="ghost" disabled={duplicateBusy} onClick={() => setDuplicateTarget(null)}>Cancelar</Button><Button loading={duplicateBusy} disabled={!sourceSite} onClick={() => void duplicateCatalogs()}>Duplicar</Button></>}>
+        <p className="mb-3">Destino: {duplicateTarget?.name}. Se agregarán los programas y tipos de actividad del sitio elegido; se conservarán las opciones existentes.</p>
+        <Dropdown label="Sitio de origen" value={sourceSite} options={[{ value: "", label: "Selecciona un sitio" }, ...catalogSources.map(site => ({ value: site.id, label: site.name }))]} onChange={setSourceSite} />
+        {!duplicateBusy && !catalogSources.length && <p>No hay otros sitios activos disponibles en esta organización.</p>}
+        {duplicateError && <p role="alert" className="text-danger">{duplicateError}</p>}
       </Modal>
 
       <ConfirmModal

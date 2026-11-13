@@ -9,7 +9,7 @@ export const CourseMembershipSchema = z.object({ expectedRevision: z.number().in
 export type CourseMembershipInput = z.infer<typeof CourseMembershipSchema>;
 export const CourseResponseQuerySchema = z.object({ linked: z.literal("true").optional(), page: z.coerce.number().int().min(1).default(1), definitionId: z.string().uuid().optional(), from: z.string().date().optional(), to: z.string().date().optional() }).refine(input => !input.from || !input.to || input.from <= input.to, "Rango de fechas inválido");
 export const CourseListQuerySchema = z.object({ school: z.string().trim().max(200).optional(), activity: z.string().trim().max(200).optional(), siteId: z.string().uuid().optional(), page: z.coerce.number().int().min(1).default(1),
-  status: z.enum(["DRAFT", "REVIEWED", "COMPLETED"]).optional(),
+  status: z.enum(["DRAFT", "REVIEWED", "COMPLETED"]).optional(), courseType: z.enum(["SCHOOL", "PUBLIC"]).optional(),
   year: z.coerce.number().int().min(1900).max(9999).optional(),
   from: z.string().date().optional(), to: z.string().date().optional(),
   moment: z.enum(["PRE", "POST", "BOTH"]).optional(), submittedOn: z.string().date().optional(),
@@ -17,7 +17,7 @@ export const CourseListQuerySchema = z.object({ school: z.string().trim().max(20
 export type ResponseGroupingContext = { school: string | null; date: string | null; activity: string | null; dateSource: "manual" | "school_field" | "submitted_at" | null; originalSchool: string | null; submittedAt: string | null; gender: string | null; age: number | null; originalGender: unknown; originalAge: unknown; needsReview: boolean };
 export type CourseResponseDto = { id: string; remoteId: string; definitionId: string; instrument: string; instrumentKind: string | null; version: number; contextRevision: number; context: ResponseGroupingContext; moment: typeof SURVEY_MOMENTS[number]; status: typeof SUBMISSION_STATUSES[number]; reviewExcluded: boolean; possibleDuplicate: boolean; receivedAt: string; linkedCourseId: string | null; issues: string[]; canLink: boolean };
 export type CourseApplicationDto = { id: string; definitionId: string; instrument: string; version: number; date: string; moment: typeof SURVEY_MOMENTS[number]; responseCount: number; validContextCount: number; excludedCount: number; reviewCount: number };
-export type CourseEditionDto = { id: string; siteId: string; name: string; school: string; activity: string; primaryDefinitionId: string; expectedParticipants: number | null; expectedParticipantsPre: number | null; expectedParticipantsPost: number | null; revision: number; createdAt: string };
+export type CourseEditionDto = { isOpenPublic?: boolean; id: string; siteId: string; name: string; school: string; activity: string; primaryDefinitionId: string; expectedParticipants: number | null; expectedParticipantsPre: number | null; expectedParticipantsPost: number | null; revision: number; createdAt: string };
 export type CourseEditionDetailDto = CourseEditionDto & { applications: CourseApplicationDto[]; responses: CourseResponseDto[]; instruments: { id: string; title: string; version: number; kind: string | null; linked: boolean }[]; totalResponses: number; responsePage: number; responsePages: number };
 export type CourseResponsePage = { rows: CourseResponseDto[]; page: number; total: number; totalPages: number };
 export type CourseEditionsPage = { rows: (CourseEditionDto & { siteName?: string; applicationDate?: string | null; preResponses?: number; postResponses?: number })[]; page: number; total: number; totalPages: number };

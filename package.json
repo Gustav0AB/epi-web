@@ -4,7 +4,9 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "epi-ui",
+    "epi-login"
   ],
   "scripts": {
     "dev": "npm run build:reusable && npm run build -w packages/shared && concurrently \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
@@ -20,7 +22,7 @@
     "typecheck": "npm run build:reusable && npm run build -w packages/shared && npm run build -w apps/api && npm run typecheck -w apps/web",
     "lint": "eslint . --ext .ts,.tsx",
     "test:surveys:integration": "sh scripts/test-survey-migrations.sh",
-    "build:reusable": "npm run build --prefix ../epi-ui && npm run build --prefix ../epi-login"
+    "build:reusable": "npm run build -w epi-ui && npm run build -w epi-login"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

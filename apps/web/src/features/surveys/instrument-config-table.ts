@@ -47,8 +47,12 @@ export function instrumentConfigRows(draft: SurveySetupDraft, questions: ConfigQ
   });
   return { headers, rows };
 }
-export function exportInstrumentTableCsv(draft: SurveySetupDraft, questions: ConfigQuestion[]) {
-  const { headers, rows } = instrumentConfigRows(draft, questions);
+export function blankInstrumentConfig(row: ConfigRow): ConfigRow {
+  return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, ["Sección", "Pregunta", "Tipo de respuesta"].includes(key) || /^Respuesta \d+$/.test(key) ? value : ""]));
+}
+export function exportInstrumentTableCsv(draft: SurveySetupDraft, questions: ConfigQuestion[], blank = false) {
+  const { headers, rows: configuredRows } = instrumentConfigRows(draft, questions);
+  const rows = blank ? configuredRows.map(blankInstrumentConfig) : configuredRows;
   return "\uFEFF" + [headers.map(csvCell).join(","), ...rows.map(row => headers.map(header => csvCell(protect(row[header] ?? ""))).join(","))].join("\r\n");
 }
 export function readInstrumentTableCsv(text: string): ConfigRow[] {

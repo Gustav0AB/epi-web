@@ -30,16 +30,10 @@ export async function applyOptimisticWrite(
   const now = new Date().toISOString();
 
   if (method === "POST" && USER_LIST_RE.test(path)) {
-    const tempId = `temp-${crypto.randomUUID()}`;
-    const user: User = {
-      ...(body as Omit<User, "id" | "createdAt" | "updatedAt">),
-      id: tempId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await db.users.add(user);
-    await db.mutationQueue.add({ method, path, body, createdAt: now, tempId });
-    return user;
+    throw new Error("Conéctate a internet para crear usuarios y proteger su contraseña.");
+  }
+  if (body && typeof body === "object" && "password" in body) {
+    throw new Error("Conéctate a internet para modificar contraseñas.");
   }
 
   const idMatch = path.match(USER_BY_ID_RE);

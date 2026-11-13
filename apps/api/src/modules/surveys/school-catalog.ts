@@ -26,7 +26,8 @@ export function schoolCatalog(rows: SchoolRow[]): SchoolCatalogDto {
     const detected = source.success ? schoolContext(source.data.schoolContext ? source.data.schoolContext.original : source.data.participant?.school) : null;
     const confirmed = row.reviewSchool?.trim().replace(/\s+/g, " ");
     const stored = source.success ? source.data.schoolContext : undefined;
-    const name = confirmed || (stored?.school !== undefined ? stored.school?.trim().replace(/\s+/g, " ") : detected?.school);
+    const recoverDated = stored?.school === null && typeof stored.original === "string" && /^\s*\d{1,2}\/\d{1,2}\/(?:\d{2}|\d{4})\s*[-–—]/.test(stored.original);
+    const name = confirmed || (stored?.school !== undefined && !recoverDated ? stored.school?.trim().replace(/\s+/g, " ") : detected?.school);
     if (!name) { unresolvedCount++; continue; }
     const site = row.surveyDefinition.site;
     const key = JSON.stringify([site.id, name.toLowerCase()]);

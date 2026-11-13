@@ -28,8 +28,8 @@
     "recharts": "^3.9.2",
     "zod": "^3.23.8",
     "zustand": "^4.5.2",
-    "@epi/ui": "file:../../../epi-ui",
-    "@epi/login": "file:../../../epi-login"
+    "@epi/ui": "0.1.0",
+    "@epi/login": "0.1.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

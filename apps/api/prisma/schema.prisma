@@ -113,6 +113,7 @@ model UserReportTemplate {
 // Catálogo y configuración (reglas de negocio)
 
 model Site {
+  categoryLinks CategorySite[]
   courseEditions CourseEdition[]
   programs String[] @default(["Local", "Visiting", "Otro"])
   activityTypes String[] @default([])
@@ -132,6 +133,7 @@ model Site {
 // Catálogo de categorías/subcategorías, por organización (CSV o alta
 // individual). Cada organización tiene su propio catálogo — no se comparte.
 model Category {
+  siteLinks CategorySite[]
   id             String       @id @default(uuid())
   name           String
   subcategory    String?
@@ -142,6 +144,16 @@ model Category {
 
   @@unique([organizationId, name, subcategory])
   @@map("categories")
+}
+
+model CategorySite {
+  categoryId String
+  siteId String
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  @@id([categoryId, siteId])
+  @@index([siteId])
+  @@map("category_sites")
 }
 
 // Catálogo de cargos institucionales (Chaperón, Coordinador...) que
@@ -183,6 +195,7 @@ model JotformForm {
 }
 
 model JotformAccount {
+  excludedLabelIds String[] @default([])
   id        String   @id @default(uuid())
   name      String
   apiKey    String   @unique
@@ -559,6 +572,7 @@ model AssistantImportItem {
 }
 
 model CourseEdition {
+  isOpenPublic Boolean @default(false)
   status String @default("DRAFT")
   complements CourseComplement[]
   publications CourseEditionPublication[]

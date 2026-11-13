@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../../db/prisma.js";
 import { createApp } from "../../app.js";
 import { env } from "../../config/env.js";
-import { publishedReportFilterOptions, groupMigratedCourseResponse, courseResults, createCourseEdition, setCourseMembership, saveCourseReportDraft, getCourseReportDraft, setCourseExpectedParticipants, publishCourseEdition, publishedCourseReport, courseReportHistory, listPublishedCourseReports } from "./course-editions.service.js";
+import { internalCourseReport, publishedReportFilterOptions, groupMigratedCourseResponse, courseResults, createCourseEdition, setCourseMembership, saveCourseReportDraft, getCourseReportDraft, setCourseExpectedParticipants, publishCourseEdition, publishedCourseReport, courseReportHistory, listPublishedCourseReports } from "./course-editions.service.js";
 import { surveysService, setSubmissionContext, setSubmissionMoment, setSubmissionExclusion } from "./surveys.service.js";
 assert.equal(process.env.NODE_ENV,"test"); assert.equal(new URL(process.env.DATABASE_URL!).pathname,"/epi_setup_test");
 try {
@@ -75,6 +75,8 @@ try {
   const token = (user: typeof viewer) => jwt.sign({ sub: user.id, role: user.role.toLowerCase(), username: user.username, organizationId: user.organizationId, featureKeys: [] },env.JWT_SECRET);
   const headers = { Authorization: `Bearer ${token(viewer)}` };
   assert.equal((await fetch(base+"/published-courses")).status,401);
+  assert.equal((await fetch(base+"/internal-course-report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ courseIds: [course.id] }) })).status, 401);
+  assert.equal((await fetch(base+"/internal-course-report", { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ courseIds: [course.id] }) })).status, 403);
   assert.equal((await fetch(base+"/published-courses",{ headers })).status,200);
   assert.equal((await fetch(base+"/published-courses",{ headers: { Authorization: `Bearer ${token(operator)}` } })).status,200);
   assert.equal((await fetch(base+"/published-courses/"+published.id,{ headers })).status,200);
@@ -91,6 +93,24 @@ try {
   closingResponses.push({ id: saved.submissionId, contextRevision: 0 });
  }
  await setCourseMembership(closing.id, { expectedRevision: 0, linked: true, responses: closingResponses }, admin.id);
+ const combinedCourse = await prisma.courseEdition.create({ data: { siteId: site.id, primaryDefinitionId: definition.id, school: "Escuela combinada", activity: "Visita", name: "Curso combinado", status: "REVIEWED", createdBy: admin.id } });
+ const combinedResponses = [];
+ for (const moment of ["PRE", "POST"] as const) {
+  const saved = await surveysService.ingest({ formID: definition.jotformFormId, submissionID: `internal-${moment}`, surveyMoment: moment, answers: [{ questionId: "school", value: "01/11/2026 - Escuela combinada" }, { questionId: "scale", value: "Alto" }] });
+  combinedResponses.push({ id: saved.submissionId, contextRevision: 0 });
+ }
+ await setCourseMembership(combinedCourse.id, { expectedRevision: 0, linked: true, responses: combinedResponses }, admin.id);
+ const combinedInternal = await internalCourseReport({ courseIds: [closing.id, combinedCourse.id] }, admin.id);
+ assert.equal(combinedInternal.courses.length, 2);
+ const internalContext = combinedInternal.template.blocks.find(block => block.id === "course-review-context");
+ assert.ok(internalContext?.type === "text" && internalContext.content?.includes("Envíos Pre: 2; Post: 2"));
+ assert.equal(await prisma.courseEditionPublication.count({ where: { courseId: combinedCourse.id } }), 0);
+ const beforeInternalPublications = await prisma.courseEditionPublication.count({ where: { courseId: closing.id } });
+ const internal = await internalCourseReport({ courseIds: [closing.id] }, admin.id);
+ assert.equal(internal.courses[0]?.id, closing.id); assert.ok(internal.template.title.includes("Consulta interna"));
+ assert.equal(await prisma.courseEditionPublication.count({ where: { courseId: closing.id } }), beforeInternalPublications);
+ await assert.rejects(() => internalCourseReport({ courseIds: [closing.id] }, denied.id), { statusCode: 403 });
+ await assert.rejects(() => internalCourseReport({ courseIds: [course.id, course.id] }, admin.id));
  let closingResult = await courseResults(closing.id, {}, admin.id);
  await assert.rejects(() => publishCourseEdition(closing.id, { expectedRevision: closingResult.revision, expectedVersion: 0 }, admin.id, true), error => error instanceof Error && error.message.includes("80%"));
  assert.equal((await prisma.courseEdition.findUniqueOrThrow({ where: { id: closing.id } })).status, "REVIEWED");
@@ -152,5 +172,31 @@ try {
  assert.equal(selectedPublication.snapshot.result.aggregates.find(row=>row.level==="index")?.change,-50);
  assert.ok(selectedPublication.snapshot.document.data.tables.categoryBreakdown?.every(row=>row.name==="A"));
  assert.deepEqual((await courseResults(selectedCourse.id,{},admin.id)).categorySelection,{included:["A"],excluded:["B","C"]});
+ const zeroDefinition = await prisma.surveyDefinition.create({ data: { jotformFormId: "zero-initial", siteId: site.id, instrumentKind: "LEARNING", instrumentName: "Inicial cero", activityName: "Visita", configurationVersion: 4, analysisWeights: [{ analysisType: "pre_post", categoryWeights: [{ category: "Learning", weight: 100 }], subcategoryWeights: [{ category: "Learning", subcategory: "Knowledge", weight: 100 }] }], questions: { create: [
+  { externalId: "school", text: "Escuela", type: "OPEN_TEXT", role: "SCHOOL_GROUP" },
+  { externalId: "correct", text: "Correcta", type: "ONE_ANSWER", role: "SCORED", options: ["A", "B"], classification: { category: "Learning", subcategory: "Knowledge" }, analysisParticipation: [{ analysisType: "pre_post", enabled: true }, { analysisType: "pre_post_post", enabled: false }], analysisScoring: [{ analysisType: "pre_post", maxScore: 1, correctAnswer: "A", scoringMode: "standard", responsePolicy: { blank: "exclude", invalid: "review" } }] },
+ ] } } });
+ const zeroRows = [];
+ for (const moment of ["PRE", "POST"] as const) {
+  const response = await surveysService.ingest({ formID: zeroDefinition.jotformFormId, submissionID: `zero-initial-${moment}`, surveyMoment: moment, answers: [{ questionId: "school", value: "11/01/2026 - Escuela cero" }, { questionId: "correct", value: moment === "PRE" ? "B" : "A" }] });
+  zeroRows.push({ id: response.submissionId, contextRevision: 0 });
+ }
+ const zeroCourse = await createCourseEdition({ siteId: site.id, primaryDefinitionId: zeroDefinition.id, school: "Escuela cero", activity: "Visita", name: "Inicial cero", expectedParticipants: 1 }, admin.id);
+ await setCourseMembership(zeroCourse.id, { expectedRevision: 0, linked: true, responses: zeroRows }, admin.id);
+ const zeroResult = await courseResults(zeroCourse.id, {}, admin.id);
+ const zeroIndex = zeroResult.aggregates.find(row => row.level === "index")!;
+ assert.equal(zeroIndex.pre, 0); assert.equal(zeroIndex.post, 100); assert.equal(zeroIndex.change, null);
+ await saveCourseReportDraft(zeroCourse.id, { expectedRevision: zeroResult.revision, draft: { templateKey: "course-impacts-general", textContent: {} } }, admin.id);
+ const zeroPublication = await publishCourseEdition(zeroCourse.id, { expectedRevision: zeroResult.revision + 1, expectedVersion: 0 }, admin.id);
+ assert.equal(zeroPublication.snapshot.result.aggregates.find(row => row.level === "index")?.change, null);
+ assert.equal(zeroPublication.snapshot.document.data.kpis.overallImprovement, "No disponible (Pre es cero o faltan datos)");
+ assert.deepEqual(await publishedCourseReport(published.id, viewer.id), published, "A new publication does not rewrite an earlier snapshot");
+ const legacySnapshot = structuredClone(published.snapshot);
+ legacySnapshot.result.aggregates.find(row => row.level === "index")!.change = 17;
+ legacySnapshot.document.data.kpis.overallImprovement = 17;
+ const legacyRow = await prisma.courseEditionPublication.create({ data: { courseId: zeroCourse.id, version: 99, actorId: admin.id, name: "Histórico", school: "Escuela cero", surveyDefinitionIds: [zeroDefinition.id], snapshot: legacySnapshot as any } });
+ const legacyRead = await publishedCourseReport(legacyRow.id, viewer.id);
+ assert.deepEqual(legacyRead.snapshot, legacySnapshot, "Historical snapshots retain their original values and document");
+
  console.log("E6 publication passed: approved aggregate, coverage gate, saved draft, frozen template/data/text, scope/readers, immutable database, concurrent republication and HTTP authorization");
 } finally { await prisma.$disconnect(); }

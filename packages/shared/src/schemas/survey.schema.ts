@@ -362,6 +362,7 @@ export type JotformFormDto = {
 };
 
 export const JotformFormsQuerySchema = z.object({
+  registered: z.enum(["true", "false"]).optional(),
   labelId: z.string().trim().min(1).max(200).optional(),
   withoutLabels: z.enum(["true"]).optional(),
   accountId: z.string().uuid().optional(),
@@ -392,13 +393,16 @@ export type HistoricalImportResult = {
 export const CreateJotformAccountSchema = z.object({
   name: z.string().trim().min(1),
   apiKey: z.string().trim().min(1),
+  excludedLabelIds: z.array(z.string().trim().min(1).max(255)).max(500).default([]),
 });
+export const JotformAccountLabelsSchema = z.object({ excludedLabelIds: z.array(z.string().trim().min(1).max(255)).max(500) });
 export type CreateJotformAccountInput = z.infer<typeof CreateJotformAccountSchema>;
 
 export type JotformAccountDto = {
   id: string;
   name: string;
   apiKeyPreview: string;
+  excludedLabelIds: string[];
   createdAt: string;
 };
 
@@ -504,7 +508,7 @@ export type CourseSubmissionDto = {
 export type CourseExpectationInput = z.infer<typeof CourseExpectationSchema>;
 
 export type SurveyGroupSearchRow = {
-  courseId?: string; courseStatus?: "REVIEWED" | "COMPLETED"; courseName?: string; confirmedParticipants?: number | null; dates?: string[];
+  isOpenPublic?: boolean; courseId?: string; courseStatus?: "REVIEWED" | "COMPLETED"; courseName?: string; confirmedParticipants?: number | null; dates?: string[];
   versioned?: boolean; savedCount?: number; contextNeedsReview?: boolean;
   meetsResponseCoverage: boolean;
   excludedCount: number;
@@ -538,7 +542,7 @@ export type ReportRow = {
   subcategory: string | null;
   pre: number | null; // % promedio (0-100) de encuestas pre
   post: number | null; // % promedio (0-100) de encuestas post
-  change: number | null; // post - pre
+  change: number | null; // relative change in percent
 };
 
 export type ReportDetail = {

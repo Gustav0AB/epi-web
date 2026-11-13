@@ -1,3 +1,4 @@
+import { relativeChange } from "./relative-change.js";
 import type { CourseResultsDto } from "./schemas/course-results.schema.js";
 
 export function combineCourseWeights(items: { key: string; weight: number; value: number | null }[]) {
@@ -39,7 +40,7 @@ export function selectCourseResultCategories(result: CourseResultsDto, selection
     const post = issue ? { value: null, weights: [] } : combineCourseWeights(values("post"));
     // A different index composition cannot reuse deviation computed from the full receipt score.
     const { standardDeviation, ...original } = row;
-    return { ...original, pre: pre.value, post: post.value, change: pre.value === null || post.value === null ? null : post.value - pre.value, preEffectiveWeights: pre.weights, postEffectiveWeights: post.weights, issue };
+    return { ...original, pre: pre.value, post: post.value, change: relativeChange(pre.value, post.value), preEffectiveWeights: pre.weights, postEffectiveWeights: post.weights, issue };
   });
   return { ...result, categorySelection: { included, excluded }, distributions, aggregates,
     questions: result.questions.filter(row => row.category !== null && selection.includes(row.category)),

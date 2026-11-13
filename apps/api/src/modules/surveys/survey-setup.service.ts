@@ -88,7 +88,7 @@ export async function validateSetupQuestionCatalog(questions: SurveySetupQuestio
   const scored = questions.filter(question => (question.role ?? "SCORED") === "SCORED" && question.type !== "OPEN_TEXT");
   if (!scored.length) return;
   const site = await prisma.site.findUnique({ where: { id: siteId }, select: { organizationId: true } });
-  const categories = site?.organizationId ? await prisma.category.findMany({ where: { organizationId: site.organizationId, isActive: true } }) : [];
+  const categories = site?.organizationId ? await prisma.category.findMany({ where: { organizationId: site.organizationId, isActive: true, siteLinks: { some: { siteId } } } }) : [];
   for (const question of scored) {
     const issue = questionCatalogIssue(question, categories, site?.organizationId, requireSubcategory);
     if (issue) throw Object.assign(new Error(`${issue} Pregunta: ${question.text.slice(0, 120)}`), { statusCode: 400, code: "BAD_REQUEST" });

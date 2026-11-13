@@ -173,7 +173,7 @@ prisma.surveyDefinition.findFirst = (async () => null) as unknown as typeof pris
 prisma.site.findUnique = (async () => ({ organizationId: catalogOrganization })) as unknown as typeof prisma.site.findUnique;
 prisma.category.findMany = (async (args: unknown) => {
   categoryReads++;
-  assert.deepEqual(args, { where: { organizationId: "org", isActive: true } });
+  assert.deepEqual(args, { where: { organizationId: "org", isActive: true, siteLinks: { some: { siteId: "site" } } } });
   return [{ name: "Learning", subcategory: "Knowledge", organizationId: "org", isActive: true }];
 }) as unknown as typeof prisma.category.findMany;
 const catalogQuestion = { externalId: "q", text: "Catalog question", type: "LIKERT" as const, weight: { category: "Learning", subcategory: "Knowledge", maxScore: 5, correctAnswer: null } };

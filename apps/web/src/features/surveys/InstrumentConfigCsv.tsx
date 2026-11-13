@@ -1,11 +1,18 @@
+import { InstrumentConfigDownload } from "./InstrumentConfigDownload";
 import { useRef, useState } from "react";
 import type { SurveySetupDraft, CategoryDto, SiteDto } from "@epi/shared";
-import { Button, Table, TextField } from "@epi/ui";
+import { Button, Dropdown, Table, TextField } from "@epi/ui";
+import { surveyApi } from "./api";
+import { AssessmentLegacyImport } from "./AssessmentLegacyImport";
+import { prefillPreview } from "./instrument-prefill";
 import { previewInstrumentConfigCsv } from "./instrument-config-csv";
-import { exportInstrumentTableCsv, hasScoreValues, previewInstrumentTable, readInstrumentTableCsv, type ConfigQuestion, type ConfigRow } from "./instrument-config-table";
+import { hasScoreValues, previewInstrumentTable, readInstrumentTableCsv, type ConfigQuestion, type ConfigRow } from "./instrument-config-table";
 
-export function InstrumentConfigCsv({ formId, draft, questions, categories, sites, catalogReady = true, onApply }: { formId: string; draft: SurveySetupDraft; questions: ConfigQuestion[]; categories: CategoryDto[]; sites: SiteDto[]; catalogReady?: boolean; onApply: (draft: SurveySetupDraft) => void }) {
+export function InstrumentConfigCsv({ formId, draft, questions, categories, sites, protectedIds = [], catalogReady = true, onApply }: { formId: string; draft: SurveySetupDraft; questions: ConfigQuestion[]; categories: CategoryDto[]; sites: SiteDto[]; protectedIds?: string[]; catalogReady?: boolean; onApply: (draft: SurveySetupDraft) => void }) {
   const [open, setOpen] = useState(false);
+  const [sources, setSources] = useState<{ id: string; title: string; rows: ReturnType<typeof prefillPreview> }[]>([]);
+  const [sourceId, setSourceId] = useState("");
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [fileRows, setFileRows] = useState<{ questions: ConfigRow[]; scores?: ConfigRow[]; scoreError?: string } | null>(null);
   const [includeScores, setIncludeScores] = useState(true);
   const [legacyCsv, setLegacyCsv] = useState("");
@@ -19,22 +26,20 @@ export function InstrumentConfigCsv({ formId, draft, questions, categories, site
   const scoresAvailable = split && (fileRows.scoreError || fileRows.scores?.some(hasScoreValues));
   const preview = modernPreview ?? (legacyCsv ? previewInstrumentConfigCsv(legacyCsv, formId, draft, questions, categories, sites) : null);
   const matches = modernPreview?.matches ?? [];
-  function downloadFile(blob: Blob, name: string) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a"); link.href = url; link.download = name; link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-  async function download(excel: boolean) {
-    setBusy(true); setError(null);
+  async function findSources() {
+    setBusy(true); setError(null); setSourceOpen(true); setSources([]); setSourceId("");
     try {
-      if (excel) {
-        const { createInstrumentWorkbook } = await import("./instrument-config-workbook");
-        const buffer = await createInstrumentWorkbook(draft, questions, categories).xlsx.writeBuffer();
-        downloadFile(new Blob([new Uint8Array(buffer)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "configuracion-preguntas.xlsx");
-      } else downloadFile(new Blob([exportInstrumentTableCsv(draft, questions)], { type: "text/csv;charset=utf-8" }), "configuracion-preguntas.csv");
-    } catch (error) { setError(error instanceof Error ? error.message : "No se pudo generar el archivo"); }
+      const definitions = (await surveyApi.definitions()).filter(item => item.jotformFormId !== formId);
+      const results = await Promise.all(definitions.map(async definition => {
+        const data = await surveyApi.reusableConfiguration(definition.id);
+        const preview = prefillPreview(draft, questions, categories, data, protectedIds);
+        return { id: definition.id, title: `${definition.title} · v${definition.version}${definition.configurationVersion === 4 ? "" : " · versión anterior"}`, rows: definition.configurationVersion === 4 ? preview : { ...preview, draft: null, errors: ["La configuración anterior requiere revisión manual antes de reutilizarse."] } };
+      }));
+      setSources(results.sort((a, b) => b.rows.count - a.rows.count));
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudieron buscar instrumentos"); }
     finally { setBusy(false); }
   }
+  const source = sources.find(item => item.id === sourceId);
   async function read(file: File | undefined) {
     const current = ++sequence.current;
     setFileRows(null); setLegacyCsv(""); setError(null); setApplied(false); setIncludeScores(true);
@@ -58,14 +63,21 @@ export function InstrumentConfigCsv({ formId, draft, questions, categories, site
     finally { if (current === sequence.current) setBusy(false); }
   }
   return <section className="space-y-3 rounded border p-3">
+    <div className="flex flex-wrap items-start gap-3">
     <Button variant="secondary" onClick={() => setOpen(value => !value)} aria-expanded={open}>Configurar por CSV / Excel</Button>
+    <Button variant="secondary" disabled={busy || !draft.siteId || !catalogReady} onClick={() => void findSources()}>Prellenar desde otros instrumentos</Button>
+    <AssessmentLegacyImport draft={draft} questions={questions} categories={categories} protectedIds={protectedIds} disabled={busy || !draft.siteId || !catalogReady} onApply={onApply} />
+    </div>
+    {sourceOpen && <div className="space-y-2"><p className="text-sm">Revisa las coincidencias antes de aplicarlas. Las preguntas ya editadas se conservan.</p><Dropdown label="Instrumento de referencia" value={sourceId} options={[{ value: "", label: "Selecciona un instrumento" }, ...sources.map(item => ({ value: item.id, label: `${item.title} · ${item.rows.count}/${item.rows.total} coincidencias` }))]} onChange={setSourceId} />{!busy && !sources.length && <p>No hay instrumentos disponibles para comparar.</p>}{source && <><Table rows={source.rows.matches} pageSize={10} keyExtractor={row => row.externalId} columns={[{ key: "text", header: "Pregunta" }, { key: "status", header: "Resultado" }]} />{source.rows.errors.map((message, i) => <p role="alert" key={i}>{message}</p>)}<Button disabled={!source.rows.draft} onClick={() => { if (source.rows.draft) { onApply(source.rows.draft); setSourceOpen(false); setSources([]); setApplied(true); } }}>Aplicar {source.rows.count} coincidencias</Button></>}</div>}
+    {error && !open && <p role="alert" className="text-danger">{error}</p>}
     {open && <>
       <p className="text-sm">Una fila por pregunta, sin ID de formulario. Reutiliza el archivo en instrumentos con las mismas preguntas y opciones; si cambia alguno, edita esa copia como referencia. Los datos generales se eligen aquí, no en el archivo.</p>
-      <p className="text-sm">En Excel, Preguntas corresponde al paso 2 y Ponderaciones al paso 3. Las pestañas Instrucciones y Catálogos sirven de referencia. Puedes cargar solo Preguntas; la aplicación realiza los cálculos después. El CSV simple no admite pestañas ni desplegables.</p>
-      <div className="flex flex-wrap gap-2"><Button disabled={busy || !draft.siteId || !catalogReady} loading={busy} onClick={() => void download(true)}>Descargar Excel con desplegables</Button><Button variant="secondary" disabled={busy || !draft.siteId || !catalogReady} onClick={() => void download(false)}>Descargar CSV simple</Button></div>
+      <p className="text-sm">En Excel, Preguntas corresponde al paso 2 y Ponderaciones a los pasos 3 y 4. Las pestañas Instrucciones y Catálogos sirven de referencia. Puedes cargar solo Preguntas; la aplicación realiza los cálculos después. El CSV simple no admite pestañas ni desplegables.</p>
+      <InstrumentConfigDownload blank draft={draft} questions={questions} categories={categories} siteName={sites.find(site => site.id === draft.siteId)?.name ?? "sitio"} disabled={busy || !draft.siteId || !catalogReady} />
+      <p className="text-sm">La plantilla conserva preguntas y respuestas originales; sus campos de configuración están vacíos.</p>
       <TextField label="Importar configuración Excel o CSV" type="file" accept=".xlsx,.csv" disabled={busy || !draft.siteId || !catalogReady} onChange={event => void read(event.target.files?.[0])} />
       <p className="text-sm">Se reconocen por texto y, si se repiten, por sección. Las opciones deben coincidir en orden. Las filas sin coincidencia o con opciones distintas no se aplican; las preguntas nuevas del destino conservan sus valores. No se adivinan equivalencias.</p>
-      <p className="text-sm">Importar no guarda, vincula ni activa. Revisa los cuatro pasos y guarda manualmente cada sección antes de confirmar al final.</p>
+      <p className="text-sm">Importar no guarda, vincula ni activa. Revisa los cinco pasos; puedes guardar un borrador y confirmar el registro al final.</p>
       {error && <p role="alert" className="text-danger">{error}</p>}
       {busy && <p role="status">Procesando archivo…</p>}
       {!draft.siteId && <p>Selecciona el sitio para cargar su catálogo de subcategorías.</p>}

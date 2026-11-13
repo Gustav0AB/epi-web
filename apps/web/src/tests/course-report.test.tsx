@@ -13,12 +13,12 @@ afterEach(() => vi.unstubAllGlobals());
 describe("E6 course draft and existing templates", () => {
  it("reuses the template without changing it or inventing indicators", () => {
   const before = JSON.stringify(courseImpactsGeneralTemplate); const output = buildCourseReportPreview(result,draft);
-  expect(JSON.stringify(courseImpactsGeneralTemplate)).toBe(before); expect(output.data.kpis.overallImprovement).toBe("Sin datos"); expect(output.data.series.categoryComparison).toEqual([]); expect(output.data.tables.mostImproved).toEqual([]); expect(output.data.tables.courseBases![0]!.pre).toBe(2); expect(output.data.texts.studentQuote).toBe(draft.textContent.studentQuote);
+  expect(JSON.stringify(courseImpactsGeneralTemplate)).toBe(before); expect(output.data.kpis.overallImprovement).toBe("No disponible (Pre es cero o faltan datos)"); expect(output.data.series.categoryComparison).toEqual([]); expect(output.data.tables.mostImproved).toEqual([]); expect(output.data.tables.courseBases![0]!.pre).toBe(2); expect(output.data.texts.studentQuote).toBe(draft.textContent.studentQuote);
   expect(output.template.blocks.some(block => block.type === "text" && block.content?.includes("NO PUBLICADO"))).toBe(true);
  });
  it("shows pending markers and provenance without zero or NaN percentages", () => {
   const output = buildCourseReportPreview(result,draft); const html = renderToStaticMarkup(<ReportRenderer {...output} mode="document" />);
-  expect(html).toContain("Pendiente"); expect(html).toContain("Bases disponibles por subcategoría y versión"); expect(html).toContain("Aprendí sobre conservación"); expect(html).not.toContain("NaN"); expect(html).not.toMatch(/>0%</g); expect(html).not.toContain("+—%");
+  expect(html).toContain("Cambio general"); expect(html).toContain("Pendiente"); expect(html).toContain("Bases disponibles por subcategoría y versión"); expect(html).toContain("Aprendí sobre conservación"); expect(html).not.toContain("NaN"); expect(html).not.toMatch(/>0%</g); expect(html).not.toContain("+—%");
  });
  it("includes the saved expected base and each moment coverage in the exported report content", () => {
   const output = buildCourseReportPreview({ ...result, expectedParticipants: 50, expectedParticipantsPre: 50, expectedParticipantsPost: 50, preReceipts: 40, postReceipts: 35 },draft);
@@ -34,7 +34,7 @@ describe("E6 course draft and existing templates", () => {
  });
  it("does not turn an empty historical template into zero satisfaction", () => {
   const html = renderToStaticMarkup(<ReportRenderer template={courseImpactsGeneralTemplate} data={{ kpis: {}, series: {}, tables: {}, texts: {} }} mode="document" />);
-  expect(html).not.toMatch(/>0%</g); expect(html).not.toContain("NaN");
+  expect(html).toContain("Overall improvement"); expect(html).not.toMatch(/>0%</g); expect(html).not.toContain("NaN");
  });
  it("rejects unknown templates, calculated/manual injection, excessive text and invalid dates", () => {
   for (const value of [{ ...draft, templateKey: "unknown" },{ ...draft, textContent: { overallImprovement: "100" } },{ ...draft, textContent: { studentQuote: "x".repeat(5001) } },{ ...draft, from: "2026-11-05", to: "2026-11-01" }]) expect(CourseReportDraftSchema.safeParse(value).success).toBe(false);

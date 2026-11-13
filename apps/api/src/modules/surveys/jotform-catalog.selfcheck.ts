@@ -13,7 +13,8 @@ const query = JotformFormsQuerySchema.parse({ accountId, search: "  Aprendizaje 
 let total = 23;
 const row = { setupDraft: null as unknown, id: "form-11", title: "Aprendizaje", status: "ENABLED", labelIds: ["label-a"], createdAt: null, updatedAt: null, submissionCount: 12, lastSubmission: null, url: null, accountId, account: { name: "Cuenta A" }, importedAt: new Date(), syncedAt: new Date("2026-11-01T12:00:00Z") };
 let expectedSkip = 5;
-const expectedWhere = { accountId, OR: [{ title: { contains: "Aprendizaje", mode: "insensitive" } }, { id: { contains: "Aprendizaje" } }] };
+prisma.jotformAccount.findMany = (async () => [{ id: accountId, excludedLabelIds: ["blocked"] }]) as unknown as typeof prisma.jotformAccount.findMany;
+const expectedWhere = { AND: [{ OR: [{ accountId: null }, { NOT: [{ accountId, labelIds: { hasSome: ["blocked"] } }] }] }], accountId, OR: [{ title: { contains: "Aprendizaje", mode: "insensitive" } }, { id: { contains: "Aprendizaje" } }] };
 const tx = { jotformForm: {
   count: async (args: { where: unknown }) => { assert.deepEqual(args.where, expectedWhere); return total; },
   findMany: async (args: { where: unknown; take: number; skip: number; orderBy: unknown }) => {

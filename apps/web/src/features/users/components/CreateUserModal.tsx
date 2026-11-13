@@ -56,7 +56,7 @@ export function CreateUserModal({ open, onClose, onSubmit }: Props) {
 
   const roleOptions: DropdownOption[] = (
     isSystemAdmin
-      ? (["system_admin", "org_admin", "report_viewer", "functionality_user"] as const)
+      ? (["org_admin", "report_viewer", "functionality_user"] as const)
       : (["report_viewer", "functionality_user"] as const)
   ).map((r) => ({ value: r, label: roleLabels[r] }));
 

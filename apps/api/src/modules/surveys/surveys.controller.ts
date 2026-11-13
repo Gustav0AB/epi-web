@@ -1,3 +1,4 @@
+import { reprocessEarlierVersions } from "./version-reprocess.service.js";
 import type { Request, Response, NextFunction } from "express";
 import {
   apiSuccess,
@@ -285,7 +286,14 @@ export const surveysController = {
   async registerDefinition(req: Request, res: Response, next: NextFunction) {
     try {
       const input = RegisterDefinitionSchema.parse(req.body);
-      res.status(201).json(apiSuccess(await surveysService.registerDefinition(input, req.user!.sub)));
+      const registered = await surveysService.registerDefinition(input, req.user!.sub);
+      let versionReprocess: Awaited<ReturnType<typeof reprocessEarlierVersions>> | null = null;
+      let versionReprocessFailed = false;
+      if (input.baseDefinitionId) {
+        try { versionReprocess = await reprocessEarlierVersions(input.jotformFormId, req.user!.sub); }
+        catch { versionReprocessFailed = true; }
+      }
+      res.status(201).json(apiSuccess({ ...registered, versionReprocess, versionReprocessFailed }));
     } catch (err) {
       const e = err as Error & { statusCode?: number; code?: string };
       if (e.statusCode) {

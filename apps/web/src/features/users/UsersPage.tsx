@@ -111,9 +111,9 @@ export function UsersPage() {
           {u.role !== "system_admin" && <Button variant="ghost" size="sm" onClick={() => setSitesUser(u)}>
             {t("createUserModal.defaultSites")}
           </Button>}
-          <Button variant="ghost" size="sm" onClick={() => void toggleActive(u)}>
+          {u.role !== "system_admin" && <Button variant="ghost" size="sm" onClick={() => void toggleActive(u)}>
             {u.isActive ? t("common.deactivate") : t("common.activate")}
-          </Button>
+          </Button>}
           <Button variant="ghost" size="sm" onClick={() => setResetPasswordUser(u)}>
             {t("users.resetPassword")}
           </Button>

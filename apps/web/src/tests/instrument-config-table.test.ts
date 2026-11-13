@@ -1,3 +1,5 @@
+import { instrumentDownloadName } from "../features/surveys/InstrumentConfigDownload";
+import { prefillPreview } from "../features/surveys/instrument-prefill";
 import { describe, it, expect } from "vitest";
 import ExcelJS from "exceljs";
 import { zipSync, strToU8, unzipSync, strFromU8 } from "fflate";
@@ -63,6 +65,25 @@ describe("portable one-row instrument configuration", () => {
  });
  it("preserves formula-looking source text as literal CSV", () => {
   const target = { ...question, text: "=literal" }; const csv = exportInstrumentTableCsv(draft, [target]); expect(csv).toContain("'=literal"); expect(preview(readInstrumentTableCsv(csv), [target]).errors).toEqual([]);
+ });
+});
+describe("plantilla y descarga de revisión", () => {
+ it("deja vacía la configuración sin perder preguntas y opciones", async () => {
+  const csvRows = readInstrumentTableCsv(exportInstrumentTableCsv(draft, [question], true));
+  expect(csvRows[0]?.Pregunta).toBe(question.text);
+  expect(csvRows[0]?.["Respuesta 1"]).toBe(question.options[0]);
+  expect(csvRows[0]?.["Rol de la pregunta"]).toBe("");
+  expect(csvRows[0]?.["Puntaje máximo"]).toBe("");
+  const workbook = createInstrumentWorkbook(draft, [question], [category], true);
+  const sheet = workbook.getWorksheet("Preguntas")!, scores = workbook.getWorksheet("Ponderaciones")!;
+  expect(sheet.getCell("D2").value).toBe(""); expect(sheet.getCell("E2").value).toBe("");
+  expect(scores.getCell("D2").value).toBe("");
+  sheet.getCell("D2").value = "Evaluable"; sheet.getCell("E2").value = "Knowledge (Learning)";
+  const imported = await readInstrumentWorkbook(await bytes(workbook));
+  expect(previewInstrumentTable(imported.questions, draft, [question], [category], imported.scores).errors).toEqual([]);
+ });
+ it("usa nombre de instrumento, sitio y fecha sin caracteres de ruta", () => {
+  expect(instrumentDownloadName("Curso / ambiente", "Sitio: norte", new Date(2026, 10, 12), "xlsx")).toBe("Curso ambiente-Sitio norte-11122026.xlsx");
  });
 });
 describe("Excel configuration validation and import", () => {
@@ -132,5 +153,50 @@ describe("Excel configuration validation and import", () => {
   await expect(readInstrumentWorkbook(new Uint8Array(bomb).buffer)).rejects.toThrow("20 MB");
   const macro = zipSync({ "xl/vbaProject.bin": strToU8("macro") });
   await expect(readInstrumentWorkbook(new Uint8Array(macro).buffer)).rejects.toThrow("macros");
+ });
+});
+
+describe("prefill from another instrument", () => {
+ it("copies matching question and scoring while preserving target identity and new questions", () => {
+  const target = { ...question, externalId: "target-id", isFilter: false, weight: null, analysisScoring: null, classification: null };
+  const extra = { ...target, externalId: "extra", text: "Otra pregunta" };
+  const source = { ...question, isFilter: false };
+  const result = prefillPreview({ ...draft, questions: [target, extra], analysisWeights: [] }, [target, extra], [category], { questions: [source], analysisWeights: draft.analysisWeights });
+  expect(result.count).toBe(1); expect(result.total).toBe(2); expect(result.errors).toEqual([]);
+  expect(result.draft?.questions?.[0]?.externalId).toBe("target-id");
+  expect(result.draft?.questions?.[0]?.analysisScoring?.[0]?.maxScore).toBe(5);
+  expect(result.draft?.questions?.[1]?.analysisScoring).toBeNull();
+ });
+ it("does not overwrite reviewed questions or infer ambiguous and changed options", () => {
+  const target = { ...question, externalId: "target-id", setupReviewed: true };
+  expect(prefillPreview(draft, [target], [category], { questions: [question], analysisWeights: draft.analysisWeights }).count).toBe(0);
+  expect(prefillPreview(draft, [{ ...target, setupReviewed: false }], [category], { questions: [question, question], analysisWeights: draft.analysisWeights }).matches[0]?.status).toContain("Ambigua");
+  expect(prefillPreview(draft, [{ ...target, setupReviewed: false, options: ["Distinta"] }], [category], { questions: [question], analysisWeights: draft.analysisWeights }).count).toBe(0);
+ });
+});
+
+describe("prefilled workbook", () => {
+ it("exports and reimports accepted scoring without transferring source IDs", async () => {
+  const target = { ...question, externalId: "destination-id", isFilter: false, weight: null, analysisScoring: null, classification: null };
+  const result = prefillPreview({ ...draft, questions: [target], analysisWeights: [] }, [target], [category], { questions: [{ ...question, isFilter: false }], analysisWeights: draft.analysisWeights });
+  expect(result.draft).not.toBeNull();
+  const configured = { ...target, ...result.draft!.questions![0]! };
+  const workbook = createInstrumentWorkbook(result.draft!, [configured], [category]);
+  const imported = await readInstrumentWorkbook(await bytes(workbook));
+  const checked = previewInstrumentTable(imported.questions, { ...draft, questions: [target], analysisWeights: [] }, [target], [category], imported.scores);
+  expect(checked.errors).toEqual([]);
+  expect(checked.draft?.questions?.[0]?.analysisScoring?.[0]?.maxScore).toBe(5);
+  expect(checked.draft?.questions?.[0]?.externalId).toBe("destination-id");
+ });
+});
+
+describe("prefilled filters", () => {
+ it("copies filter labels only for a compatible original control", () => {
+  const target = { ...question, externalId: "target-filter", role: "INFORMATIONAL" as const, isFilter: false, weight: null, classification: null, analysisScoring: null };
+  const source = { ...target, externalId: "source-filter", isFilter: true, optionLabels: [{ value: "No sé", label: "Sin respuesta" }] };
+  const result = prefillPreview({ ...draft, questions: [target] }, [target], [category], { questions: [source], analysisWeights: draft.analysisWeights });
+  expect(result.errors).toEqual([]);
+  expect(result.draft?.questions?.[0]?.isFilter).toBe(true);
+  expect(result.draft?.questions?.[0]?.optionLabels).toContainEqual({ value: "No sé", label: "Sin respuesta" });
  });
 });

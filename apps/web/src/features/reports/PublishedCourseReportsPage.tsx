@@ -54,6 +54,7 @@ export function PublishedCourseReportsPage() {
     <div className="space-y-4">
       <Label variant="title">Reportes</Label>
       <div className="flex flex-wrap items-center gap-3">
+        {!publicationId && canPrepare && <Link className="text-primary underline" to="/reports/internal">Reportes internos</Link>}
         {publicationId && <Link className="text-primary underline" to="/reports">← Ver todos los reportes</Link>}
         <Button variant="secondary" disabled={loading} onClick={() => setRefresh(value => value + 1)}>Recargar</Button>
       </div>

@@ -19,8 +19,9 @@ try {
   await prisma.user.create({ data: { id: actor.sub, username: actor.username, name: "Setup test", email: "setup-test@example.test", password: "unused", role: "SYSTEM_ADMIN" } });
   jotformClient.listSubmissionPage = async (formId, key, filters) => (await jotformClient.listSubmissions(formId, key, {})).slice(filters.offset ?? 0, (filters.offset ?? 0) + (filters.limit ?? 1000));
   const initialOrganization = await prisma.organization.create({ data: { name: "Setup organization" } });
-  await prisma.category.create({ data: { organizationId: initialOrganization.id, name: "Learning" } });
+  const initialCategory = await prisma.category.create({ data: { organizationId: initialOrganization.id, name: "Learning" } });
   const site = await prisma.site.create({ data: { name: "Setup test site", organizationId: initialOrganization.id } });
+  await prisma.categorySite.create({ data: { categoryId: initialCategory.id, siteId: site.id } });
   const account = await prisma.jotformAccount.create({ data: { name: "Test", apiKey: "unused-test-key" } });
   await prisma.jotformForm.createMany({ data: ["draft-test", "legacy-test", "partial-test"].map((id) => ({ id, title: id, status: "ENABLED", accountId: account.id })) });
   const originalSync = (await prisma.jotformForm.findUniqueOrThrow({ where: { id: "draft-test" } })).syncedAt;
@@ -361,8 +362,8 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   assert.equal(countedQuestion.postCount, 1);
   assert.equal(countedQuestion.pre, 30);
   assert.equal(countedQuestion.post, 80);
-  assert.equal(countedQuestion.change, 50);
-  assert.equal(counted.overallImprovement, 50);
+  assert.equal(countedQuestion.change, 166.7);
+  assert.equal(counted.overallImprovement, 166.7);
   assert.equal(countedQuestion.comparable, true);
   const excludedCounts = await surveysService.reportDetail({ ...courseFilters, excludedQuestionIds: [scoredQuestion.id] }, actor.sub);
   assert.equal(excludedCounts.questions[0]!.preCount, 2);
@@ -383,13 +384,13 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   const postForOverall = await prisma.submission.findUniqueOrThrow({ where: { jotformSubmissionId: "course-count-post" } });
   await prisma.answer.createMany({ data: [{ submissionId: courseSubmission.id, questionId: differentWeight.id, value: "2" }, { submissionId: postForOverall.id, questionId: differentWeight.id, value: "8" }] });
   const mixedWeights = await surveysService.reportDetail(courseFilters, actor.sub);
-  assert.equal(mixedWeights.questions.find(q => q.questionId === differentWeight.id)!.change, 60);
-  assert.equal(mixedWeights.overallImprovement, 55);
+  assert.equal(mixedWeights.questions.find(q => q.questionId === differentWeight.id)!.change, 300);
+  assert.equal(mixedWeights.overallImprovement, 220);
   assert.equal(mixedWeights.categories[0]!.pre, 25);
   assert.equal(mixedWeights.categories[0]!.post, 80);
-  assert.equal(mixedWeights.categories[0]!.change, 55);
-  assert.equal((await surveysService.reportDetail({ ...courseFilters, excludedQuestionIds: [scoredQuestion.id] }, actor.sub)).overallImprovement, 60);
-  assert.equal((await surveysService.reportDetail({ ...courseFilters, excludedQuestionIds: [differentWeight.id] }, actor.sub)).overallImprovement, 50);
+  assert.equal(mixedWeights.categories[0]!.change, 220);
+  assert.equal((await surveysService.reportDetail({ ...courseFilters, excludedQuestionIds: [scoredQuestion.id] }, actor.sub)).overallImprovement, 300);
+  assert.equal((await surveysService.reportDetail({ ...courseFilters, excludedQuestionIds: [differentWeight.id] }, actor.sub)).overallImprovement, 166.7);
   await prisma.answer.deleteMany({ where: { questionId: differentWeight.id } });
   await prisma.weight.delete({ where: { questionId: differentWeight.id } });
   await prisma.question.delete({ where: { id: differentWeight.id } });
@@ -416,7 +417,7 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   const publication = await publishCourse(publicationInput, actor.sub);
   assert.equal(publication.version, 1);
   await assert.rejects(() => prisma.site.delete({ where: { id: site.id } }), { code: "P2003" });
-  assert.equal((publication.snapshot as any).report.overallImprovement, 40);
+  assert.equal((publication.snapshot as any).report.overallImprovement, 100);
   assert.equal((publication.snapshot as any).cqsSatisfaction, null);
   await prisma.weight.update({ where: { questionId: scoredQuestion.id }, data: { maxScore: 10 } });
   assert.deepEqual((await coursePublicationHistory(publicationKey, actor.sub))[0]!.snapshot, publication.snapshot);
@@ -426,10 +427,11 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   assert.equal(republications.filter(result => result.status === "rejected" && result.reason.statusCode === 409).length, 1);
   const publicationHistory = await coursePublicationHistory(publicationKey, actor.sub);
   assert.deepEqual(publicationHistory.map(version => version.version), [2, 1]);
-  assert.equal((publicationHistory[0]!.snapshot as any).report.overallImprovement, 20);
+  assert.equal((publicationHistory[0]!.snapshot as any).report.overallImprovement, 100);
   assert.deepEqual(publicationHistory[1]!.snapshot, publication.snapshot);
   await assert.rejects(() => coursePublicationHistory(publicationKey, otherUser.id), { statusCode: 403 });
-  await prisma.category.create({ data: { organizationId: otherOrg.id, name: "Learning" } });
+  const movedCategory = await prisma.category.create({ data: { organizationId: otherOrg.id, name: "Learning" } });
+  await prisma.categorySite.create({ data: { categoryId: movedCategory.id, siteId: site.id } });
   await prisma.site.update({ where: { id: site.id }, data: { organizationId: otherOrg.id } });
   const publicationReader = await prisma.user.create({ data: { username: "publication-reader", name: "Reader", email: "publication-reader@example.test", password: "unused", role: "REPORT_VIEWER", organizationId: otherOrg.id, siteIds: [site.id] } });
   assert.equal((await coursePublicationHistory(publicationKey, publicationReader.id)).length, 2);
@@ -469,17 +471,17 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   assert.equal(contextRow.participantId, null);
   assert.equal((await surveysService.ingest(contextInput)).submissionId, contextResult.submissionId);
   assert.equal(await prisma.submission.count({ where: { jotformSubmissionId: "school-context-test" } }), 1);
-  const schoolPreview = mapJotformQuestions([{ qid: "99", name: "q99_custom", text: "Grupo", type: "control_dropdown", options: "15/10/2026 - CBTIS 62|Other" }], ["GRUPO"]);
+  const schoolPreview = mapJotformQuestions([{ qid: "99", name: "q99_custom", text: "Grupo", type: "control_dropdown", options: "10/15/2026 - CBTIS 62|Other" }], ["GRUPO"]);
   assert.equal(schoolPreview.catalogMatches.length, 1);
   assert.equal(schoolPreview.scoredQuestions[0]!.role, "INFORMATIONAL");
   const configuredSchoolQuestions = applySetupQuestions(schoolPreview.scoredQuestions, [{ externalId: "q99_custom", text: "Grupo", type: "ONE_ANSWER", role: "SCHOOL_GROUP" }]);
   const schoolDefinition = await surveysRepository.createDefinitionWithQuestions({ siteId: site.id, jotformFormId: "configured-school-test", type: "LOCAL", questions: configuredSchoolQuestions });
-  const schoolResult = await surveysService.ingest({ formID: schoolDefinition.jotformFormId, submissionID: "configured-school-response", answers: [{ questionId: "q99_custom", value: "15/10/2026 - CBTIS 62" }] });
+  const schoolResult = await surveysService.ingest({ formID: schoolDefinition.jotformFormId, submissionID: "configured-school-response", answers: [{ questionId: "q99_custom", value: "10/15/2026 - CBTIS 62" }] });
   const schoolRow = await prisma.submission.findUniqueOrThrow({ where: { id: schoolResult.submissionId }, include: { results: true, answers: true } });
   assert.equal((schoolRow.rawJsonData as any).schoolContext.school, "CBTIS 62");
   assert.equal((schoolRow.rawJsonData as any).schoolContext.extractedDate, "2026-10-15");
   assert.equal(schoolRow.results.length, 0);
-  assert.equal(schoolRow.answers[0]!.value, "15/10/2026 - CBTIS 62");
+  assert.equal(schoolRow.answers[0]!.value, "10/15/2026 - CBTIS 62");
   await processSubmission(schoolRow.id);
   assert.deepEqual((await prisma.submission.findUniqueOrThrow({ where: { id: schoolRow.id } })).rawJsonData, schoolRow.rawJsonData);
   await prisma.surveyDefinition.update({ where: { id: schoolDefinition.id }, data: { timeZone: "America/Mazatlan" } });
@@ -548,6 +550,7 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   const catalogOrganization = await prisma.organization.create({ data: { name: "Assistant organization" } });
   await prisma.category.createMany({ data: [null, "Knowledge", "Attitudes", "Action"].map(subcategory => ({ organizationId: catalogOrganization.id, name: "Learning", subcategory })) });
   const catalogSite = await prisma.site.create({ data: { name: "Assistant catalogs", organizationId: catalogOrganization.id, programs: ["Local", "Visiting", "Otro"], activityTypes: ["Curso"] } });
+  await prisma.categorySite.createMany({ data: (await prisma.category.findMany({ where: { organizationId: catalogOrganization.id } })).map(category => ({ categoryId: category.id, siteId: catalogSite.id })) });
   await prisma.jotformForm.create({ data: { id: "assistant-fixes", title: "Selected source", status: "ENABLED", accountId: account.id } });
   jotformClient.getFormQuestions = async () => [{ qid: "1", name: "info", text: "Original source question", type: "control_textbox" }];
   const modern = { siteId: catalogSite.id, type: "OTHER" as const, programName: "Otro", instrumentKind: "FOLLOW_UP" as const, activityType: "Curso", activityName: "Trip", instrumentName: "Attempted rename", questions: [{ externalId: "info", text: "Attempted question rename", type: "OPEN_TEXT" as const, role: "INFORMATIONAL" as const }] };
@@ -1159,7 +1162,7 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   assert.deepEqual(await prisma.coursePublication.findMany({ orderBy: { id: "asc" } }), publicationsBeforeM1);
   console.log("✓ response policies: partial drafts, per-analysis exclusions, current options and original zero/blank/null preservation passed");
   // New associations use the current organization's catalog, while drafts and old definitions retain original strings.
-  const activeCatalogPair = await prisma.category.create({ data: { organizationId: catalogOrganization.id, name: "Catalog active", subcategory: "Live" } });
+  const activeCatalogPair = await prisma.category.create({ data: { organizationId: catalogOrganization.id, name: "Catalog active", subcategory: "Live", siteLinks: { create: { siteId: catalogSite.id } } } });
   await prisma.category.create({ data: { organizationId: catalogOrganization.id, name: "Catalog archived", isActive: false } });
   await prisma.category.createMany({ data: [{ organizationId: otherOrg.id, name: "Foreign only", subcategory: null }, { organizationId: otherOrg.id, name: "Catalog active", subcategory: "Foreign sub" }] });
   await prisma.jotformForm.create({ data: { id: "question-catalog", title: "Question catalog", status: "ENABLED", accountId: account.id } });
@@ -1184,7 +1187,7 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   assert.equal(registeredCatalogQuestion.weight!.subcategory, "Live");
   await prisma.category.update({ where: { id: activeCatalogPair.id }, data: { isActive: false } });
   assert.equal((await prisma.weight.findUniqueOrThrow({ where: { questionId: registeredCatalogQuestion.id } })).subcategory, "Live", "Catalog changes do not rewrite historical configuration");
-  const bareCategory = await prisma.category.create({ data: { organizationId: catalogOrganization.id, name: "Bare category" } });
+  const bareCategory = await prisma.category.create({ data: { organizationId: catalogOrganization.id, name: "Bare category", siteLinks: { create: { siteId: catalogSite.id } } } });
   await prisma.jotformForm.create({ data: { id: "question-catalog-direct", title: "Direct category", status: "ENABLED", accountId: account.id } });
   await saveSurveySetup("question-catalog-direct", { revision: 0, draft: { ...catalogDraft, questions: [{ ...catalogQuestion, weight: { ...catalogQuestion.weight!, category: bareCategory.name, subcategory: null } }] } }, actor);
   const directCatalog = await registerDefinition({ jotformFormId: "question-catalog-direct", siteId: catalogSite.id, type: "LOCAL", setupRevision: 1 }, actor.sub);
@@ -1244,12 +1247,18 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   console.log("✓ v3 classification: no general score/distribution, independent rules, pending originals and legacy isolation passed");
   // E1: association uses a v4 marker; earlier definitions remain unchanged.
   await prisma.jotformForm.create({ data: { id: "assistant-e1", title: "E1 assistant", status: "ENABLED", accountId: account.id } });
-  const e1Source = { "1": { name: "choice", text: "Correct choice", type: "control_radio", options: "A|B" }, "2": { name: "scale", text: "Ordered agreement", type: "control_radio", options: "Muy de acuerdo|De acuerdo|Neutral|En desacuerdo|Muy en desacuerdo" } };
+  const learningSource = { "90": { name: "school_context", text: "Escuela", type: "control_textbox" }, "91": { name: "moment_context", text: "Momento", type: "control_radio", options: "Antes|Después" } };
+  const learningQuestions: (SurveySetupQuestion & { options: string[] })[] = [
+    { externalId: "school_context", text: "Escuela", type: "OPEN_TEXT", role: "SCHOOL_GROUP", options: [] },
+    { externalId: "moment_context", text: "Momento", type: "ONE_ANSWER", role: "MOMENT", options: ["Antes", "Después"], momentMappings: [{ value: "Antes", moment: "PRE" }, { value: "Después", moment: "POST" }] },
+  ];
+  const e1Source = { ...learningSource, "1": { name: "choice", text: "Correct choice", type: "control_radio", options: "A|B" }, "2": { name: "scale", text: "Ordered agreement", type: "control_radio", options: "Muy de acuerdo|De acuerdo|Neutral|En desacuerdo|Muy en desacuerdo" } };
   jotformClient.getFormQuestionSource = async () => e1Source;
   let e1Questions: (SurveySetupQuestion & { options: string[] })[] = [
     { ...v3Questions[0]!, weight: null, text: "Correct choice", options: ["A", "B"], analysisScoring: null },
     { ...v3Questions[1]!, text: "Ordered agreement", options: e1Source["2"].options.split("|"), analysisParticipation: [{ analysisType: "pre_post" as const, enabled: true }, { analysisType: "pre_post_post" as const, enabled: true }], analysisScoring: null },
   ];
+  e1Questions.push(...learningQuestions);
   e1Questions = setAssistantScoring(e1Questions, "choice", "pre_post", { maxScore: 2, correctAnswer: "B" });
   e1Questions = setAssistantScoring(e1Questions, "scale", "pre_post", { maxScore: 10 });
   e1Questions = setAssistantScoring(e1Questions, "scale", "pre_post_post", { maxScore: 5, inverse: true });
@@ -1294,10 +1303,10 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   console.log("✓ E1: v4 save/reopen/associate, mandatory catalog subcategory, independent inverse scales, source drift rejection and legacy preservation passed");
   // E2: whole matrix/version lifecycle, preserving the parent answer and previous definitions.
   await prisma.jotformForm.create({ data: { id: "matrix-e2", title: "Matrix E2", status: "ENABLED", accountId: account.id } });
-  const matrixE2Source = { "1": { name: "intro", text: "Sección de actitudes", type: "control_head" }, "2": { name: "opinions", text: "Opiniones ambientales", type: "control_matrix", inputType: "Radio Button", mrows: "Cuido el agua|Protejo especies", mcolumns: "De acuerdo|Neutral|En desacuerdo" } };
+  const matrixE2Source = { ...learningSource, "1": { name: "intro", text: "Sección de actitudes", type: "control_head" }, "2": { name: "opinions", text: "Opiniones ambientales", type: "control_matrix", inputType: "Radio Button", mrows: "Cuido el agua|Protejo especies", mcolumns: "De acuerdo|Neutral|En desacuerdo" } };
   jotformClient.getFormQuestionSource = async () => matrixE2Source;
   await assert.rejects(() => registerDefinition({ jotformFormId: "matrix-e2", siteId: catalogSite.id, type: "LOCAL" }, actor.sub), { statusCode: 400 });
-  const matrixE2Questions = mapJotformQuestions(Object.entries(matrixE2Source).map(([qid, value]) => ({ qid, ...value })), []).scoredQuestions;
+  const matrixE2Questions = mapJotformQuestions(Object.entries(matrixE2Source).map(([qid, value]) => ({ qid, ...value })), []).scoredQuestions.map(question => learningQuestions.find(context => context.externalId === question.externalId) ?? question);
   const matrixE2Defaults = [{ externalId: "opinions", role: "SCORED" as const, classification: { category: "Learning", subcategory: "Knowledge" }, analysisParticipation: [{ analysisType: "pre_post" as const, enabled: true }, { analysisType: "pre_post_post" as const, enabled: false }], analysisScoring: [{ analysisType: "pre_post" as const, maxScore: 10, correctAnswer: null, scoringMode: "ordered_scale" as const, inverse: false, scaleOptions: ["De acuerdo", "Neutral", "En desacuerdo"], responsePolicy: { blank: "exclude" as const, invalid: "review" as const } }] }];
   const matrixE2Draft = { ...e1Draft, questions: matrixE2Questions, matrixDefaults: matrixE2Defaults };
   await saveSurveySetup("matrix-e2", { revision: 0, draft: matrixE2Draft }, actor);
@@ -1305,7 +1314,7 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   assert.deepEqual(matrixE2Reopened.draft.matrixDefaults, matrixE2Defaults);
   const matrixE2v1 = await registerDefinition({ jotformFormId: "matrix-e2", siteId: catalogSite.id, type: "LOCAL", setupRevision: 1 }, actor.sub);
   const matrixE2v1Stored = await surveysService.getDefinitionQuestions(matrixE2v1.definitionId, actor.sub);
-  assert.equal(matrixE2v1Stored.length, 3);
+  assert.equal(matrixE2v1Stored.length, 5);
   const matrixE2v1Rows = matrixE2v1Stored.filter(question => (question.sourceContext as any)?.matrix);
   assert.equal(matrixE2v1Rows.length, 2);
   assert(matrixE2v1Rows.every(question => QuestionAnalysisScoringSchema.parse(question.analysisScoring)[0]!.maxScore === 10));

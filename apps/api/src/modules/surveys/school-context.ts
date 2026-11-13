@@ -1,16 +1,18 @@
 import { z } from "zod";
+import { SchoolContextSchema } from "@epi/shared";
 
-// Dates in Escuela/Grupo use the documented DD/MM/YYYY prefix, never locale guessing.
+// Escuela/Grupo uses the approved MM/DD/YYYY convention; two-digit years mean 2000–2099.
 export function schoolContext(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return null;
   const original = value;
   const text = value.trim();
-  const dated = /^(\d{2})\/(\d{2})\/(\d{4})\s*[-–—]\s*(.*)$/.exec(text);
+  const dated = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})\s*[-–—]\s*(.*)$/.exec(text);
   if (dated) {
-    const [, day, month, year, name] = dated;
-    const date = `${year}-${month}-${day}`;
+    const [, month, day, year, name] = dated;
+    const fullYear = year!.length === 2 ? `20${year}` : year!;
+    const date = `${fullYear}-${month!.padStart(2, "0")}-${day!.padStart(2, "0")}`;
     const parsed = new Date(`${date}T00:00:00Z`);
-    const valid = Number(year) >= 1000 && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+    const valid = Number(fullYear) >= 1000 && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
     if (valid && name!.trim()) return { original, school: name!.trim().replace(/\s+/g, " "), extractedDate: date, needsReview: false };
     return { original, school: null, extractedDate: null, needsReview: true };
   }
@@ -19,6 +21,16 @@ export function schoolContext(value: unknown) {
     return { original, school: null, extractedDate: null, needsReview: true };
   }
   return { original, school: text.replace(/\s+/g, " "), extractedDate: null, needsReview: false };
+}
+
+// Recover only previously unresolved date-prefixed values; never replace a saved school or manual correction.
+export function resolvedStoredSchoolContext(value: unknown) {
+  const stored = SchoolContextSchema.safeParse(value).data;
+  if (!stored || stored.school || !stored.original || !/^\s*\d{1,2}\/\d{1,2}\/(?:\d{2}|\d{4})\s*[-–—]/.test(stored.original)) return stored;
+  const corrected = schoolContext(stored.original);
+  if (!corrected?.school || corrected.needsReview) return stored;
+  return { ...stored, school: corrected.school,
+    needsReview: !(stored.groupingDate || stored.extractedDate || originalSubmissionDay(stored.originalSubmittedAt)) };
 }
 
 export function configuredSchoolContext(

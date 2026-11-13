@@ -1,19 +1,10 @@
 import { db } from "./db";
 import { seedDatabase } from "./seed";
 import type { User } from "@epi/shared";
-
-function getToken(): string {
-  try {
-    const raw = localStorage.getItem("auth-storage");
-    const parsed = raw ? JSON.parse(raw) : null;
-    return parsed?.state?.token ?? "";
-  } catch {
-    return "";
-  }
-}
+import { useAuthStore } from "../store/auth.store";
 
 async function flushMutationQueue(): Promise<void> {
-  const token = getToken();
+  const token = useAuthStore.getState().token;
   if (!token) return;
 
   const mutations = await db.mutationQueue.orderBy("createdAt").toArray();

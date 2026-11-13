@@ -1,6 +1,6 @@
 // Shared CSV reader; strict mode protects previews from ambiguous input.
 
-function parseRows(text: string, strict: boolean): string[][] {
+export function parseCsvRows(text: string, strict = false): string[][] {
   const s = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n"); // normaliza CRLF/CR → LF
   const rows: string[][] = [];
   let row: string[] = [];
@@ -39,7 +39,7 @@ function parseRows(text: string, strict: boolean): string[][] {
  * Recorta espacios y descarta filas totalmente vacías.
  */
 export function parseCsv(text: string, options: { strict?: boolean; requiredHeaders?: string[] } = {}): Record<string, string>[] {
-  const rows = parseRows(text, options.strict ?? false);
+  const rows = parseCsvRows(text, options.strict ?? false);
   if (rows.length === 0) {
     if (options.requiredHeaders?.length) throw new Error("CSV headers are required");
     return [];

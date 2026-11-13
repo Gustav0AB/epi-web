@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import type { User } from "@epi/shared";
 import { Sidebar } from "../layouts/Sidebar";
 import App from "../App";
+import { CourseSelectionReview } from "../features/surveys/CourseSelectionReview";
 const auth = vi.hoisted(() => ({ currentUser: null as User | null, isAuthenticated: true, logout: () => {}, initCurrentUser: async () => {} }));
 vi.mock("../store/auth.store", () => ({ useAuthStore: (selector: (state: typeof auth) => unknown) => selector(auth) }));
 afterEach(() => { auth.currentUser = null; });
@@ -12,11 +13,34 @@ function menu(role: User["role"], featureKeys: string[] = []) {
  return renderToStaticMarkup(<MemoryRouter><Sidebar /></MemoryRouter>);
 }
 describe("flat navigation and site publications", () => {
+ it("groups users with sites and disables organizations for organization admins", () => {
+  auth.currentUser = { role: "org_admin", featureKeys: [], siteIds: [], reportTemplateKeys: [] } as unknown as User;
+  const html = renderToStaticMarkup(<MemoryRouter initialEntries={["/organization-management/sites"]}><App /></MemoryRouter>);
+  expect(html).toContain('href="/organization-management/users"');
+  expect(html).toContain('aria-disabled="true"');
+  expect(html).not.toContain('href="/organization-management/organizations"');
+ });
+ it("shows learning and quality in the course without a follow-up tab", () => {
+  auth.currentUser = { role: "system_admin", featureKeys: [], reportTemplateKeys: [] } as unknown as User;
+  const html = renderToStaticMarkup(<MemoryRouter><CourseSelectionReview groups={[]} sites={[]} onBack={() => {}} /></MemoryRouter>);
+  expect(html).toContain("Evaluación de aprendizaje");
+  expect(html).toContain("Evaluación de calidad");
+  expect(html).toContain("Información general");
+  expect(html).toContain("Revisión de datos");
+  expect(html).not.toContain("Evaluación de seguimiento");
+ });
+ it("keeps instrument weighting in the assistant rather than a separate tab", () => {
+  auth.currentUser = { role: "system_admin", featureKeys: [], reportTemplateKeys: [] } as unknown as User;
+  const html = renderToStaticMarkup(<MemoryRouter initialEntries={["/instruments/forms"]}><App /></MemoryRouter>);
+  expect(html).toContain("Formularios");
+  expect(html).not.toContain('href="/instruments/scoring"');
+ });
+
  it("opens with labels and direct links to every admin option, without group toggles or assignments", () => {
   const html = menu("system_admin");
   expect(html).toContain('aria-expanded="true"'); expect(html).toContain("Cursos</span>"); expect(html).toContain("Reportes</span>");
-  for (const path of ["/courses","/instruments","/reports","/users","/organization-management","/settings","/audit-log"]) expect(html).toContain(`href="${path}"`);
-  for (const path of ["/surveys", "/survey-groups", "/published-courses", "/open-questions", "/complementary-instruments", "/scoring", "/survey-settings", "/jotform-accounts", "/categories", "/organizations", "/sites"]) expect(html).not.toContain(`href="${path}"`);
+  for (const path of ["/courses","/instruments","/reports","/organization-management","/audit-log"]) expect(html).toContain(`href="${path}"`);
+  for (const path of ["/settings", "/users", "/surveys", "/survey-groups", "/published-courses", "/open-questions", "/complementary-instruments", "/scoring", "/survey-settings", "/jotform-accounts", "/categories", "/organizations", "/sites"]) expect(html).not.toContain(`href="${path}"`);
   expect(html).not.toContain("/report-assignments"); expect(html).not.toContain('aria-expanded="false"'); expect(html).not.toContain("max-h-0");
  });
  it("opens reports without a sidebar for the reader, even with a template assignment", () => {
@@ -32,7 +56,7 @@ describe("flat navigation and site publications", () => {
  });
  it("keeps role permissions while exposing all available operational links", () => {
   const html = menu("functionality_user",["surveys","scoring"]);
-  expect(html).toContain('href="/courses"'); expect(html).toContain('href="/instruments"'); expect(html).toContain('href="/reports"');
+  expect(html).toContain('href="/courses"'); expect(html).not.toContain('href="/instruments"'); expect(html).toContain('href="/reports"');
   expect(html).not.toContain('href="/organization-management"'); expect(html).not.toContain('href="/audit-log"');
  });
  it("keeps the workspace available with only a single moved permission", () => {
@@ -40,7 +64,7 @@ describe("flat navigation and site publications", () => {
   expect(open).toContain('href="/courses"');
   expect(open).not.toContain('href="/instruments"');
   const scoring = menu("functionality_user", ["scoring"]);
-  expect(scoring).toContain('href="/instruments"');
+  expect(scoring).not.toContain('href="/instruments"');
   expect(scoring).not.toContain('href="/courses"');
  });
  it("keeps the sidebar expanded by default for organization administrators too", () => {

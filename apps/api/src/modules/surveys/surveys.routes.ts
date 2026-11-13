@@ -1,6 +1,10 @@
+import { z } from "zod";
+import { JotformAccountLabelsSchema } from "@epi/shared";
+import { jotformClient } from "./jotform-client.js";
+import { jotformAccountLabels, updateJotformAccountLabels } from "./surveys.service.js";
+import { reprocessEarlierVersions, versionReprocessProgress } from "./version-reprocess.service.js";
 import { CourseListQuerySchema } from "@epi/shared";
-import { publishedReportAggregate, publishedReportFilterOptions, confirmCourseSelection, splitCourseApplication, courseComplementResults, listPublishedCourseReports, publishedCourseReport, courseReportHistory, publishCourseEdition, setCourseExpectedParticipants, getCourseReportDraft, saveCourseReportDraft, courseResults, courseOptions, listCourseEditions, createCourseEdition, courseEditionDetail, courseResponseCandidates, setCourseInstrument, setCourseMembership } from "./course-editions.service.js";
-import { surveysService } from "./surveys.service.js";
+import { internalCourseReport, homeSummary, publishedReportAggregate, publishedReportFilterOptions, confirmCourseSelection, setCourseMainSchool, splitCourseApplication, courseComplementResults, listPublishedCourseReports, publishedCourseReport, courseReportHistory, publishCourseEdition, setCourseExpectedParticipants, getCourseReportDraft, saveCourseReportDraft, courseResults, courseOptions, listCourseEditions, createCourseEdition, courseEditionDetail, courseResponseCandidates, setCourseInstrument, setCourseMembership } from "./course-editions.service.js";
 import { setAssistantAutoSync, assistantMigrationStatus, assistantResponseCount, migrateAssistantResponses } from "./assistant-migration.service.js";
 import { AssistantSyncSettingsSchema, JotformLabelsQuerySchema } from "@epi/shared";
 import { listJotformLabels } from "./surveys.service.js";
@@ -11,6 +15,7 @@ import { apiSuccess, apiError, SaveSurveySetupSchema } from "@epi/shared";
 import { validate } from "../../middlewares/validate.middleware.js";
 import { getSurveySetup, saveSurveySetup } from "./survey-setup.service.js";
 import multer from "multer";
+import { surveysService } from "./surveys.service.js";
 import { surveysController } from "./surveys.controller.js";
 import {
   requireAuth,
@@ -29,6 +34,7 @@ webhooksRouter.post("/jotform", multer().none(), surveysController.webhook);
 // featureKey "surveys"/"scoring" asignado. Los resultados ya vienen acotados
 // por organización/sitio desde el service (ver site-scope.ts).
 export const surveysRouter = Router();
+surveysRouter.get("/home-summary", requireAuth, requireFunctionality("home"), async (req, res, next) => { try { res.json(apiSuccess(await homeSummary(req.user!.sub))); } catch (error) { next(error); } });
 surveysRouter.get("/published-courses", requireAuth, async (req,res,next) => { try { res.json(apiSuccess(await listPublishedCourseReports(req.query,req.user!.sub))); } catch(error) { next(error); } });
 surveysRouter.get("/published-report-aggregate", requireAuth, async (req, res, next) => {
   try { res.json(apiSuccess(await publishedReportAggregate(req.query, req.user!.sub))); } catch (error) { next(error); }
@@ -39,6 +45,7 @@ surveysRouter.get("/published-report-options", requireAuth, async (req, res, nex
 surveysRouter.get("/published-courses/:id", requireAuth, async (req,res,next) => { try { res.json(apiSuccess(await publishedCourseReport(req.params.id!,req.user!.sub))); } catch(error) { next(error); } });
 surveysRouter.get("/courses/:id/publications", requireAuth, async (req,res,next) => { try { res.json(apiSuccess(await courseReportHistory(req.params.id!,req.query,req.user!.sub))); } catch(error) { next(error); } });
 surveysRouter.post("/courses/:id/publications", requireAuth, requireRole("system_admin","org_admin"), async (req,res,next) => { try { res.status(201).json(apiSuccess(await publishCourseEdition(req.params.id!,req.body,req.user!.sub))); } catch(error) { next(error); } });
+surveysRouter.post("/internal-course-report", requireAuth, requireFunctionality("surveys"), async (req, res, next) => { try { res.json(apiSuccess(await internalCourseReport(req.body, req.user!.sub))); } catch (error) { next(error); } });
 surveysRouter.get("/courses", requireAuth, requireFunctionality("surveys"), async (req, res, next) => { try { res.json(apiSuccess(await listCourseEditions(req.query, req.user!.sub))); } catch (error) { next(error); } });
 surveysRouter.post("/courses", requireAuth, requireFunctionality("surveys"), async (req, res, next) => { try { res.status(201).json(apiSuccess(await createCourseEdition(req.body, req.user!.sub))); } catch (error) { next(error); } });
 surveysRouter.get("/courses/options", requireAuth, requireFunctionality("surveys"), async (req, res, next) => { try { res.json(apiSuccess(await courseOptions(req.user!.sub))); } catch (error) { next(error); } });
@@ -67,6 +74,12 @@ surveysRouter.patch("/definitions/:id/migration-settings", requireAuth, requireR
 });
 surveysRouter.post("/definitions/:id/migrate", requireAuth, requireRole("system_admin"), async (req, res, next) => {
   try { res.json(apiSuccess(await migrateAssistantResponses(req.params.id!))); } catch (error) { next(error); }
+});
+surveysRouter.get("/jotform/forms/:formId/reprocess-versions", requireAuth, requireRole("system_admin"), async (req, res, next) => {
+  try { res.json(apiSuccess(await versionReprocessProgress(req.params.formId!))); } catch (error) { next(error); }
+});
+surveysRouter.post("/jotform/forms/:formId/reprocess-versions", requireAuth, requireRole("system_admin"), async (req, res, next) => {
+  try { res.json(apiSuccess(await reprocessEarlierVersions(req.params.formId!, req.user!.sub))); } catch (error) { next(error); }
 });
 surveysRouter.get("/jotform/labels", requireAuth, requireRole("system_admin"), async (req, res, next) => {
   const input = JotformLabelsQuerySchema.safeParse(req.query);
@@ -140,6 +153,12 @@ surveysRouter.get(
 surveysRouter.get("/definitions/:id/source-contract", requireAuth, requireRole("system_admin"), async (req, res, next) => {
   try { res.json(apiSuccess(await surveysService.definitionSourceContract(req.params.id!, req.user!.sub))); } catch (error) { next(error); }
 });
+surveysRouter.get("/reference-instruments", requireAuth, requireRole("system_admin", "org_admin"), async (req, res, next) => {
+  try { res.json(apiSuccess(await surveysService.referenceInstruments(req.user!.sub))); } catch (error) { next(error); }
+});
+surveysRouter.get("/definitions/:id/reuse-configuration", requireAuth, requireRole("system_admin", "org_admin"), async (req, res, next) => {
+  try { res.json(apiSuccess(await surveysService.reusableConfiguration(req.params.id!, req.user!.sub))); } catch (error) { next(error); }
+});
 surveysRouter.get("/definitions/:id/filters", requireAuth, requireFunctionality("surveys"), surveysController.listFilters);
 surveysRouter.get(
   "/definitions/:id/questions",
@@ -156,7 +175,7 @@ surveysRouter.patch(
 surveysRouter.post(
   "/definitions/:id/weights/import",
   requireAuth,
-  requireFunctionality("scoring"),
+  requireRole("system_admin"),
   surveysController.importWeights,
 );
 surveysRouter.post(
@@ -168,19 +187,19 @@ surveysRouter.post(
 surveysRouter.put(
   "/questions/:id/weight",
   requireAuth,
-  requireFunctionality("scoring"),
+  requireRole("system_admin"),
   surveysController.setWeight,
 );
 surveysRouter.delete(
   "/questions/:id/weight",
   requireAuth,
-  requireFunctionality("scoring"),
+  requireRole("system_admin"),
   surveysController.deleteWeight,
 );
 surveysRouter.patch(
   "/questions/:id",
   requireAuth,
-  requireFunctionality("scoring"),
+  requireRole("system_admin"),
   surveysController.updateQuestion,
 );
 surveysRouter.post(
@@ -201,7 +220,7 @@ surveysRouter.get(
 surveysRouter.post(
   "/definitions",
   requireAuth,
-  requireRole("system_admin", "org_admin"),
+  requireRole("system_admin"),
   surveysController.registerDefinition,
 );
 
@@ -261,6 +280,15 @@ surveysRouter.get(
   requireRole("system_admin"),
   surveysController.listJotformAccounts,
 );
+surveysRouter.post("/jotform/accounts/labels-preview", requireAuth, requireRole("system_admin"), async (req, res, next) => {
+  try { const { apiKey } = z.object({ apiKey: z.string().trim().min(1) }).parse(req.body); res.json(apiSuccess(await jotformClient.listLabels(apiKey))); } catch (error) { next(error); }
+});
+surveysRouter.get("/jotform/accounts/:id/labels", requireAuth, requireRole("system_admin"), async (req, res, next) => {
+  try { res.json(apiSuccess(await jotformAccountLabels(req.params.id!))); } catch (error) { next(error); }
+});
+surveysRouter.put("/jotform/accounts/:id/labels", requireAuth, requireRole("system_admin"), async (req, res, next) => {
+  try { const { excludedLabelIds } = JotformAccountLabelsSchema.parse(req.body); res.json(apiSuccess(await updateJotformAccountLabels(req.params.id!, excludedLabelIds))); } catch (error) { next(error); }
+});
 surveysRouter.post(
   "/jotform/accounts",
   requireAuth,
@@ -288,6 +316,11 @@ reportsRouter.get(
 surveysRouter.post("/courses/:id/applications/:applicationId/split", requireAuth, requireFunctionality("surveys"), async (req,res,next) => {
   try { res.json(apiSuccess(await splitCourseApplication(req.params.id!,req.params.applicationId!,req.body,req.user!.sub))); }
   catch(error) { next(error); }
+});
+
+surveysRouter.put("/courses/:id/main-school", requireAuth, requireFunctionality("surveys"), async (req,res,next) => {
+  try { res.json(apiSuccess(await setCourseMainSchool(req.params.id!, req.body, req.user!.sub))); }
+  catch (error) { next(error); }
 });
 
 surveysRouter.post("/course-selection/confirm", requireAuth, requireFunctionality("surveys"), async (req,res,next) => {

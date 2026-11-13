@@ -15,6 +15,7 @@ export * from "./csv.js";
 export * from "./scoring-weights.js";
 export * from "./question-analysis.js";
 export * from "./question-catalog.js";
+export * from "./question-context.js";
 export * from "./question-classification.js";
 export * from "./matrix-configuration.js";
 export * from "./schemas/course.schema.js";
@@ -27,3 +28,5 @@ export * from "./report-templates/course-impacts.template.js";
 export * from "./course-report-document.js";
 
 export * from "./course-category-selection.js";
+
+export * from "./relative-change.js";

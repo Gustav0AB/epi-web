@@ -13,6 +13,8 @@ try {
  const site = await prisma.site.create({ data: { organizationId: organization.id, name: "Results site" } });
  const other = await prisma.site.create({ data: { organizationId: organization.id, name: "Other results site" } });
  const restricted = await prisma.user.create({ data: { username: "results_restricted", name: "Restricted", email: "results-restricted@example.test", password: "unused", role: "FUNCTIONALITY_USER", organizationId: organization.id, siteIds: [other.id] } });
+ await prisma.feature.upsert({ where: { key: "surveys" }, create: { key: "surveys", name: "Encuestas" }, update: {} });
+ await prisma.userFeature.create({ data: { userId: restricted.id, featureKey: "surveys" } });
  const participation = [{ analysisType: "pre_post", enabled: true }, { analysisType: "pre_post_post", enabled: false }];
  const policy = { blank: "exclude", invalid: "review" };
  const definition = await prisma.surveyDefinition.create({ data: { jotformFormId: "results-e5", siteId: site.id, instrumentKind: "LEARNING", instrumentName: "Aprendizaje E5", activityName: "Visita", programName: "EPI", configurationVersion: 4, questions: { create: [
@@ -20,7 +22,7 @@ try {
   { externalId: "scale", text: "Escala", type: "LIKERT", role: "SCORED", options: ["Alto","Bajo"], classification: { category: "Learning", subcategory: "Knowledge" }, analysisParticipation: participation, analysisScoring: [{ analysisType: "pre_post", maxScore: 10, correctAnswer: null, scoringMode: "ordered_scale", inverse: false, scaleOptions: ["Alto","Bajo"], responsePolicy: policy }] },
   { externalId: "choice", text: "Correcta", type: "ONE_ANSWER", role: "SCORED", options: ["A","B"], classification: { category: "Learning", subcategory: "Knowledge" }, analysisParticipation: participation, analysisScoring: [{ analysisType: "pre_post", maxScore: 2, correctAnswer: "A", scoringMode: "standard", responsePolicy: policy }] },
  ] } } });
- const ingest = async (id: string, moment: "PRE" | "POST", scale: unknown, choice: unknown) => surveysService.ingest({ formID: definition.jotformFormId, submissionID: id, surveyMoment: moment, answers: [{ questionId: "school", value: `${moment === "PRE" ? "01" : "05"}/11/2026 - Escuela E5` },{ questionId: "scale", value: scale },{ questionId: "choice", value: choice }] });
+ const ingest = async (id: string, moment: "PRE" | "POST", scale: unknown, choice: unknown) => surveysService.ingest({ formID: definition.jotformFormId, submissionID: id, surveyMoment: moment, answers: [{ questionId: "school", value: `11/${moment === "PRE" ? "01" : "05"}/2026 - Escuela E5` },{ questionId: "scale", value: scale },{ questionId: "choice", value: choice }] });
  const pre = await ingest("results-pre","PRE","Alto","A"); const incomplete = await ingest("results-incomplete","PRE",null,"B"); const post = await ingest("results-post","POST","Bajo","A");
  const course = await createCourseEdition({ siteId: site.id, primaryDefinitionId: definition.id, name: "Curso E5", school: "Escuela E5", activity: "Visita" },admin.id);
  const empty = await courseResults(course.id,{},admin.id); assert.equal(empty.questions.length,2); assert.equal(empty.questions[0]!.pre.points,null);

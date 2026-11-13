@@ -97,7 +97,7 @@ export function ScoringPage() {
     setImportError(null);
     void loadQuestions(id);
     const organizationId = definitions.find((d) => d.id === id)?.organizationId;
-    if (organizationId) void surveyApi.categories(organizationId).then(setCategories);
+    if (organizationId) void surveyApi.categories(organizationId, definitions.find((d) => d.id === id)?.siteId).then(setCategories);
     else setCategories([]);
   }
 

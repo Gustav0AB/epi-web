@@ -12,6 +12,7 @@ export function SurveySettingsPage() {
   const { t } = useI18n();
   const [search] = useSearchParams();
   const currentUser = useAuthStore((s) => s.currentUser);
+  const [configuring, setConfiguring] = useState(false);
   const [, setDefinitions] = useState<SurveyDefinitionDto[]>([]);
 
   const loadDefinitions = useCallback(() => {
@@ -27,19 +28,19 @@ export function SurveySettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      {!configuring && <div>
         <Label variant="title" className="block">
           {t("surveySettings.title")}
         </Label>
         <p className="mt-0.5 text-sm text-gray-500">
           {t("surveySettings.subtitle")}
         </p>
-      </div>
+      </div>}
 
       {currentUser?.role === "system_admin" && (
         <>
-          <JotformFormsCatalog onRegistered={loadDefinitions} configureFormId={search.get("configureForm") ?? undefined} />
-          <UnregisteredForms onRegistered={loadDefinitions} />
+          <JotformFormsCatalog onRegistered={loadDefinitions} configureFormId={search.get("configureForm") ?? undefined} onViewChange={setConfiguring} />
+          {!configuring && <UnregisteredForms onRegistered={loadDefinitions} />}
         </>
       )}
 

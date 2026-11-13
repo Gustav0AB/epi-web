@@ -51,13 +51,15 @@ describe("independent scoring configuration per analysis", () => {
     expect(markup).toContain("Análisis que estás configurando");
     expect(markup).toContain("Pregunta visible");
     expect(markup).not.toContain("Pregunta follow-only");
-    expect(markup).not.toContain('value="9"');
+    expect(markup).not.toMatch(/aria-label="Máximo Pre\/Post: Pregunta visible"[^>]*value="9"/);
     expect(markup).toContain("1 pendientes de puntuación");
   });
   it("renders ten questions per page and provides manual answers when source options are absent", () => {
     const rows = Array.from({ length: 11 }, (_, index) => ({ ...question(String(index)), options: [] }));
     const markup = renderToStaticMarkup(<SetupAnalysisScoring questions={rows} onChange={() => {}} />);
-    expect((markup.match(/<summary class="cursor-pointer truncate"/g) ?? [])).toHaveLength(10);
+    expect((markup.match(/class="min-w-48 max-w-md whitespace-pre-wrap break-words"/g) ?? [])).toHaveLength(10);
+    expect(markup).toContain("Todas las categorías");
+    expect((markup.match(/Blancos y no puntuables fuera del cálculo/g) ?? [])).toHaveLength(1);
     expect(markup).not.toContain("Pregunta 10");
     expect(markup).toContain('aria-label="Respuesta correcta Pre/Post: Pregunta 0"');
   });

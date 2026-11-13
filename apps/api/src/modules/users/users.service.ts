@@ -72,6 +72,8 @@ export class UsersService {
       }
     }
 
+    if (dto.role === "system_admin") throw Object.assign(new Error("Solo puede existir un administrador de sistema."), { statusCode: 409, code: "SYSTEM_ADMIN_EXISTS" });
+
     await this.#validateAssignments(dto.role, dto.organizationId ?? null, dto.siteIds ?? [], dto.excludedSurveyDefinitionIds ?? []);
     if (dto.excludedSiteIds?.length) throw badRequest("Use siteIds to assign access");
 
@@ -107,6 +109,9 @@ export class UsersService {
       throw forbidden("org_admin cannot move users to another organization");
     }
 
+    if (existing.role === "SYSTEM_ADMIN" && (dto.role !== undefined && dto.role !== "system_admin" || dto.isActive === false)) throw Object.assign(new Error("El administrador de sistema debe permanecer activo."), { statusCode: 409, code: "SYSTEM_ADMIN_REQUIRED" });
+    if (existing.role !== "SYSTEM_ADMIN" && dto.role === "system_admin") throw Object.assign(new Error("Solo puede existir un administrador de sistema."), { statusCode: 409, code: "SYSTEM_ADMIN_EXISTS" });
+
     const targetOrgId = dto.organizationId !== undefined ? dto.organizationId : existing.organizationId;
     await this.#validateAssignments(
       dto.role ?? existing.role.toLowerCase(), targetOrgId,
@@ -134,6 +139,7 @@ export class UsersService {
   async delete(requester: JwtPayload, id: string): Promise<void> {
     const existing = await this.#loadOrThrow(id);
     this.#assertOrgAccess(requester, existing.organizationId);
+    if (existing.role === "SYSTEM_ADMIN") throw Object.assign(new Error("El administrador de sistema no se puede eliminar."), { statusCode: 409, code: "SYSTEM_ADMIN_REQUIRED" });
     await usersRepository.delete(id);
     await auditService.record(requester, "USER_DELETE", { type: "User", id }, { username: existing.username });
   }

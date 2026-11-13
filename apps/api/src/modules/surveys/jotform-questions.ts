@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { preserveOpenQuestion, questionClassification, WeightInputSchema, type WeightInput, type QuestionVisibility, type FormQuestionsPreviewDto, type SurveySetupQuestion } from "@epi/shared";
+import { incompleteLearningMoment, preserveOpenQuestion, questionClassification, WeightInputSchema, type WeightInput, type QuestionVisibility, type FormQuestionsPreviewDto, type SurveySetupQuestion } from "@epi/shared";
 import type { QuestionType } from "@prisma/client";
 import type { JotformQuestion } from "./jotform-client.js";
 
@@ -139,8 +139,11 @@ export function applySetupQuestions(questions: MappedQuestion[], edits: SurveySe
     const edit = configured && question.type === "OPEN_TEXT" ? preserveOpenQuestion(configured) : configured;
     if (edit?.role === "MOMENT") {
       const mappings = edit.momentMappings ?? [];
-      if (!question.options.length || mappings.length !== question.options.length || question.options.some((option) => !mappings.some((mapping) => mapping.value === option))) {
-        throw Object.assign(new Error("Map every current option of the moment question before registering"), { statusCode: 400, code: "BAD_REQUEST" });
+      const invalid = version === 4
+        ? incompleteLearningMoment({ options: question.options, momentMappings: mappings })
+        : !question.options.length || mappings.length !== question.options.length || question.options.some((option) => !mappings.some((mapping) => mapping.value === option));
+      if (invalid) {
+        throw Object.assign(new Error("Relaciona al menos una respuesta con Pre y otra con Post; revisa las opciones actuales del momento."), { statusCode: 400, code: "BAD_REQUEST" });
       }
     }
     if ((edit?.isFilter || edit?.role === "FILTER") && (!["control_radio", "control_dropdown", "control_yesno"].includes(question.controlType ?? "") || !question.options.length || edit.optionLabels?.some((item) => !question.options.includes(item.value)))) {

@@ -80,6 +80,12 @@ assert.throws(() => applySetupQuestions([momentQuestion], [{ ...momentEdit, mome
 assert.throws(() => applySetupQuestions([{ ...momentQuestion, options: ["Changed", "After"] }], [momentEdit]), { statusCode: 400 });
 assert.throws(() => applySetupQuestions([{ ...momentQuestion, options: [] }], [momentEdit]), { statusCode: 400 });
 
+const momentWithOther = { ...momentQuestion, options: ["Before", "After", "Other"] };
+assert.equal(applySetupQuestions([momentWithOther], [momentEdit], 4)[0]?.role, "MOMENT");
+assert.throws(() => applySetupQuestions([momentWithOther], [momentEdit]), { statusCode: 400 });
+assert.throws(() => applySetupQuestions([momentWithOther], [{ ...momentEdit, momentMappings: momentEdit.momentMappings.slice(0, 1) }], 4), { statusCode: 400 });
+assert.throws(() => applySetupQuestions([momentWithOther], [{ ...momentEdit, momentMappings: [...momentEdit.momentMappings, { value: "Removed", moment: "PRE" }] }], 4), { statusCode: 400 });
+
 const weightedEdit = { externalId: "moment", text: "Score", type: "ONE_ANSWER" as const, weight: { category: "Learning", subcategory: null, maxScore: 5, correctAnswer: "Before" } };
 assert.deepEqual(applySetupQuestions([momentQuestion], [weightedEdit])[0]?.weight, weightedEdit.weight);
 for (const weight of [{ ...weightedEdit.weight, category: "" }, { ...weightedEdit.weight, maxScore: null }, { ...weightedEdit.weight, maxScore: -1 }, { ...weightedEdit.weight, maxScore: Infinity }, { ...weightedEdit.weight, correctAnswer: null }, { ...weightedEdit.weight, correctAnswer: "Absent" }]) {
@@ -157,6 +163,8 @@ const independent = applySetupQuestions([momentQuestion], [independentEdit], 3)[
 assert.deepEqual(independent.classification, independentEdit.classification);
 assert.equal(independent.weight, undefined);
 assert.throws(() => applySetupQuestions([momentQuestion], [independentEdit]), { statusCode: 400 });
+const factorV4 = applySetupQuestions([momentQuestion], [{ ...independentEdit, weight: { category: "Learning", subcategory: "Knowledge", maxScore: 5, correctAnswer: null, factor: 3 } }], 4)[0]!;
+assert.equal(factorV4.weight?.factor, 3, "The question factor survives v4 setup mapping");
 const retainedLegacy = applySetupQuestions([momentQuestion], [{ ...independentEdit, weight: { ...independentEdit.weight, maxScore: 7 } }], 3)[0]!;
 assert.equal(retainedLegacy.weight!.correctAnswer, "Retired", "Dormant legacy fields are retained without governing current analysis");
 console.log("✓ v3 classification does not require a general score and legacy validation stays intact passed");

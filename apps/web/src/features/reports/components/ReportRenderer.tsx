@@ -150,7 +150,7 @@ function CourseImpactReportView({ template, data, mode, noDataText, editContent,
           </div>
           <div className="mt-5 border-b border-gray-300 pb-4">
             {categoryChart?.type === "chart" && <ChartBlockView block={categoryChart} data={data.series[categoryChart.dataKey] ?? categoryRows} showExport={mode === "interactive"} />}
-            <div className="ml-5 hidden w-32 text-center sm:block"><div className="text-4xl font-semibold text-[#4196b3]">{indicator(improvement)}</div><div className="text-xs font-bold uppercase text-[#4196b3]">Overall improvement</div></div>
+            <div className="ml-5 hidden w-32 text-center sm:block"><div className="text-4xl font-semibold text-[#4196b3]">{indicator(improvement)}</div><div className="text-xs font-bold uppercase text-[#4196b3]">{data.texts.overallChangeLabel ?? "Overall improvement"}</div></div>
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <div>
