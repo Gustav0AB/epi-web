@@ -5,7 +5,7 @@
     "buildCommand": "npm run db:generate -w apps/api && npm run build"
   },
   "deploy": {
-    "startCommand": "npm run db:migrate:prod -w apps/api && npm run start -w apps/api",
+    "startCommand": "npm run db:migrate:prod -w apps/api && node apps/api/dist/db/bootstrap-admin.js && npm run start -w apps/api",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100
   }
