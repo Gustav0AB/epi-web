@@ -9,6 +9,7 @@ assert.equal(
   new URL(process.env.DATABASE_URL!).pathname,
   "/epi_default_admin_test",
 );
+process.env.INITIAL_ADMIN_PASSWORD = "integration-bootstrap-password";
 try {
   await Promise.all([
     ensureDefaultAdmin(),
@@ -22,7 +23,7 @@ try {
   const admin = admins[0]!;
   assert.equal(admin.username, "admin");
   assert.equal(admin.mustChangePassword, true);
-  assert.equal(await bcrypt.compare("Admin1234!", admin.password), true);
+  assert.equal(await bcrypt.compare("integration-bootstrap-password", admin.password), true);
   const actor = {
     sub: admin.id,
     username: admin.username,

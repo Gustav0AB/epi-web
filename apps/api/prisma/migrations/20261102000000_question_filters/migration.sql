@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TYPE "QuestionRole" ADD VALUE 'FILTER';
+ALTER TABLE "questions" ADD COLUMN "optionLabels" JSONB NOT NULL DEFAULT '[]';
+COMMIT;

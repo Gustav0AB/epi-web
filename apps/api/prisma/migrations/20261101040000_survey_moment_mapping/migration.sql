@@ -1,0 +1,5 @@
+BEGIN;
+ALTER TYPE "QuestionRole" ADD VALUE 'MOMENT';
+ALTER TYPE "SurveyMoment" ADD VALUE 'POST_POST';
+ALTER TABLE "questions" ADD COLUMN "momentMappings" JSONB NOT NULL DEFAULT '[]';
+COMMIT;

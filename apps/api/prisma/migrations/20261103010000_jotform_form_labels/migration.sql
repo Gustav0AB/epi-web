@@ -1,0 +1,1 @@
+ALTER TABLE "jotform_forms" ADD COLUMN "labelIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

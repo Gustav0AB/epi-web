@@ -9,7 +9,11 @@ export async function ensureDefaultAdmin(db: Pick<PrismaClient, "user"> = prisma
     if (!admins[0]!.isActive) throw new Error("El administrador de sistema está desactivado; revisa la cuenta antes de iniciar.");
     return;
   }
-  const password = await bcrypt.hash("Admin1234!", 12);
+  const initialPassword = process.env.INITIAL_ADMIN_PASSWORD;
+  if (!initialPassword || initialPassword.length < 12) {
+    throw new Error("Define INITIAL_ADMIN_PASSWORD con al menos 12 caracteres para crear el administrador inicial.");
+  }
+  const password = await bcrypt.hash(initialPassword, 12);
   try {
     await db.user.create({ data: { name: "System Admin", username: "admin", email: "admin@epi.local", password, role: "SYSTEM_ADMIN", mustChangePassword: true } });
   } catch {

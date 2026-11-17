@@ -10,10 +10,14 @@ prisma.user.create = (async ({ data }: { data: { username: string; email: string
   rows = [{ id: "admin", isActive: true, password: data.password, mustChangePassword: data.mustChangePassword }];
   return rows[0];
 }) as unknown as typeof prisma.user.create;
+await assert.rejects(() => ensureDefaultAdmin(), /Define INITIAL_ADMIN_PASSWORD/);
+assert.equal(rows.length, 0);
+process.env.INITIAL_ADMIN_PASSWORD = "test-bootstrap-password";
 await ensureDefaultAdmin();
 assert.equal(rows.length, 1); assert.equal(rows[0]!.mustChangePassword, true);
-assert.equal(await bcrypt.compare("Admin1234!", rows[0]!.password), true);
+assert.equal(await bcrypt.compare("test-bootstrap-password", rows[0]!.password), true);
 rows[0]!.password = "already-changed";
+delete process.env.INITIAL_ADMIN_PASSWORD;
 await ensureDefaultAdmin();
 assert.equal(rows.length, 1); assert.equal(rows[0]!.password, "already-changed");
 rows[0]!.isActive = false;

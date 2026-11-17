@@ -1,0 +1,1 @@
+ALTER TYPE "QuestionRole" ADD VALUE 'ACTIVITY';
