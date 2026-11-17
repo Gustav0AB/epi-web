@@ -46,7 +46,7 @@ const tx = {
 prisma.$transaction = (async (run: (client: typeof tx) => Promise<unknown>) => run(tx)) as unknown as typeof prisma.$transaction;
 auditService.record = async (...args) => {
   audits++;
-  assert.deepEqual(args, [actor, "SURVEY_SETUP_SAVE", { type: "JotformForm", id: "form" }, { revision: 1 }]);
+  assert.deepEqual(args, [actor, "SURVEY_SETUP_SAVE", { type: "JotformForm", id: "form" }, { name: empty.instrumentName, revision: 1 }]);
 };
 assert.deepEqual(await getSurveySetup("form"), { draft: empty, revision: 0, options: [] });
 form = null;
@@ -173,7 +173,7 @@ prisma.surveyDefinition.findFirst = (async () => null) as unknown as typeof pris
 prisma.site.findUnique = (async () => ({ organizationId: catalogOrganization })) as unknown as typeof prisma.site.findUnique;
 prisma.category.findMany = (async (args: unknown) => {
   categoryReads++;
-  assert.deepEqual(args, { where: { organizationId: "org", isActive: true, siteLinks: { some: { siteId: "site" } } } });
+  assert.deepEqual(args, { where: { organizationId: "org", isActive: true } });
   return [{ name: "Learning", subcategory: "Knowledge", organizationId: "org", isActive: true }];
 }) as unknown as typeof prisma.category.findMany;
 const catalogQuestion = { externalId: "q", text: "Catalog question", type: "LIKERT" as const, weight: { category: "Learning", subcategory: "Knowledge", maxScore: 5, correctAnswer: null } };

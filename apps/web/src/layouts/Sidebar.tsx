@@ -65,11 +65,11 @@ export function Sidebar() {
   return (
     <aside
       className={[
-        "flex h-screen shrink-0 flex-col border-r border-gray-200 bg-white transition-all duration-200",
+        "flex h-screen shrink-0 flex-col bg-white transition-all duration-200",
         expanded ? "w-56" : "w-16",
       ].join(" ")}
     >
-      <div className="flex h-14 shrink-0 items-center border-b border-gray-200 px-3">
+      <div className="flex h-14 shrink-0 items-center px-3">
         <button
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
@@ -99,7 +99,7 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      <div className="shrink-0 border-t border-gray-200 p-2">
+      <div className="shrink-0 p-2">
         <button
           onClick={logout}
           title={!expanded ? t("header.logout") : undefined}

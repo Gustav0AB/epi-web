@@ -66,13 +66,13 @@ describe("manual option scores per analysis", () => {
     expect(markup).toContain("No se convertirán puntos parciales ni rangos anteriores automáticamente");
     expect(markup).toContain("Confirmar regla actual");
     expect(markup).toContain("1 pendientes de puntuación");
-    expect(markup).toContain('aria-label="Respuesta correcta Pre/Post:');
+    expect(markup).toContain('aria-label="Respuestas correctas Pre/Post:');
   });
   it("summarizes active points independently and hides dormant option rules in standard mode", () => {
     const rows = setAnalysisScoring(configured(), "q", "pre_post_post", { maxScore: 5, correctAnswer: "B" });
     const summary = analysisScoringText(rows[0]!);
     expect(summary).toContain("Pre/Post: máximo 3; puntos por opción: A = 0, B = 1.5");
-    expect(summary).toContain("Pre/Post + Post-post: máximo 5; correcta: B");
+    expect(summary).toContain("Pre/Post + Post-post: máximo 5; correctas: B");
     const standard = setAnalysisScoring(rows, "q", "pre_post", { scoringMode: "standard", correctAnswer: "A" });
     expect(analysisScoringText(standard[0]!)).not.toContain("puntos por opción");
   });

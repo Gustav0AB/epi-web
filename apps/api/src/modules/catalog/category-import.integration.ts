@@ -61,7 +61,8 @@ try {
     assert.equal((await (await request(concurrentCsv)).json() as { data: CategoryImportResult }).data.applied, 0);
   }
   const actor = { sub: user.id, username: user.username, role: "org_admin", organizationId: organization.id, featureKeys: [] };
-  const createdSite = await catalogService.createSite(actor, { name: "Sitio creado", programs: ["Local"], activityTypes: ["Curso"] });
+  const createdSite = await catalogService.createSite(actor, { name: "Sitio creado", programs: ["Local"], activityTypes: ["Curso"], activities: ["Excursión"] });
+  assert.deepEqual(createdSite.activities, ["Excursión"]);
   assert((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).siteIds.includes(createdSite.id));
   await catalogService.updateSite(actor, createdSite.id, { programs: ["Local", "Nuevo"] });
   await catalogService.deleteSite(actor, createdSite.id);
@@ -69,14 +70,9 @@ try {
   await catalogService.updateCategory(actor, category.id, { subcategory: "Costa" });
   await catalogService.deleteCategory(actor, category.id);
   await catalogService.createCategory(actor, { name: "Naturaleza", subcategory: "Costa" });
-  const categoryUrl = `http://127.0.0.1:${address.port}/api/categories/${category.id}/sites`;
   const catRequest = (url: string, method = "GET", body?: unknown) => fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const availableBefore = await catRequest(`http://127.0.0.1:${address.port}/api/categories?siteId=${site.id}`);
-  assert(!(await availableBefore.json() as { data: { id: string }[] }).data.some(item => item.id === category.id));
-  assert.equal((await catRequest(categoryUrl, "PUT", { siteIds: [site.id] })).status, 200);
-  const availableAfter = await catRequest(`http://127.0.0.1:${address.port}/api/categories?siteId=${site.id}`);
-  assert((await availableAfter.json() as { data: { id: string }[] }).data.some(item => item.id === category.id));
-  assert.equal((await catRequest(categoryUrl, "PUT", { siteIds: [foreign.id] })).status, 403);
+  assert((await availableBefore.json() as { data: { id: string }[] }).data.some(item => item.id === category.id));
   assert.equal((await catRequest(`http://127.0.0.1:${address.port}/api/categories?siteId=${foreign.id}`)).status, 403);
   const changes = await prisma.auditLog.findMany({ where: { actorId: user.id, action: { not: "CATEGORY_SITES_CHANGE" }, targetId: { in: [createdSite.id, category.id] } }, orderBy: { createdAt: "asc" } });
   assert.deepEqual(changes.map(item => item.action), ["SITE_CREATE", "SITE_UPDATE", "SITE_DELETE", "CATEGORY_CREATE", "CATEGORY_UPDATE", "CATEGORY_DELETE", "CATEGORY_REACTIVATE"]);

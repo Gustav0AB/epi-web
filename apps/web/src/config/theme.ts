@@ -1,28 +1,53 @@
-/**
- * Central theme config — edit here to restyle the whole app.
- * Changes here automatically update Tailwind classes (bg-primary, text-secondary, etc.)
- * and all shared components.
- */
+/** Brand palette and semantic tokens shared by the application and its components. */
+export const brandColors = {
+  blue: "#4197B5",
+  orange: "#EF8200",
+  white: "#FFFFFF",
+  darkBlue: "#35587D",
+  darkTurquoise: "#55BAB7",
+  lightTurquoise: "#9ED6D3",
+  red: "#E1261C",
+  lightGreen: "#ADC687",
+  purple: "#766A8A",
+  gold: "#FFD451",
+  gray: "#687072",
+  black: "#000000",
+} as const;
+
 export const colors = {
-  // ── Brand ───────────────────────────────────────────────────────────────────
-  primary:       "#2b6579",
-  "primary-hover":  "#245668",   // darker — used for hover/active states
-  "primary-muted":  "#e8f2f5",   // very light — used for active nav bg, badges
+  "brand-blue": brandColors.blue,
+  "brand-orange": brandColors.orange,
+  "brand-white": brandColors.white,
+  "brand-dark-blue": brandColors.darkBlue,
+  "brand-dark-turquoise": brandColors.darkTurquoise,
+  "brand-light-turquoise": brandColors.lightTurquoise,
+  "brand-red": brandColors.red,
+  "brand-light-green": brandColors.lightGreen,
+  "brand-purple": brandColors.purple,
+  "brand-gold": brandColors.gold,
+  "brand-gray": brandColors.gray,
+  "brand-black": brandColors.black,
+  primary: brandColors.blue,
+  "primary-hover": brandColors.darkBlue,
+  "primary-muted": "#e8f2f5",
+  "primary-ink": brandColors.darkBlue,
+  "primary-contrast": brandColors.black,
+  secondary: brandColors.orange,
+  "secondary-hover": "#d47300",
+  "secondary-muted": "#fef3e2",
+  danger: brandColors.red,
+  "danger-hover": "#b91c1c",
+  "danger-ink": "#b91c1c",
+  "danger-muted": "#fef2f2",
+  success: "#167238",
+  "success-muted": "#f0fdf4",
+  warning: "#975a00",
+  "warning-muted": "#fffbeb",
+} as const;
 
-  secondary:        "#ef8200",
-  "secondary-hover":"#d47300",
-  "secondary-muted":"#fef3e2",
-
-  // ── Semantic ─────────────────────────────────────────────────────────────────
-  danger:           "#dc2626",
-  "danger-hover":   "#b91c1c",
-  "danger-muted":   "#fef2f2",
-
-  success:          "#16a34a",
-  "success-muted":  "#f0fdf4",
-
-  warning:          "#d97706",
-  "warning-muted":  "#fffbeb",
+export const fonts = {
+  body: 'Calibri, "Segoe UI", Arial, sans-serif',
+  heading: 'Cambria, Georgia, serif',
 } as const;
 
 export type ThemeColor = keyof typeof colors;

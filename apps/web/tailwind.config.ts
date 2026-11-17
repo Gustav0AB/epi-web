@@ -9,10 +9,12 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}", "../../epi-ui/src/**/*.{ts,tsx}", "../../epi-login/src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      textColor: { primary: "var(--color-primary-ink)", danger: "var(--color-danger-ink)" },
       colors: {
         primary:          "var(--color-primary)",
         "primary-hover":  "var(--color-primary-hover)",
         "primary-muted":  "var(--color-primary-muted)",
+        "primary-contrast": "var(--color-primary-contrast)",
 
         secondary:        "var(--color-secondary)",
         "secondary-hover":"var(--color-secondary-hover)",

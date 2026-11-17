@@ -567,11 +567,14 @@ export async function confirmCourseSelection(input: unknown, userId: string) {
       if (row.contextRevision !== expected.contextRevision) throw fail("Una respuesta cambió; recarga antes de confirmar", 409);
     }
     const activity = contexts[0]!.activity!;
-    const course = await tx.courseEdition.create({ data: {
-      siteId: definition.siteId, primaryDefinitionId: definitionId, status: "REVIEWED",
-      name: `${activity} · ${[...dates].sort().join(" / ")}`.slice(0, 200), school: data.isOpenPublic ? "" : school!, isOpenPublic: data.isOpenPublic, activity,
-      expectedParticipants: data.participants, expectedParticipantsPre: data.participants, expectedParticipantsPost: data.participants, createdBy: actor.id,
-    } });
+    const draftIds = new Set(rows.flatMap(row => row.courseMembership ? [row.courseMembership.application.courseId] : []));
+    const draftId = draftIds.size === 1 && rows.every(row => row.courseMembership) ? [...draftIds][0] : undefined;
+    const entireDraft = draftId && await tx.courseMembership.count({ where: { application: { courseId: draftId } } }) === rows.length;
+    const dataForCourse = {
+      status: "REVIEWED" as const, name: `${activity} · ${[...dates].sort().join(" / ")}`.slice(0, 200), school: data.isOpenPublic ? "" : school!, isOpenPublic: data.isOpenPublic, activity,
+      expectedParticipants: data.participants, expectedParticipantsPre: data.participants, expectedParticipantsPost: data.participants,
+    };
+    const course = entireDraft ? await tx.courseEdition.update({ where: { id: draftId }, data: { ...dataForCourse, revision: { increment: 1 } } }) : await tx.courseEdition.create({ data: { ...dataForCourse, siteId: definition.siteId, primaryDefinitionId: definitionId, createdBy: actor.id } });
     for (const row of rows) {
       const changed = await tx.submission.updateMany({ where: { id: row.id, contextRevision: row.contextRevision }, data: { contextRevision: { increment: 1 } } });
       if (!changed.count) throw fail("Una respuesta cambió; recarga antes de confirmar", 409);
@@ -579,7 +582,7 @@ export async function confirmCourseSelection(input: unknown, userId: string) {
       const contextKey = createHash("sha256").update(JSON.stringify([definitionId, date, row.surveyMoment])).digest("hex");
       const application = await tx.courseApplication.upsert({ where: { courseId_contextKey: { courseId: course.id, contextKey } }, create: { courseId: course.id, definitionId, contextKey, date, moment: row.surveyMoment }, update: {} });
       await tx.courseMembership.upsert({ where: { submissionId: row.id }, create: { submissionId: row.id, applicationId: application.id, contextRevision: row.contextRevision + 1, createdBy: actor.id }, update: { applicationId: application.id, contextRevision: row.contextRevision + 1, createdBy: actor.id } });
-      if (row.courseMembership) await tx.courseEdition.update({ where: { id: row.courseMembership.application.courseId }, data: { revision: { increment: 1 } } });
+      if (row.courseMembership && row.courseMembership.application.courseId !== course.id) await tx.courseEdition.update({ where: { id: row.courseMembership.application.courseId }, data: { revision: { increment: 1 } } });
     }
     await audit(tx, actor, "COURSE_CONFIRM", course.id, { responseIds: ids, participants: data.participants, dates: [...dates], school: data.isOpenPublic ? null : school, isOpenPublic: data.isOpenPublic });
     return { saved: true, courseId: course.id };

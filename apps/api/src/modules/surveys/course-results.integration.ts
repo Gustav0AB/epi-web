@@ -102,6 +102,11 @@ try {
  assert.equal((await courseResults(course.id,{},admin.id)).expectedParticipantsPre,null);
  assert.equal(await prisma.auditLog.count({ where: { action: "COURSE_EXPECTED_PARTICIPANTS_SAVE", targetId: course.id } }),3);
  assert.deepEqual(await prisma.submission.findMany({ where: { surveyDefinitionId: definition.id }, orderBy: { id: "asc" } }),rawBeforeDraft);
+ await prisma.question.updateMany({ where: { surveyDefinitionId: definition.id, externalId: "choice" }, data: { analysisScoring: [{ analysisType: "pre_post", maxScore: 2, correctAnswer: "A", correctAnswers: ["A", "B"], scoringMode: "standard", responsePolicy: policy }] } });
+ const multiResult = await courseResults(course.id, {}, admin.id);
+ assert.equal(multiResult.questions.find(q => q.text === "Correcta")!.pre.points, 4);
+ assert.deepEqual(multiResult.questions.find(q => q.text === "Correcta")!.options.map(option => option.score), [2, 2]);
+ console.log("✓ Multiple correct choices retain maximum points in persisted course results");
  console.log("Expected participants integration passed: missing base, save, scope, validation, CAS, concurrency, clear, audit and unchanged originals");
  console.log("E6 integration passed: draft reopen, atomic revisions, scoped writes, unchanged responses and legacy publication blocked");
  console.log("E5 integration passed: source scoring, null/zero, incomplete bases, read-only history, frozen versions, dates and scoped HTTP");

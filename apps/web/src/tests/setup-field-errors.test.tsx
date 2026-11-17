@@ -16,7 +16,7 @@ describe("avisos accesibles de configuración", () => {
     const question = { externalId: "q", text: "Pregunta completa", type: "ONE_ANSWER" as const, role: "SCORED" as const, classification: { category: "Cat", subcategory: "Sub" }, options: ["A", "B"], analysisParticipation: [{ analysisType: "pre_post" as const, enabled: true }, { analysisType: "pre_post_post" as const, enabled: false }] };
     const html = renderToStaticMarkup(<SetupAnalysisScoring view="questions" questions={[question]} onChange={() => {}} />);
     expect(html).toContain("Indica el máximo.");
-    expect(html).toContain("Selecciona la respuesta correcta.");
+    expect(html).toContain("Selecciona al menos una respuesta correcta.");
     expect((html.match(/aria-invalid="true"/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 });

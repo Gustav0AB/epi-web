@@ -39,7 +39,8 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
   const [labelFilter, setLabelFilter] = useState("");
   const [labelsError, setLabelsError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState("");
-  const [registrationFilter, setRegistrationFilter] = useState("true");
+  const [registrationFilter, setRegistrationFilter] = useState("");
+  const [showStepErrors, setShowStepErrors] = useState(false);
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [sites, setSites] = useState<SiteDto[]>([]);
@@ -246,7 +247,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
   }
 
   function loadCsvDraft(draft: import("@epi/shared").SurveySetupDraft) {
-    setSiteId(draft.siteId ?? ""); setType(draft.type); setProgramName(draft.programName ?? ""); setInstrumentKind(draft.instrumentKind ?? ""); setActivityName(draft.activityName); setActivityType(draft.activityType ?? ""); setDescription(draft.description ?? ""); setQuestionEdits(draft.questions ?? []); setAnalysisWeights(draft.analysisWeights ?? []); setMatrixDefaults([]); setSavedMessage(false); setStep(1);
+    setSiteId(draft.siteId ?? ""); setType(draft.type); setProgramName(draft.programName ?? ""); setInstrumentKind(draft.instrumentKind ?? ""); setActivityName(draft.activityName); setActivityType(draft.activityType ?? ""); setDescription(draft.description ?? ""); setQuestionEdits(draft.questions ?? []); setAnalysisWeights(draft.analysisWeights ?? []); setMatrixDefaults([]); setSavedMessage(false); setShowStepErrors(false); setStep(1);
   }
 
   async function handleSync() {
@@ -263,6 +264,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
 
   function openModal(form: JotformFormDto) {
     savedDraft.current = null; hasStoredDraft.current = form.hasDraft ?? false; setConfirmExit(false);
+    setShowStepErrors(false);
     setTarget(form);
     setPreview(null);
     setPreviewError(null);
@@ -468,20 +470,20 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
         <p>{loadError ?? optionsError}</p>
         <Button variant="secondary" size="sm" onClick={() => setRevision((value) => value + 1)}>{t("jotformCatalog.retry")}</Button>
       </div>}
-      <Dropdown label="Estado de configuración" value={registrationFilter} options={[{ value: "true", label: "Configurados" }, { value: "false", label: "Sin configurar" }, { value: "", label: "Todos" }]} onChange={value => { setRegistrationFilter(value); setPage(1); }} />
+      <div className="mb-4 max-w-xs"><Dropdown label="Estado de configuración" value={registrationFilter} options={[{ value: "true", label: "Configurados" }, { value: "false", label: "Sin configurar" }, { value: "", label: "Todos" }]} onChange={value => { setRegistrationFilter(value); setPage(1); }} /></div>
       <Table columns={columns} rows={loadError ? [] : result.forms} keyExtractor={(form) => form.id} loading={loading} emptyText={t(accountId ? "jotformCatalog.noMatches" : "jotformCatalog.empty")} />
       {!loadError && <Pagination meta={result.meta} onPageChange={setPage} disabled={loading} />}
     </Card>}
 
     {target && <section className="space-y-5" aria-label="Configuración del instrumento">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2"><Button variant="ghost" disabled={saving} onClick={closeModal}>← Volver a instrumentos</Button><h1 className="text-xl font-semibold">{setup?.activeVersion ? "Nueva versión de" : t("unregistered.associateTitlePrefix")} {target.title}</h1><nav aria-label="Progreso de configuración" className="flex items-center gap-2">{([1, 2, 3, 4, 5] as const).map(item => <span key={item} aria-current={step === item ? "step" : undefined} aria-label={`Paso ${item}: ${t(`surveySetup.step${item}`)}`} title={t(`surveySetup.step${item}`)} className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${step === item ? "bg-primary text-white" : "bg-gray-200 text-gray-700"}`}>{item}</span>)}</nav></div>
+        <div className="space-y-2"><Button variant="ghost" disabled={saving} onClick={closeModal}>← Volver a instrumentos</Button><h1 className="text-xl font-semibold">{setup?.activeVersion ? "Nueva versión de" : t("unregistered.associateTitlePrefix")} {target.title}</h1><nav aria-label="Progreso de configuración" className="flex items-center gap-2">{([1, 2, 3, 4, 5] as const).map(item => <span key={item} aria-current={step === item ? "step" : undefined} aria-label={`Paso ${item}: ${t(`surveySetup.step${item}`)}`} title={t(`surveySetup.step${item}`)} className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${step === item ? "bg-primary text-primary-contrast" : "bg-gray-200 text-gray-700"}`}>{item}</span>)}</nav></div>
       </div>
       <Card><div className="space-y-4">
 
           <div ref={stepHeading} tabIndex={-1}><Label variant="subtitle">{t(`surveySetup.step${step}`)}</Label></div>
           {error && <p role="alert" className="rounded border border-red-300 p-3 text-sm text-danger">{error}</p>}
-          {setup && (generalErrors.length > 0 || step > 1 && (contextIssues.length > 0 || reviewErrors.length > 0 || step > 2 && !analysisRulesReady)) && <div className="space-y-1 rounded border border-amber-300 bg-amber-50 p-3 text-sm" role="status">
+          {showStepErrors && setup && (generalErrors.length > 0 || step > 1 && (contextIssues.length > 0 || reviewErrors.length > 0 || step > 2 && !analysisRulesReady)) && <div className="space-y-1 rounded border border-amber-300 bg-amber-50 p-3 text-sm" role="status">
             <p className="font-semibold">Información pendiente para continuar</p>
             {generalErrors.map(message => <p key={message}><button type="button" className="text-left underline" onClick={() => { setStep(1); requestAnimationFrame(() => stepHeading.current?.focus()); }}>{message}</button></p>)}
             {step > 1 && contextIssues.map(message => <p key={message}>{message}</p>)}
@@ -498,12 +500,12 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
             {setup && preview && target && <InstrumentConfigCsv key={target.id} formId={target.id} draft={{ ...setup.draft, configurationMode: "instrument", siteId: siteId || null, type, programName, ...(instrumentKind ? { instrumentKind } : {}), instrumentName, activityName, activityType, description, questions: configuredQuestions, analysisWeights, matrixDefaults: [] }} questions={configuredQuestions} protectedIds={questionEdits.filter(item => item.setupReviewed || item.classification?.category || item.analysisScoring?.length || item.isFilter || item.momentMappings?.length || (item.role && !["SCORED", "INFORMATIONAL"].includes(item.role))).map(item => item.externalId)} categories={categoryCatalog.organizationId === organizationId ? categoryCatalog.items : []} catalogReady={!categoriesLoading && !categoryError} sites={sites} onApply={loadCsvDraft} />}
             <TextField label={t("surveySetup.instrument")} value={instrumentName} readOnly />
             <TextField label={t("surveySetup.description")} value={description} maxLength={2000} onChange={(event) => setDescription(event.target.value)} />
-            <Dropdown label="Tipo de instrumento" error={!instrumentKind ? "Selecciona el tipo de instrumento." : undefined} value={instrumentKind} options={kindOptions} onChange={value => setInstrumentKind(value as typeof instrumentKind)} />
-            <Dropdown label={t("unregistered.site")} error={!siteId ? "Selecciona un sitio." : undefined} options={[{ label: t("unregistered.selectSitePlaceholder"), value: "" }, ...sites.filter(site => site.isActive).map((site) => ({ label: site.name, value: site.id }))]} value={siteId} disabled={!!setup?.activeVersion} onChange={value => { setSiteId(value); setProgramName(""); setActivityType(""); }} />
-            <Dropdown label={t("surveySetup.program")} error={!programName ? "Selecciona un programa." : selectedSite && !selectedSite.programs?.includes(programName) ? "El programa no pertenece al sitio." : undefined} value={programName} options={[{ value: "", label: "Selecciona el programa" }, ...(selectedSite?.programs ?? []).map(name => ({ value: name, label: name }))]} onChange={value => { setProgramName(value); setType(value === "Local" ? "LOCAL" : value === "Visiting" ? "VISITING" : "OTHER"); }} />
-            <Dropdown label={t("surveySetup.activityType")} error={!activityType ? "Selecciona el tipo de actividad." : selectedSite && !selectedSite.activityTypes?.includes(activityType) ? "El tipo de actividad no pertenece al sitio." : undefined} value={activityType} options={[{ value: "", label: "Selecciona el tipo de actividad" }, ...(selectedSite?.activityTypes ?? []).map(name => ({ value: name, label: name }))]} onChange={setActivityType} />
+            <Dropdown label="Tipo de instrumento *" error={showStepErrors && !instrumentKind ? "Selecciona el tipo de instrumento." : undefined} value={instrumentKind} options={kindOptions} onChange={value => setInstrumentKind(value as typeof instrumentKind)} />
+            <Dropdown label={"* " + t("unregistered.site")} error={showStepErrors && !siteId ? "Selecciona un sitio." : undefined} options={[{ label: t("unregistered.selectSitePlaceholder"), value: "" }, ...sites.filter(site => site.isActive).map((site) => ({ label: site.name, value: site.id }))]} value={siteId} disabled={!!setup?.activeVersion} onChange={value => { setSiteId(value); setProgramName(""); setActivityType(""); }} />
+            <Dropdown label={"* " + t("surveySetup.program")} error={showStepErrors ? (!programName ? "Selecciona un programa." : selectedSite && !selectedSite.programs?.includes(programName) ? "El programa no pertenece al sitio." : undefined) : undefined} value={programName} options={[{ value: "", label: "Selecciona el programa" }, ...(selectedSite?.programs ?? []).map(name => ({ value: name, label: name }))]} onChange={value => { setProgramName(value); setType(value === "Local" ? "LOCAL" : value === "Visiting" ? "VISITING" : "OTHER"); }} />
+            <Dropdown label={"* " + t("surveySetup.activityType")} error={showStepErrors ? (!activityType ? "Selecciona el tipo de actividad." : selectedSite && !selectedSite.activityTypes?.includes(activityType) ? "El tipo de actividad no pertenece al sitio." : undefined) : undefined} value={activityType} options={[{ value: "", label: "Selecciona el tipo de actividad" }, ...(selectedSite?.activityTypes ?? []).map(name => ({ value: name, label: name }))]} onChange={setActivityType} />
             {siteId && !selectedSite?.activityTypes?.length && <p role="status" className="text-sm">Agrega los tipos de actividad en Organizaciones y sitios → Sitios antes de continuar.</p>}
-            <CatalogNameField key={`${target?.id}-activity`} label={t("surveySetup.activity")} error={!activityName.trim() ? "Indica la actividad." : undefined} value={activityName} onChange={(name) => { setActivityName(name); setSavedMessage(false); }} options={setup?.options.filter((option) => option.kind === "ACTIVITY").map((option) => option.name) ?? []} />
+            <CatalogNameField key={`${target?.id}-activity`} label={"* " + t("surveySetup.activity")} error={showStepErrors && !activityName.trim() ? "Indica la actividad." : undefined} value={activityName} onChange={(name) => { setActivityName(name); setSavedMessage(false); }} options={selectedSite?.activities ?? []} />
             </>}
             {(step === 2 || step === 3 || step === 4) && <>
             {categoriesLoading && <p role="status">{t("surveySetup.categoriesLoading")}</p>}
@@ -513,7 +515,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
             </>}
             {preview && step > 1 && <div className="space-y-3">
               {step === 2 && <><Label>{t("surveySetup.editQuestions")}</Label><p className="text-sm text-gray-500">{t("surveySetup.editQuestionsHint")}</p></>}
-              {(step === 3 || step === 4) && instrumentKind !== "CQS" && <SetupAnalysisScoring key={`${target?.id}-${step}`} view={step === 3 ? "groups" : "questions"} focusRequest={scoringTarget} onFocusHandled={() => setScoringTarget(null)} reuseScope={organizationId && target ? { organizationId, surveyType: type, formId: target.id } : undefined} instrumentMode questions={configuredQuestions} onChange={editQuestions} weights={analysisWeights} includeIaa={includeIaa} onWeightsChange={weights => { setAnalysisWeights(weights); setSavedMessage(false); }} />}
+              {(step === 3 || step === 4) && instrumentKind !== "CQS" && <SetupAnalysisScoring showErrors={showStepErrors} key={`${target?.id}-${step}`} view={step === 3 ? "groups" : "questions"} focusRequest={scoringTarget} onFocusHandled={() => setScoringTarget(null)} reuseScope={organizationId && target ? { organizationId, surveyType: type, formId: target.id } : undefined} instrumentMode questions={configuredQuestions} onChange={editQuestions} weights={analysisWeights} includeIaa={includeIaa} onWeightsChange={weights => { setAnalysisWeights(weights); setSavedMessage(false); }} />}
               {(step === 3 || step === 4) && instrumentKind === "CQS" && <p className="rounded border border-amber-300 p-3 text-sm">La puntuación CQS continúa pendiente de validación metodológica. Se conserva su clasificación y se puede asociar sin activar cálculos.</p>}
 
               {step === 2 && <><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><Dropdown label="Filtrar preguntas por sección" value={sectionFilter} options={[{ value: "", label: "Todas las secciones" }, ...questionSections.map(section => ({ value: section.key, label: questionSections.filter(item => item.label === section.label).length > 1 && section.heading ? `${section.label} (${section.heading})` : section.label }))]} onChange={value => { setSectionFilter(value); }} /><Dropdown label="Estado en el paso 2" value={statusFilter} options={[{ value: "all", label: "Todas" }, { value: "pending", label: "Solo pendientes" }, { value: "ready", label: "Solo revisadas" }]} onChange={value => { setStatusFilter(value); }} /></div>
@@ -551,10 +553,10 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
                 {question.type === "OPEN_TEXT" && <p className="text-sm">No participa en cálculos. Sus respuestas se consultan en Preguntas abiertas.</p>}
                 {(question.role ?? "SCORED") === "SCORED" && question.type !== "OPEN_TEXT" && <>
                   <TextField id={`${target?.id}-${question.externalId}-category`} label={t("surveySetup.weightCategory")} value={question.classification?.category ?? ""} readOnly helperText="Se obtiene de la subcategoría seleccionada." />
-                  <Dropdown id={`${target?.id}-${question.externalId}-subcategory`} label="Subcategoría" error={!categoriesLoading ? questionCatalogIssue(question, currentCatalog, organizationId, true) ?? undefined : undefined} value={subcategories.find(item => item.category === question.classification?.category && item.subcategory === question.classification?.subcategory)?.value ?? ""} options={[{ value: "", label: "Selecciona una subcategoría" }, ...subcategories.map(item => ({ value: item.value, label: `${item.subcategory} (${item.category})` })), { value: "__other__", label: "Otro: agregar subcategoría" }]} disabled={categoriesLoading} onChange={value => { if (value === "__other__") { setNewSubcategoryFor(question.externalId); return; } setNewSubcategoryFor(null); const selected = subcategories.find(item => item.value === value); editQuestion({ ...question, classification: { category: selected?.category ?? "", subcategory: selected?.subcategory ?? null } }); }} />
+                  <Dropdown id={`${target?.id}-${question.externalId}-subcategory`} label="Subcategoría" error={showStepErrors && !categoriesLoading ? questionCatalogIssue(question, currentCatalog, organizationId, true) ?? undefined : undefined} value={subcategories.find(item => item.category === question.classification?.category && item.subcategory === question.classification?.subcategory)?.value ?? ""} options={[{ value: "", label: "Selecciona una subcategoría" }, ...subcategories.map(item => ({ value: item.value, label: `${item.subcategory} (${item.category})` })), { value: "__other__", label: "Otro: agregar subcategoría" }]} disabled={categoriesLoading} onChange={value => { if (value === "__other__") { setNewSubcategoryFor(question.externalId); return; } setNewSubcategoryFor(null); const selected = subcategories.find(item => item.value === value); editQuestion({ ...question, classification: { category: selected?.category ?? "", subcategory: selected?.subcategory ?? null } }); }} />
                   {newSubcategoryFor === question.externalId && organizationId && <SetupSubcategoryOther siteId={siteId} organizationId={organizationId} categories={currentCatalog} onCancel={() => setNewSubcategoryFor(null)} onCreate={category => { setCategoryCatalog(current => ({ ...current, items: [...current.items.filter(item => item.id !== category.id), category] })); editQuestion({ ...question, classification: { category: category.name, subcategory: category.subcategory } }); setNewSubcategoryFor(null); }} />}
                 </>}
-                {step === 2 && !categoriesLoading && questionCatalogIssue(question, categoryCatalog.organizationId === organizationId ? categoryCatalog.items : [], organizationId, true) && <p role="alert" className="text-sm text-danger">{questionCatalogIssue(question, categoryCatalog.organizationId === organizationId ? categoryCatalog.items : [], organizationId, true)}</p>}
+                {showStepErrors && step === 2 && !categoriesLoading && questionCatalogIssue(question, categoryCatalog.organizationId === organizationId ? categoryCatalog.items : [], organizationId, true) && <p role="alert" className="text-sm text-danger">{questionCatalogIssue(question, categoryCatalog.organizationId === organizationId ? categoryCatalog.items : [], organizationId, true)}</p>}
                 {question.weight && ((question.role ?? "SCORED") !== "SCORED" || question.type === "OPEN_TEXT") && <Button variant="secondary" size="sm" onClick={() => editQuestion({ ...question, weight: null })}>{t("surveySetup.removeWeight")}</Button>}
                 {!canConfigureAnalysis(question) && <>
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={question.isFilter ?? false} disabled={!question.isFilter && (!["control_radio", "control_dropdown", "control_yesno"].includes(question.controlType ?? "") || !question.options.length)} onChange={event => editQuestion({ ...question, isFilter: event.target.checked })} />Usar también como filtro</label>
@@ -595,10 +597,10 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
               {step === 2 && !!preview.conditionWarnings?.length && <div role="alert" className="rounded border border-amber-300 p-3 text-sm"><p>Hay condiciones de Jotform pendientes de revisión:</p><ul>{preview.conditionWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
               {invalidFilter && <p role="alert" className="text-sm text-danger">{t("surveySetup.filterInvalid")}</p>}
               {step >= 3 && !catalogQuestionsReady && <p role="alert" className="text-sm text-danger">Revisa las categorías/subcategorías en Preguntas: deben pertenecer al catálogo activo de la organización.</p>}
-              {step === 3 && !weightsReady && <p role="alert" className="text-sm text-danger">Completa los porcentajes de subcategorías y categorías. Puedes guardar el borrador incompleto.</p>}
-              {step === 4 && !scoringReady && <p role="alert" className="text-sm text-danger">Completa la puntuación y revisa las opciones de cada pregunta. Puedes guardar el borrador incompleto.</p>}
-              {step === 2 && contextIssues.map(issue => <p key={issue} role="alert" className="text-sm text-danger">{issue}</p>)}
-              {(multipleMoments || incompleteMoment) && <p role="alert" className="text-sm text-danger">{t("surveySetup.momentIncomplete")}</p>}
+              {showStepErrors && step === 3 && !weightsReady && <p role="alert" className="text-sm text-danger">Completa los porcentajes de subcategorías y categorías. Puedes guardar el borrador incompleto.</p>}
+              {showStepErrors && step === 4 && !scoringReady && <p role="alert" className="text-sm text-danger">Completa la puntuación y revisa las opciones de cada pregunta. Puedes guardar el borrador incompleto.</p>}
+              {showStepErrors && step === 2 && contextIssues.map(issue => <p key={issue} role="alert" className="text-sm text-danger">{issue}</p>)}
+              {showStepErrors && (multipleMoments || incompleteMoment) && <p role="alert" className="text-sm text-danger">{t("surveySetup.momentIncomplete")}</p>}
               {multipleActivities && <p role="alert" className="text-sm text-danger">{t("surveySetup.oneActivity")}</p>}
               {multipleSchools && <p role="alert" className="text-sm text-danger">{t("surveySetup.oneSchool")}</p>}
               {multipleIdentifiers && <p role="alert" className="text-sm text-danger">{t("surveySetup.oneIdentifier")}</p>}
@@ -644,7 +646,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
           {step > 1 && <Button variant="secondary" disabled={saving} onClick={() => setStep((step - 1) as SetupStep)}>{t("jotformCatalog.back")}</Button>}
           {step < 5 ? <>
             <Button variant="secondary" disabled={!setup || saving || invalidQuestions || !dirty} onClick={() => void saveDraft()}>{t("surveySetup.saveDraft")}</Button>
-            <Button loading={saving} disabled={!canContinue} onClick={() => setStep((step + 1) as SetupStep)}>{t(step === 4 ? "jotformCatalog.review" : "surveySetup.continue")}</Button>
+            <Button loading={saving} disabled={!setup} onClick={() => { if (!canContinue) { setShowStepErrors(true); return; } setShowStepErrors(false); setStep((step + 1) as SetupStep); }}>{t(step === 4 ? "jotformCatalog.review" : "surveySetup.continue")}</Button>
           </> : <Button disabled={!canContinue} loading={saving} onClick={() => void associate()}>{setup?.activeVersion ? `Activar versión ${setup.activeVersion.version + 1}` : t("unregistered.associate")}</Button>}
       </div>
     </section>}

@@ -1,10 +1,11 @@
+import { TabNavigation } from "./shared/components/TabNavigation";
 import { ReferenceInstrumentsPage } from "./features/surveys/ReferenceInstrumentsPage";
 import { InternalCourseReportPage } from "./features/reports/InternalCourseReportPage";
 import { InteractiveCourseReportPage } from "./features/reports/InteractiveCourseReportPage";
 import { CourseReportPage } from "./features/reports/CourseReportPage";
 import { PublishedCourseReportsPage } from "./features/reports/PublishedCourseReportsPage";
 import { useEffect } from "react";
-import { NavLink, Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { AppLayout } from "./layouts/AppLayout";
 import { ReportLayout } from "./layouts/ReportLayout";
 import { ProtectedRoute } from "./router/ProtectedRoute";
@@ -43,19 +44,16 @@ function Workspace({ area }: { area: "courses" | "instruments" | "organizations"
   const tabs = area === "instruments" ? [
     ["/instruments/forms", "Formularios", system],
     ["/instruments/accounts", "Cuentas Jotform", system],
-    ["/instruments/categories", "Catálogo de categorías", admin],
     ["/instruments/references", "Instrumentos de referencia", admin],
   ] : [
     ["/organization-management/organizations", "Organizaciones", system],
     ["/organization-management/sites", "Sitios", admin],
     ["/organization-management/users", "Usuarios", admin],
+    ["/organization-management/categories", "Categorías", admin],
   ];
   return <div className="space-y-4">
-    <nav aria-label={area === "instruments" ? "Área de instrumentos" : "Organizaciones, sitios y usuarios"} className="flex flex-wrap gap-2 border-b pb-2">
-      {area === "organizations" && user?.role === "org_admin" && <span aria-disabled="true" title="Solo el administrador del sistema puede administrar organizaciones" className="cursor-not-allowed rounded px-3 py-2 text-sm text-gray-400">Organizaciones</span>}
-      {tabs.filter(([, , allowed]) => allowed).map(([to, label]) =>
-        <NavLink key={String(to)} to={String(to)} end={to !== "/courses/review"} className={({ isActive }) => `rounded px-3 py-2 text-sm font-medium ${isActive ? "bg-primary text-white" : "text-primary hover:bg-gray-100"}`}>{label}</NavLink>)}
-    </nav>
+    {area === "organizations" && user?.role === "org_admin" && <span aria-disabled="true" title="Solo el administrador del sistema puede administrar organizaciones" className="cursor-not-allowed px-3 py-2 text-sm text-gray-400">Organizaciones</span>}
+    <TabNavigation label={area === "instruments" ? "Área de instrumentos" : "Administración"} items={tabs.filter(([, , allowed]) => allowed).map(([to, label]) => ({ to: String(to), label: String(label) }))} />
     <Outlet />
   </div>;
 }
@@ -63,7 +61,7 @@ function Workspace({ area }: { area: "courses" | "instruments" | "organizations"
 function WorkspaceIndex({ area }: { area: "courses" | "instruments" }) {
   const user = useAuthStore(state => state.currentUser);
   if (area === "courses") return user?.role === "system_admin" || user?.role === "org_admin" || user?.featureKeys.includes("surveys") ? <SurveyGroupsPage /> : <NoAccessPage />;
-  return <CourseRedirect to={user?.role === "system_admin" ? "/instruments/forms" : user?.role === "org_admin" ? "/instruments/categories" : "/no-access"} />;
+  return <CourseRedirect to={user?.role === "system_admin" ? "/instruments/forms" : user?.role === "org_admin" ? "/organization-management/categories" : "/no-access"} />;
 }
 
 function CourseRedirect({ to }: { to: string }) {
@@ -141,7 +139,7 @@ export default function App() {
           <Route path="/scoring" element={<CourseRedirect to="/instruments/scoring" />} />
           <Route path="/survey-settings" element={<CourseRedirect to="/instruments/forms" />} />
           <Route path="/jotform-accounts" element={<CourseRedirect to="/instruments/accounts" />} />
-          <Route path="/categories" element={<CourseRedirect to="/instruments/categories" />} />
+          <Route path="/categories" element={<CourseRedirect to="/organization-management/categories" />} />
           <Route path="/organizations" element={<CourseRedirect to="/organization-management/organizations" />} />
           <Route path="/sites" element={<CourseRedirect to="/organization-management/sites" />} />
           <Route path="/courses" element={<Workspace area="courses" />}>
@@ -160,7 +158,7 @@ export default function App() {
               <Route path="scoring" element={<CourseRedirect to="/instruments/forms" />} />
             </Route>
             <Route element={<RoleGate allow="admin_tier" />}>
-              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="categories" element={<CourseRedirect to="/organization-management/categories" />} />
               <Route path="references" element={<ReferenceInstrumentsPage />} />
             </Route>
           </Route>
@@ -169,6 +167,7 @@ export default function App() {
               <Route index element={<CourseRedirect to="/organization-management/sites" />} />
               <Route path="sites" element={<SitesPage />} />
               <Route path="users" element={<UsersPage />} />
+              <Route path="categories" element={<CategoriesPage />} />
               <Route element={<RoleGate allow="system_admin" />}>
                 <Route path="organizations" element={<OrganizationsPage />} />
               </Route>

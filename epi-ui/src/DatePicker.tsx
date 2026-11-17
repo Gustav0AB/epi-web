@@ -147,7 +147,7 @@ export function DatePicker({ label, value, onChange, placeholder }: DatePickerPr
                     className={[
                       "h-full w-full rounded-full text-sm font-medium transition-colors",
                       isSelected(day)
-                        ? "bg-primary text-white"
+                        ? "bg-primary text-primary-contrast"
                         : isToday(day)
                         ? "border border-primary text-primary"
                         : "text-gray-700 hover:bg-gray-100",

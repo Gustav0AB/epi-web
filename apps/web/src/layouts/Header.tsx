@@ -93,7 +93,7 @@ export function Header() {
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-3 sm:px-6">
+      <header className="flex h-14 shrink-0 items-center justify-between bg-white px-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2 pr-2">
           <img src={Logo} alt="" className="h-8 w-auto shrink-0 sm:h-10" />
           <img src={LogoText} alt={t("app.name")} className="h-5 min-w-0 object-contain object-left sm:h-7" />
@@ -132,7 +132,7 @@ export function Header() {
               className="flex items-center gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-gray-100"
             >
               <span
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-contrast"
                 title={currentUser?.email}
               >
                 {initials}

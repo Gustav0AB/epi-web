@@ -117,6 +117,7 @@ model Site {
   courseEditions CourseEdition[]
   programs String[] @default(["Local", "Visiting", "Otro"])
   activityTypes String[] @default([])
+  activities String[] @default([])
   coursePublications CoursePublication[]
   courseExpectations CourseExpectation[]
   id                String             @id @default(uuid())

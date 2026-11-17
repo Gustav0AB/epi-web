@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { selectCourseResultCategories, buildCourseReportPreview, courseResponseCoverage, mostImprovedKnowledge, CourseExpectationUpdateSchema, CourseResultsQuerySchema, scorePrePostAnswer, type CourseResultsDto, type PrePostQuestion } from "@epi/shared";
-import { CourseComparison, courseChartRows, courseIndexDonutCategories, instrumentIndicatorCategory, orderCourseQuestions, rankedCourseQuestions } from "../features/surveys/CourseComparison";
+import { CourseComparison, courseChartRows, courseChartPage, courseIndexDonutCategories, instrumentIndicatorCategory, orderCourseQuestions, rankedCourseQuestions } from "../features/surveys/CourseComparison";
 import { CourseResultsPage, CourseResultsView } from "../features/surveys/CourseResultsPage";
 import { surveyApi } from "../features/surveys/api";
 const base = { valid: 0, blank: 0, nonScorable: 0, invalid: 0, configurationPending: 0, zeroMaximum: 0, points: null, applicableMaximum: null };
@@ -187,4 +187,15 @@ it("charts category and subcategory levels without merging repeated names", () =
  expect(courseChartRows(rows, "category").map(item => item.name)).toEqual(["A"]);
  expect(courseChartRows(rows, "subcategory").map(item => item.name)).toEqual(["A / General", "B / General"]);
  expect(courseChartRows(rows, "subcategory")[0]).toMatchObject({ pre: 40, post: 60 });
+});
+
+
+it("limits subcategory charts to readable groups without losing or mixing rows", () => {
+ const rows = Array.from({ length: 20 }, (_, index) => ({ name: `Categoría ${Math.floor(index / 4)} / Nombre largo ${index}` }));
+ const pages = [1, 2, 3, 4].flatMap(page => courseChartPage(rows, page).rows);
+ expect(pages).toEqual(rows);
+ expect(courseChartPage(rows, 1).rows).toHaveLength(6);
+ expect(courseChartPage(rows, 4).rows).toHaveLength(2);
+ expect(courseChartPage(rows.slice(0, 2), 4).currentPage).toBe(1);
+ expect(courseChartPage([], 1)).toEqual({ currentPage: 1, totalPages: 0, rows: [] });
 });

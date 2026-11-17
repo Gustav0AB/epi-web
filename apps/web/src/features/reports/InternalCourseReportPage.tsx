@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ReportTabs } from "./ReportTabs";
 import { CourseReportContentSchema, type SiteDto, type SurveyDefinitionDto, type SurveyFilterField, type SurveyGroupSearchRow, type ReportData } from "@epi/shared";
 import { Button, Card, DatePicker, Dropdown, Label, Pagination, Table } from "@epi/ui";
 import { surveyApi } from "../surveys/api";
@@ -18,7 +19,7 @@ export function InternalCourseReportPage() {
   useEffect(() => { let active = true; void Promise.all([surveyApi.sites(), surveyApi.definitions()]).then(([a,b]) => { if (active) { setSites(a); setDefinitions(b); } }).catch(() => { if (active) setError("No se pudieron cargar los filtros."); }); return () => { active = false; }; }, []);
   useEffect(() => { let active = true; setFields([]); if (definition) void surveyApi.filterFields(definition).then(value => { if (active) setFields(value); }).catch(() => { if (active) setError("No se pudieron cargar los filtros del instrumento."); }); return () => { active = false; }; }, [definition]);
   useEffect(() => { setRows([]); setSelected([]); setReport(null); }, [site, definition, status, from, to, questionId, answerValue]);
-  const filtered = useMemo(() => rows.filter(row => row.courseId && (!school || !row.isOpenPublic && row.school === school) && (!courseType || (courseType === "public" ? row.isOpenPublic : !row.isOpenPublic))), [rows, school, courseType]);
+  const filtered = useMemo(() => rows.filter(row => row.courseId && (row.courseStatus === "REVIEWED" || row.courseStatus === "COMPLETED") && (!school || !row.isOpenPublic && row.school === school) && (!courseType || (courseType === "public" ? row.isOpenPublic : !row.isOpenPublic))), [rows, school, courseType]);
   const paging = coursePage(filtered, page);
   async function search() {
     if (from && to && from > to) { setError("La fecha inicial debe ser anterior a la final."); return; }
@@ -29,7 +30,7 @@ export function InternalCourseReportPage() {
   }
   async function generate() { setBusy(true); setError(null); setReport(null); try { setReport(await surveyApi.internalCourseReport(selected)); setTexts({}); } catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo generar el reporte."); } finally { setBusy(false); } }
   const data = report ? { ...report.data, texts: { ...report.data.texts, ...texts } } : null;
-  return <div className="space-y-5"><Label variant="title">Reportes internos</Label><p className="text-sm">Selecciona cursos revisados o completados. La consulta y los textos editados solo permanecen en esta pantalla.</p>
+  return <div className="space-y-5"><ReportTabs /><Label variant="title">Reportes internos</Label><p className="text-sm">Selecciona cursos revisados o completados. La consulta y los textos editados solo permanecen en esta pantalla.</p>
     <Card><fieldset disabled={busy}><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Dropdown label="Sitio" value={site} options={[{ value: "", label: "Todos los sitios autorizados" }, ...available.sites.map(item => ({ value: item.id, label: item.name }))]} onChange={value => { setSite(value); setDefinition(""); setQuestionId(""); setAnswerValue(""); }} />
       <Dropdown label="Instrumento" value={definition} options={[{ value: "", label: "Todos los instrumentos" }, ...available.definitions.map(item => ({ value: item.id, label: `${item.title} (v${item.version})` }))]} onChange={value => { setDefinition(value); setQuestionId(""); setAnswerValue(""); }} />

@@ -1,3 +1,4 @@
+import { brandColors } from "../../../config/theme";
 import { Card, Table } from "@epi/ui";
 import type { Column } from "@epi/ui";
 import type { ReportBlock, ReportData, ReportTemplate } from "../templates/types";
@@ -78,7 +79,7 @@ function AnimatedNumber({ value, format, locale = "es-MX" }: { value: number; fo
   return <span ref={ref}>{formatValue(Number(current.toFixed(value % 1 ? 1 : 0)), format, locale)}</span>;
 }
 
-const IMPACT_COLORS = ["#f28c00", "#4196b3", "#a8c67e", "#786a8a"];
+const IMPACT_COLORS = [brandColors.orange, brandColors.blue, brandColors.lightGreen, brandColors.purple];
 
 function CourseImpactReportView({ template, data, mode, noDataText, editContent, editImage }: ReportRendererProps & { noDataText: string }) {
   const title = template.title.replace(/\s*-\s*Course Impacts?$/i, "");
@@ -104,26 +105,26 @@ function CourseImpactReportView({ template, data, mode, noDataText, editContent,
 
   return (
     <div className="overflow-hidden bg-white text-[#242424]">
-      <ReportReveal enabled={mode !== "document"}><section className="bg-[#70aec2] text-white">
+      <ReportReveal enabled={mode !== "document"}><section className="bg-primary text-primary-contrast">
         <div className="px-6 pb-5 pt-4 sm:px-10">
           <div className="text-[10px] font-semibold uppercase tracking-[0.28em] opacity-95">Ecology Project International</div>
           <h1 className="mt-4 text-center text-3xl font-light uppercase tracking-wide sm:text-5xl">{title}</h1>
           <div className="mx-auto mt-2 h-0.5 w-24 bg-white/70" />
         </div>
         {image("heroPhotoUrl", "Fotografía de portada", hero, "h-52 sm:h-72")}
-        <div className="bg-[#f28c00] px-4 py-2 text-center text-lg font-medium sm:text-2xl">{subtitle}</div>
+        <div className="bg-secondary px-4 py-2 text-center text-lg font-medium sm:text-2xl">{subtitle}</div>
       </section></ReportReveal>
 
       <ReportReveal enabled={mode !== "document"}><section className="grid gap-6 p-5 sm:grid-cols-2 sm:p-8">
-        <div className="border-r-0 border-[#f28c00] sm:border-r sm:pr-6">
+        <div className="border-r-0 border-secondary sm:border-r sm:pr-6">
           <h2 className="text-center text-xl font-bold">Overall Satisfaction</h2>
           <div className="mt-4 flex justify-center">
-            <div className="relative h-40 w-40 rounded-full" style={{ background: satisfactionNumber === null ? "#e8eef0" : `conic-gradient(#4196b3 ${Math.max(0, Math.min(100, satisfactionNumber))}%, #e8eef0 0)` }}>
-              <div className="absolute inset-5 flex items-center justify-center rounded-full bg-white text-2xl font-semibold text-[#4196b3]">{indicator(satisfaction)}</div>
+            <div className="relative h-40 w-40 rounded-full" style={{ background: satisfactionNumber === null ? "#e8eef0" : `conic-gradient(${brandColors.blue} ${Math.max(0, Math.min(100, satisfactionNumber))}%, #e8eef0 0)` }}>
+              <div className="absolute inset-5 flex items-center justify-center rounded-full bg-white text-2xl font-semibold text-primary">{indicator(satisfaction)}</div>
             </div>
           </div>
-          {manualText("studentQuote", "Testimonio", "mt-5 min-h-28 whitespace-pre-wrap border-t border-dashed border-[#f28c00] pt-4 text-base leading-relaxed text-gray-700")}
-          <div className="mt-5 rounded-[50%] bg-[#4196b3] px-8 py-6 text-center text-white">
+          {manualText("studentQuote", "Testimonio", "mt-5 min-h-28 whitespace-pre-wrap border-t border-dashed border-secondary pt-4 text-base leading-relaxed text-gray-700")}
+          <div className="mt-5 rounded-[50%] bg-primary px-8 py-6 text-center text-primary-contrast">
             <div className="text-5xl font-light">{indicator(satisfaction)}</div>
             {editContent ? manualText("recommendationText", "Recomendación", "mt-1 text-xs font-semibold uppercase tracking-wide") : <div className="mt-1 text-xs font-semibold uppercase tracking-wide">{data.texts.recommendationText || (satisfactionNumber === null ? noDataText : "of participants indicated that they would recommend this course to other students.")}</div>}
           </div>
@@ -131,16 +132,16 @@ function CourseImpactReportView({ template, data, mode, noDataText, editContent,
 
         <div>
           {activity?.type === "chart" && <ChartBlockView block={activity} data={data.series[activity.dataKey] ?? []} showExport={mode === "interactive"} />}
-          <div className="mt-5 border-t border-dashed border-[#f28c00] pt-4">
+          <div className="mt-5 border-t border-dashed border-secondary pt-4">
             <h2 className="text-xl font-bold">Conservation Impacts</h2>
-            {manualText("conservationImpacts", "Impactos de conservación", "mt-3 whitespace-pre-wrap text-lg leading-relaxed text-[#f28c00]")}
+            {manualText("conservationImpacts", "Impactos de conservación", "mt-3 whitespace-pre-wrap text-lg leading-relaxed text-primary")}
           </div>
         </div>
       </section></ReportReveal>
 
-      <ReportReveal enabled={mode !== "document"}><section className="border-t-8 border-[#f28c00]">
-        <div className="bg-[#4196b3] px-5 py-3 text-center text-3xl font-light text-white sm:text-4xl">Environmental Literacy</div>
-        <div className="bg-[#f28c00] px-4 py-1 text-center text-sm text-white">{subtitle}</div>
+      <ReportReveal enabled={mode !== "document"}><section className="border-t-8 border-secondary">
+        <div className="bg-primary px-5 py-3 text-center text-3xl font-light text-primary-contrast sm:text-4xl">Environmental Literacy</div>
+        <div className="bg-secondary px-4 py-1 text-center text-sm text-primary-contrast">{subtitle}</div>
         <div className="p-5 sm:p-8">
           <p className="text-center text-sm text-gray-600">EPI measures impacts on students in ecological knowledge, dispositions, competencies, and social-emotional skills.</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-4">
@@ -150,7 +151,7 @@ function CourseImpactReportView({ template, data, mode, noDataText, editContent,
           </div>
           <div className="mt-5 border-b border-gray-300 pb-4">
             {categoryChart?.type === "chart" && <ChartBlockView block={categoryChart} data={data.series[categoryChart.dataKey] ?? categoryRows} showExport={mode === "interactive"} />}
-            <div className="ml-5 hidden w-32 text-center sm:block"><div className="text-4xl font-semibold text-[#4196b3]">{indicator(improvement)}</div><div className="text-xs font-bold uppercase text-[#4196b3]">{data.texts.overallChangeLabel ?? "Overall improvement"}</div></div>
+            <div className="ml-5 hidden w-32 text-center sm:block"><div className="text-4xl font-semibold text-primary">{indicator(improvement)}</div><div className="text-xs font-bold uppercase text-primary">{data.texts.overallChangeLabel ?? "Overall improvement"}</div></div>
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <div>
@@ -161,10 +162,10 @@ function CourseImpactReportView({ template, data, mode, noDataText, editContent,
               {image("coursePhotoUrl", "Fotografía del curso", coursePhoto, "h-64")}
               {editContent ? <input aria-label="Pie de foto" placeholder="Agregar pie de foto" className="mt-2 w-full rounded border p-2 text-sm" value={data.texts.coursePhotoCaption ?? ""} onChange={event => editContent("coursePhotoCaption", event.target.value)} /> : data.texts.coursePhotoCaption && <p className="mt-2 text-sm">{data.texts.coursePhotoCaption}</p>}
               <h3 className="mt-2 text-center text-sm font-bold">Most Improved Area of Knowledge</h3>
-              <div className="mt-2 flex justify-between border border-[#4196b3] px-3 py-2 text-sm"><span>{String(data.tables.mostImproved?.[0]?.name ?? "—")}</span><span>{typeof data.tables.mostImproved?.[0]?.change === "number" ? `${Number(data.tables.mostImproved[0].change) >= 0 ? "+" : ""}${data.tables.mostImproved[0].change}%` : noDataText}</span></div>
+              <div className="mt-2 flex justify-between border border-primary px-3 py-2 text-sm"><span>{String(data.tables.mostImproved?.[0]?.name ?? "—")}</span><span>{typeof data.tables.mostImproved?.[0]?.change === "number" ? `${Number(data.tables.mostImproved[0].change) >= 0 ? "+" : ""}${data.tables.mostImproved[0].change}%` : noDataText}</span></div>
             </div>
           </div>
-          <div className="mt-6 grid gap-6 border-t border-dashed border-[#f28c00] pt-5 lg:grid-cols-2">
+          <div className="mt-6 grid gap-6 border-t border-dashed border-secondary pt-5 lg:grid-cols-2">
             <div>{spotlightChart?.type === "chart" && <ChartBlockView block={spotlightChart} data={data.series[spotlightChart.dataKey] ?? []} showExport={mode === "interactive"} />}</div>
             <div><h2 className="text-center text-lg font-bold">{editContent ? "Impact Spotlight" : data.texts.spotlightText?.split("\n")[0] ?? "Impact Spotlight"}</h2>{editContent ? manualText("spotlightText", "Impact Spotlight", "mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700") : <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">{data.texts.spotlightText?.split("\n").slice(1).join("\n") || noDataText}</p>}</div>
           </div>
@@ -201,8 +202,8 @@ function ExportableRadar({ data, showExport }: { data: Record<string, unknown>[]
             <PolarGrid />
             <PolarAngleAxis dataKey="name" tick={{ fontSize: 9 }} />
             <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 8 }} />
-            <Radar name="Pre %" dataKey="pre" stroke="#f28c00" fill="#f28c00" fillOpacity={0.12} isAnimationActive={inView} animationBegin={150} animationDuration={900} />
-            <Radar name="Post %" dataKey="post" stroke="#4196b3" fill="#4196b3" fillOpacity={0.12} isAnimationActive={inView} animationBegin={150} animationDuration={900} />
+            <Radar name="Pre %" dataKey="pre" stroke={brandColors.orange} fill={brandColors.orange} fillOpacity={0.12} isAnimationActive={inView} animationBegin={150} animationDuration={900} />
+            <Radar name="Post %" dataKey="post" stroke={brandColors.blue} fill={brandColors.blue} fillOpacity={0.12} isAnimationActive={inView} animationBegin={150} animationDuration={900} />
             <Legend />
             <Tooltip />
           </RadarChart>

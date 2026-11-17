@@ -820,7 +820,7 @@ export async function groupSearch(input: SurveyGroupSearch, userId: string): Pro
   const filtered = result.rows.filter(row => {
     if (input.entryType === "courses" && !row.courseId) return false;
     if (input.entryType === "individual" && row.courseId) return false;
-    const status = row.courseStatus ?? (row.errorCount ? "ERROR" : "PENDING");
+    const status = row.courseStatus === "DRAFT" ? (row.errorCount ? "ERROR" : "PENDING") : row.courseStatus ?? (row.errorCount ? "ERROR" : "PENDING");
     return !input.reviewStatus || input.reviewStatus === status;
   });
   return { rows: filtered, totalGroups: filtered.length };
@@ -869,11 +869,12 @@ export async function courseDetail(input: CourseDetailQuery, userId: string): Pr
   const details = await surveysRepository.courseSubmissionDetails(ids, scope);
   return details.map((row) => ({
     id: row.id, jotformSubmissionId: row.jotformSubmissionId, receivedAt: row.receivedAt.toISOString(),
-    reviewMoment: row.reviewMoment, reviewExcluded: row.reviewExcluded, surveyMoment: row.surveyMoment, status: row.status, savedForCourse: savedForCourse(row), processingError: row.processingError, isDuplicate: row.isDuplicate, participantName: row.participant?.name ?? null,
+    reviewMoment: row.reviewMoment, reviewExcluded: row.reviewExcluded, surveyMoment: row.surveyMoment, status: row.status, savedForCourse: savedForCourse(row), processingError: row.processingError, isDuplicate: row.isDuplicate, participantName: row.participant?.name ?? null, participantId: row.participantId,
     activityContext: ActivityContextSchema.safeParse((row.rawJsonData as Prisma.JsonObject | null)?.activityContext).data ?? null,
     contextRevision: row.contextRevision,
     confirmedContext: row.reviewSchool && row.reviewDate ? { school: row.reviewSchool, date: row.reviewDate, activity: row.reviewActivity, gender: row.reviewGender, age: row.reviewAge } : null,
     schoolContext: resolvedStoredSchoolContext((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext) ?? null,
+    submittedAt: resolvedStoredSchoolContext((row.rawJsonData as Prisma.JsonObject | null)?.schoolContext)?.originalSubmittedAt ?? (typeof (row.rawJsonData as Prisma.JsonObject | null)?.created_at === "string" ? (row.rawJsonData as Prisma.JsonObject).created_at as string : null),
     answers: row.answers.map((answer) => ({ questionId: answer.questionId, text: answer.question.text, value: answer.value })),
   }));
 }
@@ -929,7 +930,7 @@ export function summarizeGroupSearchRows(
   const groups = new Map<
     string,
     {
-      isOpenPublic?: boolean; courseId?: string; courseStatus?: "REVIEWED" | "COMPLETED"; courseName?: string; courseSchool?: string; confirmedParticipants?: number | null; dates: Set<string>;
+      isOpenPublic?: boolean; courseId?: string; courseStatus?: "DRAFT" | "REVIEWED" | "COMPLETED"; courseName?: string; courseSchool?: string; confirmedParticipants?: number | null; dates: Set<string>;
       siteId: string | null;
       school: string;
       date: string;
@@ -952,11 +953,11 @@ export function summarizeGroupSearchRows(
     const school = reviewContext ? reviewGroupSchool(row) : row.participant?.school?.trim() || "Sin escuela";
     const siteId = row.surveyDefinition?.siteId ?? null;
     const course = reviewContext ? row.courseMembership?.application.course : null;
-    const confirmed = course?.status === "REVIEWED" || course?.status === "COMPLETED";
-    const key = confirmed ? course.id : reviewRowKey(row, reviewContext);
+    const isCourse = course?.status === "DRAFT" || course?.status === "REVIEWED" || course?.status === "COMPLETED";
+    const key = isCourse ? course.id : reviewRowKey(row, reviewContext);
     let acc = groups.get(key);
     if (!acc) {
-      acc = { ...(confirmed ? { courseId: course.id, courseStatus: course.status as "REVIEWED" | "COMPLETED", courseName: course.name, isOpenPublic: course.isOpenPublic, courseSchool: course.isOpenPublic ? "Abierto al público" : course.school, confirmedParticipants: course.expectedParticipants } : {}), dates: new Set(), siteId, school, date, students: new Set(), schools: new Map(), excludedCount: 0, pendingCount: 0, versioned: false, savedCount: 0, errorCount: 0, preCount: 0, postCount: 0, cqsCount: 0, pre: [], post: [] };
+      acc = { ...(isCourse ? { courseId: course.id, courseStatus: course.status as "DRAFT" | "REVIEWED" | "COMPLETED", courseName: course.name, isOpenPublic: course.isOpenPublic, courseSchool: course.isOpenPublic ? "Abierto al público" : course.school, confirmedParticipants: course.expectedParticipants } : {}), dates: new Set(), siteId, school, date, students: new Set(), schools: new Map(), excludedCount: 0, pendingCount: 0, versioned: false, savedCount: 0, errorCount: 0, preCount: 0, postCount: 0, cqsCount: 0, pre: [], post: [] };
       groups.set(key, acc);
     }
     acc.dates.add(date);

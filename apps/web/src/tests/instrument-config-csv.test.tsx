@@ -14,6 +14,12 @@ describe("complete instrument CSV",()=>{
   const original=JSON.stringify(draft);const csv=exportInstrumentConfigCsv("form",draft,[question],categories,sites);const result=previewInstrumentConfigCsv(csv,"form",draft,[question],categories,sites);
   expect(result.errors).toEqual([]);expect(assistantScoringReady([{...result.draft!.questions![0]!,options:question.options}])).toBe(true);expect(result.draft?.description).toBe(draft.description);expect(result.draft?.questions?.[0]?.analysisScoring?.[0]?.correctAnswer).toBe("Sí, siempre");expect(result.draft?.questions?.[0]?.weight?.factor).toBe(3);expect(result.draft?.questions?.[0]?.optionLabels?.[0]?.label).toBe("Sí");expect(result.draft?.analysisWeights).toEqual(draft.analysisWeights);expect(JSON.stringify(draft)).toBe(original);expect(csv).toContain("catalogo_categoria");
  });
+ it("preserves several correct choices in the complete CSV",()=>{
+  const multi={...question,analysisScoring:[{...question.analysisScoring![0]!,correctAnswers:[...question.options]}]};
+  const csv=exportInstrumentConfigCsv("form",draft,[multi],categories,sites);
+  const result=previewInstrumentConfigCsv(csv,"form",draft,[multi],categories,sites);
+  expect(result.errors).toEqual([]);expect(result.draft?.questions?.[0]?.analysisScoring?.[0]?.correctAnswers).toEqual(question.options);
+ });
  it("rejects another source, missing or duplicate questions, altered options and foreign catalog references atomically",()=>{
   const csv=exportInstrumentConfigCsv("form",draft,[question],categories,sites);
   for(const modify of [(rows:Record<string,string>[])=>{rows.forEach(row=>row.formulario="other");},(rows:Record<string,string>[])=>{rows.push({...rows.find(row=>row.tipo==="pregunta")!});},(rows:Record<string,string>[])=>{rows.splice(rows.findIndex(row=>row.tipo==="pregunta"),1);},(rows:Record<string,string>[])=>{rows.find(row=>row.tipo==="opcion")!.valor="Desconocida";},(rows:Record<string,string>[])=>{rows.find(row=>row.tipo==="pregunta")!.subcategoria="Ajena";}]){

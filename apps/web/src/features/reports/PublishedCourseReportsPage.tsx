@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ReportTabs } from "./ReportTabs";
 import { Link, useParams } from "react-router-dom";
 import type { CourseEditionsPage, CourseReportPublication, CourseReportPublicationsPage } from "@epi/shared";
 import { Button, Card, Label, Pagination, Table } from "@epi/ui";
@@ -52,9 +53,9 @@ export function PublishedCourseReportsPage() {
   const selected = publication?.id === publicationId ? publication : null;
   return (
     <div className="space-y-4">
+      {canPrepare && <ReportTabs />}
       <Label variant="title">Reportes</Label>
       <div className="flex flex-wrap items-center gap-3">
-        {!publicationId && canPrepare && <Link className="text-primary underline" to="/reports/internal">Reportes internos</Link>}
         {publicationId && <Link className="text-primary underline" to="/reports">← Ver todos los reportes</Link>}
         <Button variant="secondary" disabled={loading} onClick={() => setRefresh(value => value + 1)}>Recargar</Button>
       </div>

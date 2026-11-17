@@ -6,6 +6,12 @@ import { apiClient } from "../../lib/api-client";
 import { useI18n, type I18nKey } from "../../lib/i18n";
 
 const ACTION_LABELS: Record<string, I18nKey> = {
+  USER_UPDATE: "auditLog.action.userUpdate",
+  ORGANIZATION_CREATE: "auditLog.action.organizationCreate",
+  ORGANIZATION_UPDATE: "auditLog.action.organizationUpdate",
+  ORGANIZATION_DELETE: "auditLog.action.organizationDelete",
+  SURVEY_SETUP_SAVE: "auditLog.action.instrumentDraft",
+  SURVEY_CONFIGURATION_ACTIVATE: "auditLog.action.instrumentActivate",
   CATEGORY_SITES_CHANGE: "auditLog.action.categorySitesChange",
   SURVEY_VERSION_REPROCESS: "auditLog.action.versionReprocess",
   SURVEY_VERSION_REPROCESS_PROGRESS: "auditLog.action.versionProgress",
@@ -28,6 +34,21 @@ const ACTION_LABELS: Record<string, I18nKey> = {
 };
 
 const detailLabels: Record<string, string> = { isOpenPublic: "Abierto al público", school: "Escuela principal", name: "Nombre", organizationId: "Organización", programs: "Programas", activityTypes: "Tipos de actividad", isActive: "Activo", subcategory: "Subcategoría" };
+function description(action: string, metadata: unknown) {
+  const data = metadata && typeof metadata === "object" ? metadata as Record<string, unknown> : {};
+  const current = data.current && typeof data.current === "object" ? data.current as Record<string, unknown> : {};
+  const previous = data.previous && typeof data.previous === "object" ? data.previous as Record<string, unknown> : {};
+  const name = current.name ?? previous.name ?? data.name ?? data.username;
+  const descriptions: Record<string, string> = {
+    SITE_CREATE: "Se agregó el sitio", SITE_UPDATE: "Se modificó el sitio", SITE_DELETE: "Se desactivó el sitio",
+    CATEGORY_CREATE: "Se agregó la categoría", CATEGORY_UPDATE: "Se modificó la categoría", CATEGORY_DELETE: "Se desactivó la categoría", CATEGORY_REACTIVATE: "Se reactivó la categoría",
+    ORGANIZATION_CREATE: "Se agregó la organización", ORGANIZATION_UPDATE: "Se modificó la organización", ORGANIZATION_DELETE: "Se desactivó la organización",
+    USER_CREATE: "Se agregó el usuario", USER_UPDATE: "Se modificó el usuario", USER_DELETE: "Se eliminó el usuario", USER_ROLE_CHANGE: "Se modificó el rol del usuario",
+    SURVEY_CONFIGURATION_ACTIVATE: "Se activó el instrumento", SURVEY_SETUP_SAVE: "Se guardó el borrador del instrumento",
+  };
+  const text = descriptions[action];
+  return text ? `${text}${typeof name === "string" && name ? ` ${name}` : " (nombre no registrado)"}.` : null;
+}
 function catalogDetails(metadata: unknown) {
   if (!metadata || typeof metadata !== "object" || !("current" in metadata)) return null;
   const record = metadata as { previous?: Record<string, unknown> | null; current?: Record<string, unknown> | null };
@@ -80,14 +101,9 @@ export function AuditLogPage() {
       },
     },
     {
-      key: "targetId",
-      header: t("auditLog.table.target"),
-      render: (l) => (l.targetType && l.targetId ? `${l.targetType} · ${l.targetId}` : "—"),
-    },
-    {
       key: "metadata",
       header: t("auditLog.table.details"),
-      render: (l) => (l.metadata ? <div className="text-xs text-gray-600">{catalogDetails(l.metadata) ?? JSON.stringify(l.metadata)}</div> : "—"),
+      render: (l) => <div className="text-xs text-gray-600">{description(l.action, l.metadata) && <p>{description(l.action, l.metadata)}</p>}{l.metadata && (catalogDetails(l.metadata) ?? (!description(l.action, l.metadata) ? JSON.stringify(l.metadata) : null))}{!l.metadata && !description(l.action, l.metadata) && "—"}</div>,
     },
   ];
 

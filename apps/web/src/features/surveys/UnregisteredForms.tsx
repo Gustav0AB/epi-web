@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SiteDto, UnregisteredFormDto } from "@epi/shared";
-import { Button, Card, Dropdown, Label, Modal } from "@epi/ui";
+import { Button, Card, Dropdown, Label, Modal, Table } from "@epi/ui";
 import type { DropdownOption } from "@epi/ui";
 import { surveyApi } from "./api";
 import { useI18n } from "../../lib/i18n";
@@ -71,36 +71,13 @@ export function UnregisteredForms({ onRegistered }: { onRegistered: () => void }
       <p className="mb-4 text-sm text-gray-500">
         {t("unregistered.body")}
       </p>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[36rem] text-left text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-gray-500">
-              <th className="py-2 font-medium">{t("unregistered.table.formId")}</th>
-              <th className="py-2 font-medium">{t("unregistered.table.responses")}</th>
-              <th className="py-2 font-medium">{t("unregistered.table.since")}</th>
-              <th className="py-2 font-medium">{t("unregistered.table.detectedFields")}</th>
-              <th className="py-2" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {forms.map((f) => (
-              <tr key={f.jotformFormId}>
-                <td className="py-2 font-mono text-xs text-gray-800">{f.jotformFormId}</td>
-                <td className="py-2 text-gray-600">{f.count}</td>
-                <td className="py-2 text-gray-600">{new Date(f.firstReceivedAt).toLocaleDateString()}</td>
-                <td className="py-2 text-gray-500">
-                  <span className="line-clamp-1 max-w-xs">{f.sampleExternalIds.join(", ")}</span>
-                </td>
-                <td className="py-2 text-right">
-                  <Button size="sm" onClick={() => openModal(f)}>
-                    {t("unregistered.associate")}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table rows={forms} keyExtractor={form => form.jotformFormId} pageSize={10} columns={[
+        { key: "jotformFormId", header: t("unregistered.table.formId") },
+        { key: "count", header: t("unregistered.table.responses") },
+        { key: "firstReceivedAt", header: t("unregistered.table.since"), render: form => new Date(form.firstReceivedAt).toLocaleDateString() },
+        { key: "sampleExternalIds", header: t("unregistered.table.detectedFields"), render: form => form.sampleExternalIds.join(", ") },
+        { key: "actions", header: "", align: "right", render: form => <Button size="sm" onClick={() => openModal(form)}>{t("unregistered.associate")}</Button> },
+      ]} />
 
       <Modal
         open={target !== null}

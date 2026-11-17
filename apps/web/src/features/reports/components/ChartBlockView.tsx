@@ -1,3 +1,4 @@
+import { brandColors } from "../../../config/theme";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   Bar,
@@ -18,8 +19,8 @@ import type { ChartBlock } from "../templates/types";
 import { exportChartAsPng, exportChartAsSvg } from "../lib/chart-export";
 import { useI18n } from "../../../lib/i18n";
 
-const PIE_COLORS = ["#2a78d6", "#eb6834", "#3fa15e", "#e34948", "#8e6fd1", "#d6a92a"];
-const INK = "#52514e";
+const PIE_COLORS = [brandColors.blue, brandColors.orange, brandColors.darkTurquoise, brandColors.red, brandColors.purple, brandColors.gold];
+const INK = brandColors.gray;
 
 type ChartBlockViewProps = {
   block: ChartBlock;
@@ -106,7 +107,7 @@ export function ChartBlockView({ block, data, showExport = true }: ChartBlockVie
               <Legend />
               <Pie data={data} dataKey={block.series[0]?.key ?? ""} nameKey={block.xKey} outerRadius="75%" label isAnimationActive={inView} animationBegin={150} animationDuration={900}>
                 {data.map((_, i) => (
-                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length] ?? "#2a78d6"} />
+                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length] ?? brandColors.blue} />
                 ))}
               </Pie>
             </PieChart>

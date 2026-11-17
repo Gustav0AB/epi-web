@@ -26,6 +26,7 @@ const SiteNamesSchema = z.array(z.string().trim().min(1).max(100)).max(100).refi
 export const CreateSiteSchema = z.object({
   programs: SiteNamesSchema.refine(names => names.includes("Otro"), "Incluye el programa Otro").optional(),
   activityTypes: SiteNamesSchema.optional(),
+  activities: SiteNamesSchema.optional(),
   name: z.string().trim().min(2).max(100),
   organizationId: z.string().uuid().nullable().optional(),
 });
@@ -34,6 +35,7 @@ export type CreateSiteDto = z.infer<typeof CreateSiteSchema>;
 export const UpdateSiteSchema = z.object({
   programs: SiteNamesSchema.refine(names => names.includes("Otro"), "Incluye el programa Otro").optional(),
   activityTypes: SiteNamesSchema.optional(),
+  activities: SiteNamesSchema.optional(),
   name: z.string().trim().min(2).max(100).optional(),
   organizationId: z.string().uuid().nullable().optional(),
   isActive: z.boolean().optional(),
@@ -43,6 +45,7 @@ export type UpdateSiteDto = z.infer<typeof UpdateSiteSchema>;
 export type SiteDto = {
   programs?: string[];
   activityTypes?: string[];
+  activities?: string[];
   id: string;
   name: string;
   organizationId: string | null;

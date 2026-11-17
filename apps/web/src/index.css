@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+body, button, input, select, textarea {
+  font-family: var(--font-body, Calibri, "Segoe UI", Arial, sans-serif);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading, Cambria, Georgia, serif);
+}
+
+.recharts-legend-item-text {
+  color: var(--color-primary-ink, #35587D) !important;
+}
+
 .report-reveal {
   opacity: 0;
   transform: translateY(22px);

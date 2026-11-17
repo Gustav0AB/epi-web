@@ -1,3 +1,4 @@
+import { brandColors } from "../../config/theme";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ReportRow } from "@epi/shared";
@@ -23,7 +24,7 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import DeleteOutlineIcon from "@mui/icons-material/Delete";
 import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
-import { Button, Card, DatePicker, Dropdown, Label } from "@epi/ui";
+import { Button, Card, DatePicker, Dropdown, Label, Table } from "@epi/ui";
 import type { DropdownOption } from "@epi/ui";
 import { surveyApi } from "../surveys/api";
 import { filterSectionRows } from "./lib/section-rows";
@@ -32,10 +33,10 @@ import { useAuthStore } from "../../store/auth.store";
 import { ChartExportButtons } from "./components/ChartBlockView";
 import { ReportReveal } from "./components/ReportRenderer";
 
-const COLOR_PRE = "#2a78d6";
-const COLOR_POST = "#eb6834";
-const COLOR_NEG = "#e34948";
-const INK = "#52514e";
+const COLOR_PRE = brandColors.blue;
+const COLOR_POST = brandColors.orange;
+const COLOR_NEG = brandColors.red;
+const INK = brandColors.gray;
 
 // ─── Section types ───────────────────────────────────────────────────────────
 
@@ -318,46 +319,13 @@ function SectionCard({
         </ResponsiveContainer>
       )}
 
-      {section.type === "table" && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[28rem] text-left text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-gray-500">
-                <th className="py-2 font-medium">{t("reports.category")}</th>
-                {section.showPre && <th className="py-2 text-right font-medium">{t("reports.pre")}</th>}
-                {section.showPost && <th className="py-2 text-right font-medium">{t("reports.post")}</th>}
-                {showChange && <th className="py-2 text-right font-medium">{t("reports.change")}</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="py-6 text-center text-gray-400">{t("reports.empty")}</td>
-                </tr>
-              ) : (
-                filteredRows.map((r) => (
-                  <tr key={`${r.category}|${r.subcategory ?? ""}`}>
-                    <td className="py-2 text-gray-800">
-                      {r.subcategory ?? r.category}
-                      {r.subcategory && <span className="ml-2 text-xs text-gray-400">{r.category}</span>}
-                    </td>
-                    {section.showPre && <td className="py-2 text-right tabular-nums text-gray-700">{pct(r.pre)}</td>}
-                    {section.showPost && <td className="py-2 text-right tabular-nums text-gray-700">{pct(r.post)}</td>}
-                    {showChange && (
-                      <td
-                        className="py-2 text-right font-medium tabular-nums"
-                        style={{ color: r.change === null ? INK : r.change < 0 ? COLOR_NEG : COLOR_PRE }}
-                      >
-                        {r.change === null ? "—" : `${r.change > 0 ? "+" : ""}${r.change}%`}
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {section.type === "table" && <Table rows={filteredRows} keyExtractor={row => `${row.category}|${row.subcategory ?? ""}`} emptyText={t("reports.empty")} columns={[
+        { key: "category", header: t("reports.category"), render: row => <>{row.subcategory ?? row.category}{row.subcategory && <span className="ml-2 text-xs text-gray-400">{row.category}</span>}</> },
+        ...(section.showPre ? [{ key: "pre", header: t("reports.pre"), align: "right" as const, render: (row: typeof filteredRows[number]) => pct(row.pre) }] : []),
+        ...(section.showPost ? [{ key: "post", header: t("reports.post"), align: "right" as const, render: (row: typeof filteredRows[number]) => pct(row.post) }] : []),
+        ...(showChange ? [{ key: "change", header: t("reports.change"), align: "right" as const, render: (row: typeof filteredRows[number]) => <span style={{ color: row.change === null ? INK : row.change < 0 ? COLOR_NEG : COLOR_PRE }}>{row.change === null ? "—" : `${row.change > 0 ? "+" : ""}${row.change}%`}</span> }] : []),
+      ]} />}
+
       </div>
     </Card>
     </ReportReveal>

@@ -2,6 +2,10 @@ import { ANALYSIS_TYPES, type AnalysisType, type AnalysisWeights, type AnalysisN
 
 import { scoringGroups, validScoringWeights } from "./scoring-weights.js";
 
+export function correctAnswerValues(rule: { correctAnswer?: string | null | undefined; correctAnswers?: string[] | undefined } | null | undefined): string[] {
+  return rule?.correctAnswers ?? (rule?.correctAnswer ? [rule.correctAnswer] : []);
+}
+
 type AnalysisQuestion = Pick<SurveySetupQuestion, "role" | "type" | "analysisParticipation">;
 export function canConfigureAnalysis(question: AnalysisQuestion) {
   return (question.role ?? "SCORED") === "SCORED" && question.type !== "OPEN_TEXT";
@@ -30,7 +34,7 @@ export function analysisScoringReady(questions: (SurveySetupQuestion & { options
       return options.length > 0 && new Set(options).size === options.length &&
         JSON.stringify(rule.scaleOptions) === JSON.stringify(options) &&
         (rule.excludedOptions ?? []).every(value => options.includes(value)) && options.some(value => !rule.excludedOptions?.includes(value)) &&
-        rule.correctAnswer == null && rule.optionScores === undefined && rule.numericRange === undefined;
+        rule.correctAnswer == null && !rule.correctAnswers?.length && rule.optionScores === undefined && rule.numericRange === undefined;
     }
     if (rule.scoringMode === "numeric_range") {
       const range = rule.numericRange;
@@ -45,7 +49,8 @@ export function analysisScoringReady(questions: (SurveySetupQuestion & { options
         new Set(rule.optionScores.map(item => item.value)).size === options.length && rule.optionScores.some(item => !item.excluded) &&
         options.every(value => rule.optionScores!.some(item => item.value === value && (item.excluded === true || item.score !== null && Number.isFinite(item.score) && item.score >= 0 && item.score <= rule.maxScore!)));
     }
-    return question.type !== "ONE_ANSWER" || Boolean(rule.correctAnswer?.trim() && (!question.options?.length || question.options.includes(rule.correctAnswer)));
+    const correct = correctAnswerValues(rule);
+    return question.type !== "ONE_ANSWER" || (correct.length > 0 && correct.every(value => !!value.trim() && (!question.options?.length || question.options.includes(value))) && (!rule.correctAnswers || rule.correctAnswer === null || rule.correctAnswer === correct[0]));
   }));
 }
 
@@ -114,7 +119,7 @@ export function assistantScoringReady(questions: (SurveySetupQuestion & { option
       if (!configuredForAnalysis(question, type)) return true;
       const rule = question.analysisScoring?.find(item => item.analysisType === type);
       if (!rule || rule.optionScores !== undefined || rule.numericRange !== undefined || rule.responsePolicy?.blank !== "exclude" || rule.responsePolicy?.invalid !== "review") return false;
-      if ((rule.excludedOptions ?? []).some(value => !question.options.includes(value) || value === rule.correctAnswer)) return false;
+      if ((rule.excludedOptions ?? []).some(value => !question.options.includes(value) || correctAnswerValues(rule).includes(value))) return false;
       return rule.scoringMode === "ordered_scale" ||
         (question.type === "ONE_ANSWER" && (rule.scoringMode ?? "standard") === "standard" && rule.inverse === undefined && rule.scaleOptions === undefined);
     }));
@@ -124,15 +129,17 @@ export function scaleOptionPoints(options: string[], maximum: number | null, inv
   return options.map((value, index) => ({ value, score: excluded.includes(value) || maximum === null || !Number.isFinite(maximum) || maximum < 0 ? null : maximum * ((inverse ? index + 1 : options.length - index) / options.length) }));
 }
 
-export function setAssistantScoring<T extends SurveySetupQuestion & { options: string[] }>(questions: T[], externalId: string, analysisType: AnalysisType, patch: { maxScore?: number | null; correctAnswer?: string | null; inverse?: boolean; excludedOptions?: string[]; scoringMode?: "standard" | "ordered_scale" }): T[] {
+export function setAssistantScoring<T extends SurveySetupQuestion & { options: string[] }>(questions: T[], externalId: string, analysisType: AnalysisType, patch: { maxScore?: number | null; correctAnswer?: string | null; correctAnswers?: string[]; inverse?: boolean; excludedOptions?: string[]; scoringMode?: "standard" | "ordered_scale" }): T[] {
   const question = questions.find(item => item.externalId === externalId);
   if (!question || !configuredForAnalysis(question, analysisType)) return questions;
   const previous = question.analysisScoring?.find(item => item.analysisType === analysisType);
   const mode = patch.scoringMode ?? (previous?.scoringMode === "ordered_scale" ? "ordered_scale" : question.type === "ONE_ANSWER" ? "standard" : "ordered_scale");
+  const correct = patch.correctAnswers ?? (patch.correctAnswer !== undefined ? (patch.correctAnswer ? [patch.correctAnswer] : []) : correctAnswerValues(previous));
   const rule = {
     analysisType,
     maxScore: patch.maxScore !== undefined ? patch.maxScore : previous?.maxScore ?? null,
-    correctAnswer: mode === "standard" ? patch.correctAnswer !== undefined ? patch.correctAnswer : previous?.correctAnswer ?? null : null,
+    correctAnswer: mode === "standard" ? correct[0] ?? null : null,
+    ...(mode === "standard" && correct.length > 1 ? { correctAnswers: correct } : {}),
     scoringMode: mode,
     responsePolicy: { blank: "exclude" as const, invalid: "review" as const },
     excludedOptions: patch.excludedOptions ?? previous?.excludedOptions?.filter(value => question.options.includes(value)) ?? [],

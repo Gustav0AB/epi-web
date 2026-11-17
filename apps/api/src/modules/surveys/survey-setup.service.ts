@@ -80,7 +80,7 @@ export async function saveSurveySetup(formId: string, input: SaveSurveySetupInpu
     await tx.jotformForm.update({ where: { id: formId }, data: { setupDraft: draft } });
     return { draft, revision: input.revision + 1 };
   });
-  await auditService.record(actor, "SURVEY_SETUP_SAVE", { type: "JotformForm", id: formId }, { revision: saved.revision });
+  await auditService.record(actor, "SURVEY_SETUP_SAVE", { type: "JotformForm", id: formId }, { name: saved.draft.instrumentName, revision: saved.revision });
   return saved;
 }
 
@@ -88,7 +88,7 @@ export async function validateSetupQuestionCatalog(questions: SurveySetupQuestio
   const scored = questions.filter(question => (question.role ?? "SCORED") === "SCORED" && question.type !== "OPEN_TEXT");
   if (!scored.length) return;
   const site = await prisma.site.findUnique({ where: { id: siteId }, select: { organizationId: true } });
-  const categories = site?.organizationId ? await prisma.category.findMany({ where: { organizationId: site.organizationId, isActive: true, siteLinks: { some: { siteId } } } }) : [];
+  const categories = site?.organizationId ? await prisma.category.findMany({ where: { organizationId: site.organizationId, isActive: true } }) : [];
   for (const question of scored) {
     const issue = questionCatalogIssue(question, categories, site?.organizationId, requireSubcategory);
     if (issue) throw Object.assign(new Error(`${issue} Pregunta: ${question.text.slice(0, 120)}`), { statusCode: 400, code: "BAD_REQUEST" });

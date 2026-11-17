@@ -1,3 +1,5 @@
+import { courseReviewWarnings, submittedDay } from "./review-warnings";
+import { tabClass } from "../../shared/components/TabNavigation";
 import { courseResultCategories, selectCourseResultCategories, type CourseReportDraftDto } from "@epi/shared";
 import { CourseCategorySelector } from "./CourseComparison";
 import { CourseAnswerReview } from "./CourseAnswerReview";
@@ -26,7 +28,7 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [schoolEditOpen, setSchoolEditOpen] = useState(false);
   const [editOpenPublic, setEditOpenPublic] = useState(false);
-  const confirmed = Boolean(courseId);
+  const [confirmed, setConfirmed] = useState(groups.some(group => group.courseStatus === "REVIEWED" || group.courseStatus === "COMPLETED"));
   const [linkOpen, setLinkOpen] = useState(false);
   const [tab, setTab] = useState("learning");
   const [responses, setResponses] = useState<CourseSubmissionDto[]>([]);
@@ -34,7 +36,7 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
-  const [mainSchool, setMainSchool] = useState("");
+  const [mainSchool, setMainSchool] = useState(groups.find(group => group.courseStatus === "DRAFT")?.school ?? "");
   const [isOpenPublic, setIsOpenPublic] = useState(false);
   const [participants, setParticipants] = useState(String(groups.find(group => group.courseId)?.confirmedParticipants ?? groups.reduce((sum, group) => sum + group.preCount, 0)));
 
@@ -54,11 +56,11 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
   useEffect(() => {
     let cancelled = false;
     setResult(null); setResultError(null);
-    if (courseId) void Promise.all([surveyApi.courseResults(courseId), surveyApi.courseReportDraft(courseId)]).then(([result, draft]) => {
+    if (courseId && confirmed) void Promise.all([surveyApi.courseResults(courseId), surveyApi.courseReportDraft(courseId)]).then(([result, draft]) => {
       if (!cancelled) { setResult(result); setStoredDraft(draft); setIncludedCategories(result.categorySelection?.included ?? draft.draft.categories ?? courseResultCategories(result)); }
     }).catch(error => { if (!cancelled) setResultError(error instanceof Error ? error.message : "No se pudieron cargar los resultados"); });
     return () => { cancelled = true; };
-  }, [courseId, revision]);
+  }, [courseId, confirmed, revision]);
 
   const availableCategories = result?.categorySelection ? [...result.categorySelection.included, ...result.categorySelection.excluded].sort((a, b) => a.localeCompare(b)) : result ? courseResultCategories(result) : [];
   const publicationPreview = useMemo(() => {
@@ -114,6 +116,7 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
     try {
       const saved = await surveyApi.confirmCourseSelection(Number(participants), responses.map(row => ({ id: row.id, contextRevision: row.contextRevision })), isOpenPublic ? "" : mainSchool, isOpenPublic);
       setCourseId(saved.courseId);
+      setConfirmed(true);
       setConfirmOpen(false);
     } catch (error) {
       setError(error instanceof Error ? error.message : "No se pudo confirmar el curso");
@@ -124,11 +127,12 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
   const selectionTooLarge = responses.length > 2000;
   const pre = responses.filter(row => !row.reviewExcluded && row.surveyMoment === "PRE").length;
   const post = responses.filter(row => !row.reviewExcluded && row.surveyMoment === "POST").length;
+  const warnings = courseReviewWarnings(responses);
   const blanks = responses.filter(row => !row.reviewExcluded).reduce((sum, row) => sum + row.answers.filter(answer => !answer.value.trim()).length, 0);
 
   return <div className="space-y-4">
     <Button variant="ghost" disabled={saving} onClick={onBack}>← Volver a Cursos</Button>
-    <Label variant="title">{confirmed ? result?.name ?? "Curso confirmado" : "Revisión de la selección"}</Label>
+    <Label variant="title">{confirmed ? result?.name ?? "Curso confirmado" : courseId ? "Curso pendiente de revisión" : "Revisión de la selección"}</Label>
       <Card>
         <div className="flex flex-wrap items-end gap-4">
           <TextField label="Total de alumnos" disabled={confirmed || saving} type="number" min={1} step={1} value={participants} onChange={event => setParticipants(event.target.value)} />
@@ -150,18 +154,22 @@ export function CourseSelectionReview({ groups, sites, onBack }: Props) {
           {publicationPreview && <><Button variant="ghost" onClick={() => setDetails("warnings")}>Advertencias</Button><Button variant="ghost" onClick={() => setDetails("methodology")}>Metodología y trazabilidad</Button></>}
         </div>
       </Card>
-    <div role="tablist" aria-label="Evaluaciones" className="flex flex-wrap gap-2">
-      {([["learning", "Evaluación de aprendizaje"], ["data", "Revisión de datos"], ["quality", "Evaluación de calidad"]] as const).map(([id, title]) => <Button key={id} role="tab" aria-selected={tab === id} variant={tab === id ? "primary" : "secondary"} onClick={() => setTab(id)}>{title}</Button>)}
+    <div role="tablist" aria-label="Evaluaciones" className="flex flex-wrap gap-2 border-b border-gray-200">
+      {([["learning", "Evaluación de aprendizaje"], ["data", "Revisión de datos"], ["quality", "Evaluación de calidad"]] as const).map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tabClass(tab === id)} onClick={() => setTab(id)}>{title}</button>)}
     </div>
     {error && <div role="alert"><p className="text-danger">{error}</p><Button disabled={saving} onClick={() => setRevision(value => value + 1)}>Recargar respuestas</Button></div>}
     {tab === "data" && <>
       <Card><h2 className="font-semibold">Revisión de datos · {responses.length} envíos{blanks > 0 ? ` · ${blanks} respuestas vacías` : ""}</h2><div className="mt-4"><p className="mb-3 text-sm">Cada fila corresponde a un envío completo de la encuesta. Abre sus preguntas y respuestas para comprobar lo contestado. Revisa las escuelas, fechas, momentos y total de alumnos; después utiliza Confirmar curso para guardar tu revisión.</p>
         {blanks > 0 && <div className="mb-3"><p role="status" className="text-amber-700">Hay {blanks} respuestas sin contestar entre los campos guardados de los envíos incluidos. Este conteo también puede incluir preguntas informativas.</p><Button variant="ghost" size="sm" onClick={() => setAnswerReview({ submissionId: null, onlyBlanks: true })}>Ver cuáles preguntas quedaron vacías</Button><p className="text-sm">Las exclusiones y la redistribución de las preguntas evaluables se detallan en Advertencias del cálculo.</p></div>}
+        {warnings.size > 0 && <p role="status" className="mb-3 text-sm text-amber-700">Hay {warnings.size} envíos con posibles incidencias. Revisa sus fechas y momentos; estos avisos no cambian ni excluyen respuestas.</p>}
+        <p className="mb-3 text-sm text-gray-500">Se muestra la fecha original de envío; si falta, se indica la fecha de recepción. Se señalan fechas fuera del orden general; pueden ser envíos tardíos. Los posibles duplicados por persona requieren un identificador de participante.</p>
         <Table rows={responses} keyExtractor={row => row.id} loading={loading} pageSize={10} columns={[
           { key: "submission", header: "Envío", render: row => `Envío ${responses.indexOf(row) + 1}` },
+          { key: "submittedAt", header: "Fecha", render: row => { const original = submittedDay(row.submittedAt); if (original) { const [year, month, day] = original.split("-"); const time = /^[0-9-]{10}[T ]([0-9]{2}:[0-9]{2})/.exec(row.submittedAt ?? "")?.[1]; return <span title="Fecha original de envío">{`${day}/${month}/${year}`}{time && <small className="block text-gray-500">{time}</small>}</span>; } const date = new Date(row.receivedAt); return Number.isNaN(date.getTime()) ? "Sin fecha" : <span title="Fecha de recepción">{date.toLocaleDateString("es-MX")}<small className="block text-gray-500">Recepción</small></span>; } },
           { key: "school", header: "Escuela", render: row => row.confirmedContext?.school ?? row.schoolContext?.school ?? "Sin escuela" },
           { key: "moment", header: "Momento", render: row => <Dropdown aria-label={`Momento del envío ${responses.indexOf(row) + 1}`} disabled={completed || saving || loading} value={row.surveyMoment} options={[{ value: "PRE", label: "Pre" }, { value: "POST", label: "Post" }, { value: "original", label: "Restaurar momento original" }]} onChange={value => void correctMoment(row, value)} /> },
           { key: "review", header: "Origen del momento", render: row => row.reviewMoment ? "Corregido manualmente" : "Formulario" },
+          { key: "warnings", header: "Revisión", render: row => row.reviewExcluded ? "Excluido" : warnings.get(row.id)?.map(message => <p key={message} className="text-sm text-amber-700">{message}</p>) ?? "Sin avisos" },
           { key: "answers", header: "Preguntas y respuestas", render: row => <Button variant="secondary" size="sm" onClick={() => setAnswerReview({ submissionId: row.id, onlyBlanks: false })}>Revisar {row.answers.length} respuestas</Button> },
         ]} />
       </div></Card>

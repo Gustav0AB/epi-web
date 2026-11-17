@@ -345,7 +345,7 @@ export const surveysRepository = {
       where: { id: { in: ids }, surveyDefinition: scopeToDefinitionWhere(scope) ?? {} },
       orderBy: [{ receivedAt: "desc" }, { id: "asc" }],
       select: { reviewGender: true, reviewAge: true, reviewActivity: true, reviewSchool: true, reviewDate: true, contextRevision: true, rawJsonData: true, id: true, jotformSubmissionId: true, receivedAt: true, surveyMoment: true, status: true, processingError: true, isDuplicate: true, reviewExcluded: true, reviewMoment: true,
-        participant: { select: { name: true } }, surveyDefinition: { select: { configurationVersion: true } },
+        participantId: true, participant: { select: { name: true } }, surveyDefinition: { select: { configurationVersion: true } },
         answers: { orderBy: { questionId: "asc" }, select: { questionId: true, value: true, question: { select: { text: true } } } },
       },
     });
@@ -633,7 +633,7 @@ export const surveysRepository = {
       });
       if (data.setup?.activatedBy) {
         const actor = await tx.user.findUniqueOrThrow({ where: { id: data.setup.activatedBy } });
-        await tx.auditLog.create({ data: { actorId: actor.id, actorUsername: actor.username, actorRole: actor.role.toLowerCase(), actorOrganizationId: actor.organizationId, action: "SURVEY_CONFIGURATION_ACTIVATE", targetType: "SurveyDefinition", targetId: definition.id, metadata: { version: definition.version, previousDefinitionId: latest?.id ?? null, formId: data.jotformFormId } } });
+        await tx.auditLog.create({ data: { actorId: actor.id, actorUsername: actor.username, actorRole: actor.role.toLowerCase(), actorOrganizationId: actor.organizationId, action: "SURVEY_CONFIGURATION_ACTIVATE", targetType: "SurveyDefinition", targetId: definition.id, metadata: { name: definition.instrumentName, version: definition.version, previousDefinitionId: latest?.id ?? null, formId: data.jotformFormId } } });
       }
       return definition;
     });
@@ -688,20 +688,24 @@ export const surveysRepository = {
       ] } : {}),
     };
     return prisma.$transaction(async (tx) => {
-      if (query.registered) {
-        const definitions = await tx.surveyDefinition.findMany({ distinct: ["jotformFormId"], select: { jotformFormId: true } });
-        const ids = definitions.map(definition => definition.jotformFormId);
-        where.id = query.registered === "true" ? { in: ids } : { notIn: ids };
-      }
-      const total = await tx.jotformForm.count({ where });
+      const definitions = await tx.surveyDefinition.findMany({ distinct: ["jotformFormId"], select: { jotformFormId: true } });
+      const ids = definitions.map(definition => definition.jotformFormId);
+      const registeredWhere = { ...where, id: { in: ids } };
+      const unregisteredWhere = { ...where, id: { notIn: ids } };
+      const [registeredCount, unregisteredCount] = await Promise.all([
+        query.registered === "false" ? 0 : tx.jotformForm.count({ where: registeredWhere }),
+        query.registered === "true" ? 0 : tx.jotformForm.count({ where: unregisteredWhere }),
+      ]);
+      const total = registeredCount + unregisteredCount;
       const pageSize = 5;
       const totalPages = Math.ceil(total / pageSize);
       const page = Math.min(query.page, Math.max(1, totalPages));
-      const forms = await tx.jotformForm.findMany({
-        where, skip: (page - 1) * pageSize, take: pageSize,
-        orderBy: [{ title: "asc" }, { id: "asc" }],
-        include: { account: { select: { name: true } } },
-      });
+      const offset = (page - 1) * pageSize;
+      const options = { orderBy: [{ title: "asc" as const }, { id: "asc" as const }], include: { account: { select: { name: true } } } };
+      const first = offset < registeredCount ? await tx.jotformForm.findMany({ ...options, where: registeredWhere, skip: offset, take: Math.min(pageSize, registeredCount - offset) }) : [];
+      const remaining = pageSize - first.length;
+      const second = remaining && offset + pageSize > registeredCount && unregisteredCount ? await tx.jotformForm.findMany({ ...options, where: unregisteredWhere, skip: Math.max(0, offset - registeredCount), take: remaining }) : [];
+      const forms = [...first, ...second];
       return { forms, meta: { total, page, pageSize, totalPages } };
     }, { isolationLevel: "RepeatableRead" });
   },

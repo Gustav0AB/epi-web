@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import { Pagination } from "./Pagination.js";
 import { useI18n } from "./i18n.js";
 
 export type Column<T> = {
@@ -9,8 +8,6 @@ export type Column<T> = {
   render?: (row: T, index: number) => React.ReactNode;
   align?: "left" | "center" | "right";
 };
-
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 type TableProps<T> = {
   columns: Column<T>[];
@@ -44,8 +41,6 @@ export function Table<T extends Record<string, unknown>>({
 
   const totalPages = Math.ceil(rows.length / size);
   const displayRows = paginated ? rows.slice(page * size, (page + 1) * size) : rows;
-  const from = rows.length === 0 ? 0 : page * size + 1;
-  const to = Math.min((page + 1) * size, rows.length);
 
   return (
     <div className="space-y-2">
@@ -97,47 +92,7 @@ export function Table<T extends Record<string, unknown>>({
         </table>
       </div>
 
-      {paginated && !loading && rows.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-gray-500">
-          <div className="flex items-center gap-2">
-            <span>{t("table.rowsPerPage")}</span>
-            <select
-              value={size}
-              onChange={(e) => setSize(Number(e.target.value))}
-              className="rounded border border-gray-200 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span>{from}–{to} {t("table.of")} {rows.length}</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="rounded p-1 transition-colors hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label={t("table.prevPage")}
-              >
-                <ChevronLeftIcon style={{ fontSize: 18 }} />
-              </button>
-              <span className="min-w-[4rem] text-center">
-                {page + 1} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                className="rounded p-1 transition-colors hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label={t("table.nextPage")}
-              >
-                <ChevronRightIcon style={{ fontSize: 18 }} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {paginated && !loading && rows.length > 0 && <Pagination meta={{ page: page + 1, pageSize: size, total: rows.length, totalPages }} onPageChange={next => setPage(next - 1)} onPageSizeChange={setSize} />}
     </div>
   );
 }

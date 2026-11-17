@@ -1,5 +1,11 @@
-import { csvCell, parseCsv, questionSection, questionClassification, instrumentQuestion, preserveOpenQuestion, SurveySetupDraftSchema, SurveySetupQuestionSchema, type SurveySetupDraft, type SurveySetupQuestion, type CategoryDto } from "@epi/shared";
+import { correctAnswerValues, csvCell, parseCsv, questionSection, questionClassification, instrumentQuestion, preserveOpenQuestion, SurveySetupDraftSchema, SurveySetupQuestionSchema, type SurveySetupDraft, type SurveySetupQuestion, type CategoryDto } from "@epi/shared";
 
+export const encodeCorrectAnswers = (values: string[]) => values.length > 1 ? JSON.stringify(values) : values[0] ?? "";
+export function decodeCorrectAnswers(value: string, options: string[]): string[] {
+  if (!value) return [];
+  if (options.includes(value)) return [value];
+  try { const parsed: unknown = JSON.parse(value); return Array.isArray(parsed) && parsed.every(item => typeof item === "string") ? parsed : [value]; } catch { return [value]; }
+}
 export type ConfigQuestion = SurveySetupQuestion & { options: string[]; controlType?: string };
 export type ConfigRow = Record<string, string>;
 export const responseTypes = { LIKERT: "Escala Likert", ONE_ANSWER: "Respuesta correcta", FREQUENCY: "Frecuencia", OPEN_TEXT: "Texto abierto" };
@@ -33,7 +39,7 @@ export function instrumentConfigRows(draft: SurveySetupDraft, questions: ConfigQ
       "Usar como filtro": question.isFilter || question.role === "FILTER" ? "Sí" : "No",
       "Método de puntuación": legacy ? "Requiere revisión" : rule?.scoringMode === "ordered_scale" ? "Escala" : question.type === "ONE_ANSWER" ? "Respuesta correcta" : "Escala",
       "Puntaje máximo": String(rule?.maxScore ?? ""), "Peso de pregunta": String(question.weight?.factor ?? 1),
-      "Respuesta correcta": rule?.correctAnswer ?? "", "Puntuación inversa": rule?.inverse ? "Sí" : "No",
+      "Respuesta correcta": encodeCorrectAnswers(correctAnswerValues(rule)), "Puntuación inversa": rule?.inverse ? "Sí" : "No",
       "Peso subcategoría (%)": String(weights?.subcategoryWeights.find(item => item.category === group?.category && item.subcategory === group?.subcategory)?.weight ?? ""),
       "Peso categoría (%)": String(weights?.categoryWeights.find(item => item.category === group?.category)?.weight ?? ""),
     };
@@ -139,9 +145,9 @@ export function previewInstrumentTable(rows: ConfigRow[], draft: SurveySetupDraf
     if (changesRule && method && method !== "respuesta correcta" && method !== "escala") fail(line, "Selecciona Respuesta correcta o Escala; las reglas antiguas requieren revisión");
     if (changesRule && !method && (previous?.optionScores || previous?.numericRange)) fail(line, "Selecciona un método antes de reemplazar la regla anterior");
     if (changesRule && standard && type !== "ONE_ANSWER") fail(line, "Respuesta correcta requiere el tipo Respuesta correcta");
-    const correctAnswer = cell("Respuesta correcta") || (scoringRows !== undefined ? previous?.correctAnswer : null) || null;
-    if (changesRule && standard && correctAnswer && !target.options.includes(correctAnswer)) fail(line, "La respuesta correcta no existe entre las opciones actuales");
-    if (changesRule && standard && correctAnswer && excluded.includes(correctAnswer)) fail(line, "La respuesta correcta no puede ser no puntuable");
+    const correct = cell("Respuesta correcta") ? decodeCorrectAnswers(cell("Respuesta correcta"), target.options) : scoringRows !== undefined ? correctAnswerValues(previous) : [];
+    if (changesRule && standard && (new Set(correct).size !== correct.length || correct.some(value => !target.options.includes(value)))) fail(line, "Las respuestas correctas deben existir y no repetirse");
+    if (changesRule && standard && correct.some(value => excluded.includes(value))) fail(line, "Una respuesta correcta no puede ser no puntuable");
     const mappings = role === "MOMENT" ? target.options.flatMap((value, i) => {
       const moment = row[optionColumn("Momento", i)]?.trim();
       if (!moment) return [];
@@ -151,7 +157,7 @@ export function previewInstrumentTable(rows: ConfigRow[], draft: SurveySetupDraf
     const edit = { ...target, setupReviewed: false, type, role, classification: group ? { category: group.name, subcategory: group.subcategory } : { category: "", subcategory: null }, isFilter,
       weight: score && scored && group ? { category: group.name, subcategory: group.subcategory, maxScore: 0, correctAnswer: null, factor } : target.weight,
       optionLabels: target.options.map((value, i) => ({ value, label: row[optionColumn("Etiqueta de filtro", i)]?.trim() || value })), momentMappings: mappings,
-      analysisScoring: changesRule ? [{ analysisType: "pre_post", scoringMode: standard ? "standard" : "ordered_scale", maxScore: maximum, correctAnswer: standard ? correctAnswer : null, excludedOptions: excluded, responsePolicy: { blank: "exclude", invalid: "review" }, ...(!standard ? { inverse, scaleOptions: [...target.options] } : {}) }] : target.analysisScoring,
+      analysisScoring: changesRule ? [{ analysisType: "pre_post", scoringMode: standard ? "standard" : "ordered_scale", maxScore: maximum, correctAnswer: standard ? correct[0] ?? null : null, ...(standard && correct.length > 1 ? { correctAnswers: correct } : {}), excludedOptions: excluded, responsePolicy: { blank: "exclude", invalid: "review" }, ...(!standard ? { inverse, scaleOptions: [...target.options] } : {}) }] : target.analysisScoring,
     };
     const checked = SurveySetupQuestionSchema.safeParse(edit);
     if (!checked.success) { fail(line, checked.error.issues.map(issue => issue.message).join("; ")); return; }

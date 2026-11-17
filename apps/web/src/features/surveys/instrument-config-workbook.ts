@@ -38,7 +38,7 @@ export function createInstrumentWorkbook(draft: SurveySetupDraft, questions: Con
     "En Ponderaciones, los campos vacíos conservan sus valores actuales. Usa el mismo porcentaje en cada grupo.",
     "Selecciona Sí/No para filtro, inversión y respuestas no puntuables. La categoría se obtiene de la subcategoría.",
     "Las etiquetas de filtro son texto editable; los momentos PRE/POST se usan solo con el rol Momento de aplicación.",
-    "Cada No puntuable N corresponde a Respuesta N de la misma pregunta. La respuesta correcta se elige de esas opciones.",
+    'Cada No puntuable N corresponde a Respuesta N. Para varias respuestas correctas usa una lista JSON, por ejemplo ["A","B"].', 
     "Reutiliza el libro entre instrumentos: las preguntas se reconocen por texto y sección si se repiten. Las opciones deben coincidir en orden.",
     "Si cambia el texto o la sección, edítalos en las dos pestañas. Edita las respuestas de referencia en Preguntas para que coincidan con el destino.",
     "El catálogo es de referencia; no modifica catálogos, preguntas ni respuestas de origen.",
@@ -96,7 +96,7 @@ export function createInstrumentWorkbook(draft: SurveySetupDraft, questions: Con
       const last = sheet.getColumn(answerHeaders[answerHeaders.length - 1]!).letter;
       const name = `Respuestas_${index + 1}`;
       workbook.definedNames.add(`Preguntas!$${first}$${row.number}:$${last}$${row.number}`, name);
-      list(score.getCell("Respuesta correcta"), name);
+      list(score.getCell("Respuesta correcta"), name, false);
     }
     scoreHeaders.forEach((header, column) => {
       const cell = score.getCell(column + 1);

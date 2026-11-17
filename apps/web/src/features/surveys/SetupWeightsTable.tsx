@@ -16,7 +16,8 @@ export function questionInfluence(question: Question, questions: Question[]): nu
   return (question.weight.factor ?? 1) / factors.reduce((sum, factor) => sum + factor, 0) * 100;
 }
 
-export function SetupWeightsTable({ groupsOnly = false, includeIaa = true, questions, categoryWeights = [], subcategoryWeights = [], onQuestionChange, onChange, onCategoryWeightsChange = () => {}, onSubcategoryWeightsChange = () => {} }: {
+export function SetupWeightsTable({ showErrors = true, groupsOnly = false, includeIaa = true, questions, categoryWeights = [], subcategoryWeights = [], onQuestionChange, onChange, onCategoryWeightsChange = () => {}, onSubcategoryWeightsChange = () => {} }: {
+  showErrors?: boolean;
   groupsOnly?: boolean;
   includeIaa?: boolean;
   questions: Question[];
@@ -65,7 +66,7 @@ export function SetupWeightsTable({ groupsOnly = false, includeIaa = true, quest
         <Table rows={categoryGroups} keyExtractor={group => group.subcategory} columns={[
           { key: "subcategory", header: "Subcategoría" },
           { key: "questionCount", header: "Preguntas", align: "right" },
-          { key: "weight", header: "Peso (%)", render: group => <TextField aria-label={`Peso de ${category} / ${group.subcategory}`} error={subcategoryWeights.find(item => item.category === category && item.subcategory === group.subcategory)?.weight == null ? "Indica un porcentaje." : undefined} type="number" min={0} max={100} step="any" value={subcategoryWeights.find(item => item.category === category && item.subcategory === group.subcategory)?.weight ?? ""} onChange={event => {
+          { key: "weight", header: "Peso (%)", render: group => <TextField aria-label={`Peso de ${category} / ${group.subcategory}`} error={showErrors && subcategoryWeights.find(item => item.category === category && item.subcategory === group.subcategory)?.weight == null ? "Indica un porcentaje." : undefined} type="number" min={0} max={100} step="any" value={subcategoryWeights.find(item => item.category === category && item.subcategory === group.subcategory)?.weight ?? ""} onChange={event => {
             const weight = event.target.value === "" ? null : Number(event.target.value);
             onSubcategoryWeightsChange([...subcategoryWeights.filter(item => !(item.category === category && item.subcategory === group.subcategory)), { category, subcategory: group.subcategory, weight }]);
           }} /> },
@@ -79,7 +80,7 @@ export function SetupWeightsTable({ groupsOnly = false, includeIaa = true, quest
     <div className="flex items-center justify-between gap-2"><Label variant="subtitle">Peso de categorías en el Índice de Alfabetización Ambiental</Label><Button size="sm" variant="secondary" onClick={() => onCategoryWeightsChange(equalWeights(categories.map(category => ({ category }))))}>Sugerir distribución equitativa</Button></div>
     <Table rows={categories.map(category => ({ category, weight: categoryWeights.find(item => item.category === category)?.weight ?? null }))} keyExtractor={row => row.category} columns={[
       { key: "category", header: "Categoría" },
-      { key: "weight", header: "Peso IAA (%)", render: row => <TextField aria-label={`Peso IAA de ${row.category}`} error={row.weight == null ? "Indica un porcentaje." : undefined} type="number" min={0} max={100} step="any" value={row.weight ?? ""} onChange={event => onCategoryWeightsChange([...categoryWeights.filter(item => item.category !== row.category), { category: row.category, weight: event.target.value === "" ? null : Number(event.target.value) }])} /> },
+      { key: "weight", header: "Peso IAA (%)", render: row => <TextField aria-label={`Peso IAA de ${row.category}`} error={showErrors && row.weight == null ? "Indica un porcentaje." : undefined} type="number" min={0} max={100} step="any" value={row.weight ?? ""} onChange={event => onCategoryWeightsChange([...categoryWeights.filter(item => item.category !== row.category), { category: row.category, weight: event.target.value === "" ? null : Number(event.target.value) }])} /> },
     ]} />
     <p className="text-sm">Total IAA: {categoryWeights.reduce((sum, item) => sum + (item.weight ?? 0), 0).toFixed(2)}% · La suma de categorías debe ser 100%.</p>
     </>}

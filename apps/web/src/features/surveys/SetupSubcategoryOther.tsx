@@ -12,8 +12,8 @@ export function SetupSubcategoryOther({ organizationId, siteId, categories, onCr
   async function save() {
     if (!category || !name.trim()) return;
     setSaving(true); setError(null);
-    try { const created = await apiClient.post<CategoryDto>("/api/categories", { organizationId, name: category, subcategory: name.trim() }); await apiClient.put(`/api/categories/${encodeURIComponent(created.id)}/sites`, { siteIds: [siteId] }); onCreate({ ...created, siteIds: [siteId] }); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo completar la asignación. Si la subcategoría se creó, asígnale el sitio desde Categorías."); }
+    try { const created = await apiClient.post<CategoryDto>("/api/categories", { organizationId, name: category, subcategory: name.trim() }); onCreate(created); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo completar la asignación. Revisa los datos de la categoría."); }
     finally { setSaving(false); }
   }
   return <div className="space-y-2 rounded border p-3">

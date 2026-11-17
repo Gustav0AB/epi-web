@@ -66,7 +66,7 @@ describe("independent scoring configuration per analysis", () => {
   it("summarizes each analysis independently for final review", () => {
     let rows = setAnalysisScoring([question("q")], "q", "pre_post", { maxScore: 2, correctAnswer: "B" });
     rows = setAnalysisScoring(rows, "q", "pre_post_post", { maxScore: 5, correctAnswer: "A" });
-    expect(analysisScoringText(rows[0]!)).toContain("Pre/Post: máximo 2; correcta: B");
-    expect(analysisScoringText(rows[0]!)).toContain("Pre/Post + Post-post: máximo 5; correcta: A");
+    expect(analysisScoringText(rows[0]!)).toContain("Pre/Post: máximo 2; correctas: B");
+    expect(analysisScoringText(rows[0]!)).toContain("Pre/Post + Post-post: máximo 5; correctas: A");
   });
 });

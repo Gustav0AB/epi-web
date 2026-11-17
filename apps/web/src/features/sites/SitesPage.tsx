@@ -1,5 +1,4 @@
 import { useSearchParams } from "react-router-dom";
-import { SchoolCatalog } from "./SchoolCatalog";
 import { useCallback, useEffect, useState } from "react";
 import type { OrganizationDto, SiteDto } from "@epi/shared";
 import { Badge, Button, ConfirmModal, Dropdown, Label, Modal, Table, TextField } from "@epi/ui";
@@ -29,6 +28,7 @@ export function SitesPage() {
   const [name, setName] = useState("");
   const [programs, setPrograms] = useState("Local, Visiting, Otro");
   const [activityTypes, setActivityTypes] = useState("");
+  const [activities, setActivities] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export function SitesPage() {
 
   function openCreate() {
     setEditing(null);
-    setPrograms("Local, Visiting, Otro"); setActivityTypes("");
+    setPrograms("Local, Visiting, Otro"); setActivityTypes(""); setActivities("");
     setName("");
     setOrganizationId(filterOrganization);
     setError(null);
@@ -70,7 +70,7 @@ export function SitesPage() {
 
   function openEdit(site: SiteDto) {
     setEditing(site);
-    setPrograms((site.programs ?? []).join(", ")); setActivityTypes((site.activityTypes ?? []).join(", "));
+    setPrograms((site.programs ?? []).join(", ")); setActivityTypes((site.activityTypes ?? []).join(", ")); setActivities((site.activities ?? []).join(", "));
     setName(site.name);
     setOrganizationId(site.organizationId ?? "");
     setError(null);
@@ -87,7 +87,7 @@ export function SitesPage() {
     setSaving(true);
     setError(null);
     try {
-      const catalog = { programs: programs.split(",").map(value => value.trim()).filter(Boolean), activityTypes: activityTypes.split(",").map(value => value.trim()).filter(Boolean) };
+      const catalog = { programs: programs.split(",").map(value => value.trim()).filter(Boolean), activityTypes: activityTypes.split(",").map(value => value.trim()).filter(Boolean), activities: activities.split(",").map(value => value.trim()).filter(Boolean) };
       const body = isSystemAdmin
         ? { name: name.trim(), organizationId: organizationId || null, ...catalog }
         : { name: name.trim(), ...catalog };
@@ -177,7 +177,6 @@ export function SitesPage() {
         pageSize={25}
       />
 
-      <SchoolCatalog />
 
       <Modal
         open={modalOpen}
@@ -202,6 +201,7 @@ export function SitesPage() {
             placeholder="Baja California Sur"
           />
           <TextField label="Programas (separados por coma; incluir Otro)" value={programs} onChange={event => setPrograms(event.target.value)} />
+          <TextField label="Actividades (separadas por coma)" value={activities} onChange={event => setActivities(event.target.value)} />
           <TextField label="Tipos de actividad (separados por coma)" value={activityTypes} onChange={event => setActivityTypes(event.target.value)} />
           <p className="text-sm text-gray-500">Estas opciones estarán disponibles únicamente en este sitio. Cambiar el catálogo no modifica instrumentos ya registrados.</p>
           {isSystemAdmin && (
@@ -217,7 +217,7 @@ export function SitesPage() {
       </Modal>
 
       <Modal open={!!duplicateTarget} onClose={() => { if (!duplicateBusy) setDuplicateTarget(null); }} title="Duplicar catálogos" footer={<><Button variant="ghost" disabled={duplicateBusy} onClick={() => setDuplicateTarget(null)}>Cancelar</Button><Button loading={duplicateBusy} disabled={!sourceSite} onClick={() => void duplicateCatalogs()}>Duplicar</Button></>}>
-        <p className="mb-3">Destino: {duplicateTarget?.name}. Se agregarán los programas y tipos de actividad del sitio elegido; se conservarán las opciones existentes.</p>
+        <p className="mb-3">Destino: {duplicateTarget?.name}. Se agregarán los programas, actividades y tipos de actividad del sitio elegido; se conservarán las opciones existentes.</p>
         <Dropdown label="Sitio de origen" value={sourceSite} options={[{ value: "", label: "Selecciona un sitio" }, ...catalogSources.map(site => ({ value: site.id, label: site.name }))]} onChange={setSourceSite} />
         {!duplicateBusy && !catalogSources.length && <p>No hay otros sitios activos disponibles en esta organización.</p>}
         {duplicateError && <p role="alert" className="text-danger">{duplicateError}</p>}

@@ -21,6 +21,18 @@ describe("portable one-row instrument configuration", () => {
   expect(result.draft?.questions?.[0]?.weight?.factor).toBe(2);
   expect(assistantScoringReady([{ ...result.draft!.questions![0]!, options: question.options }])).toBe(true);
  });
+ it("round trips multiple correct options in CSV and the Excel workbook", async () => {
+  const multi = { ...question, analysisScoring: [{ ...question.analysisScoring![0]!, correctAnswers: [...question.options] }] };
+  const csv = exportInstrumentTableCsv(draft, [multi]);
+  const result = previewInstrumentTable(readInstrumentTableCsv(csv), draft, [multi], [category]);
+  expect(result.errors).toEqual([]);
+  expect(result.draft?.questions?.[0]?.analysisScoring?.[0]?.correctAnswers).toEqual(question.options);
+  const workbook = createInstrumentWorkbook(draft, [multi], [category]);
+  const imported = await readInstrumentWorkbook(await bytes(workbook));
+  const fromExcel = previewInstrumentTable(imported.questions, draft, [multi], [category], imported.scores);
+  expect(fromExcel.errors).toEqual([]);
+  expect(fromExcel.draft?.questions?.[0]?.analysisScoring?.[0]?.correctAnswers).toEqual(question.options);
+ });
  it("reuses the file against different IDs and preserves destination metadata and originals", () => {
   const target = { ...question, externalId: "new-id", sourceContext: { section: { externalId: "new-section", text: "Otra sección" } } };
   const ownDraft = { ...draft, analysisWeights: draft.analysisWeights!.map(rule => ({ ...rule, standardDeviation: "sample" as const })), instrumentName: "Destino", activityName: "Otro curso", baseDefinitionId: "22222222-2222-4222-8222-222222222222" };

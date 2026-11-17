@@ -251,13 +251,16 @@ jotformClient.getFormQuestions = async () => [{ qid: "1", name: "q1", text: "Lea
   const detail = await surveysService.courseDetail(courseKey, actor.sub);
   assert.equal(detail.length, 1);
   assert.equal(detail[0]!.id, courseSubmission.id);
+  assert.equal(detail[0]!.participantId, courseParticipant.id);
+  assert.equal(detail[0]!.submittedAt, null);
   assert.equal(detail[0]!.answers[0]!.value, "Original course answer");
   assert.equal(detail[0]!.answers[0]!.text, question.text);
   assert.equal("rawJsonData" in detail[0]!, false);
   assert.equal(detail.find(row => row.id === courseSubmission.id)!.schoolContext, null);
-  await prisma.submission.update({ where: { id: courseSubmission.id }, data: { rawJsonData: { original: "unchanged", secret: "not-for-client", schoolContext: { original: "10/10/2026 - School", school: "School", extractedDate: "2026-10-10", needsReview: false, extra: "not-for-client" } } } });
+  await prisma.submission.update({ where: { id: courseSubmission.id }, data: { rawJsonData: { original: "unchanged", secret: "not-for-client", schoolContext: { original: "10/10/2026 - School", school: "School", extractedDate: "2026-10-10", originalSubmittedAt: "2026-10-09 13:45:00", needsReview: false, extra: "not-for-client" } } } });
   const contextDetail = (await surveysService.courseDetail(courseKey, actor.sub)).find(row => row.id === courseSubmission.id)!;
   assert.equal(contextDetail.schoolContext!.school, "School");
+  assert.equal(contextDetail.submittedAt, "2026-10-09 13:45:00");
   assert.equal(contextDetail.schoolContext!.groupingDate, null);
   assert.equal("extra" in contextDetail.schoolContext!, false);
   assert.equal("secret" in contextDetail, false);

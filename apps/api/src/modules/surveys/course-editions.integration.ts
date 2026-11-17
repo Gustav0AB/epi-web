@@ -186,6 +186,24 @@ try {
   assert.equal((await courseEditionDetail(separated.courseId, 1, admin.id)).totalResponses, 1);
 
  } finally { jotformClient.listSubmissionPage = oldPage; }
+ // Automatically grouped responses are a draft course until an explicit review.
+ const draftPre = await surveysService.ingest(payload("visible-draft-pre", "Escuela borrador", "Visita", "Antes", "2026-09-01 10:00:00"));
+ const draftPost = await surveysService.ingest(payload("visible-draft-post", "Escuela borrador", "Visita", "Después", "2026-09-03 10:00:00"));
+ await prisma.$transaction(tx => groupMigratedCourseResponse(tx, auto.id, "visible-draft-pre"));
+ await prisma.$transaction(tx => groupMigratedCourseResponse(tx, auto.id, "visible-draft-post"));
+ const draftMembership = await prisma.courseMembership.findUniqueOrThrow({ where: { submissionId: draftPre.submissionId }, include: { application: true } });
+ const draftCourseId = draftMembership.application.courseId;
+ const draftList = await groupSearch({ siteId: site.id, surveyDefinitionId: auto.id, entryType: "courses", reviewStatus: "PENDING", from: "2026-09-01", to: "2026-09-03" }, admin.id);
+ const draftRow = draftList.rows.find(row => row.courseId === draftCourseId);
+ assert.equal(draftRow?.courseStatus, "DRAFT"); assert.equal(draftRow?.preCount, 1); assert.equal(draftRow?.postCount, 1);
+ assert.equal((await groupSearch({ siteId: site.id, surveyDefinitionId: auto.id, entryType: "individual", from: "2026-09-01", to: "2026-09-03" }, admin.id)).rows.some(row => row.courseId === draftCourseId), false);
+ const draftResponses = await courseDetail({ siteId: site.id, school: draftRow!.school, date: draftRow!.date, groupId: draftCourseId }, admin.id);
+ assert.deepEqual(draftResponses.map(row => row.id).sort(), [draftPre.submissionId, draftPost.submissionId].sort());
+ const confirmedDraft = await confirmCourseSelection({ participants: 2, school: "Escuela borrador", responses: draftResponses.map(row => ({ id: row.id, contextRevision: row.contextRevision })) }, admin.id);
+ assert.equal(confirmedDraft.courseId, draftCourseId, "Review must preserve the existing course instead of creating a duplicate");
+ assert.equal((await prisma.courseEdition.findUniqueOrThrow({ where: { id: draftCourseId } })).status, "REVIEWED");
+ assert.equal(await prisma.courseMembership.count({ where: { application: { courseId: draftCourseId } } }), 2);
+ await assert.rejects(() => confirmCourseSelection({ participants: 2, school: "Escuela borrador", responses: draftResponses.map(row => ({ id: row.id, contextRevision: row.contextRevision })) }, admin.id), { statusCode: 409 });
  const confirmedPre = await surveysService.ingest({ ...payload("confirm-pre", "Escuela confirmada", "Visita", "Antes", "2026-10-01 10:00:00") });
  const confirmedPost = await surveysService.ingest({ ...payload("confirm-post", "Otra escuela", "Visita", "Después", "2026-10-03 10:00:00") });
  const confirmedThird = await surveysService.ingest({ ...payload("confirm-third", "Escuela confirmada", "Visita", "Antes", "2026-10-05 10:00:00") });

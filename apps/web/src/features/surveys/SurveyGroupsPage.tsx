@@ -110,7 +110,7 @@ export function SurveyGroupsPage() {
       { key: "students", header: "Alumnos", align: "right", render: row => Math.max(row.preCount, row.postCount) },
       { key: "preCount", header: "Pre", align: "right" },
       { key: "postCount", header: "Post", align: "right" },
-      { key: "status", header: "Estatus", render: row => row.courseStatus ? <Badge color="green">{row.courseStatus === "COMPLETED" ? "Completada" : "Revisada"}</Badge> : row.errorCount ? <Badge color="red">{row.errorCount} con error</Badge> : row.pendingCount || row.contextNeedsReview || row.school === "Sin escuela" ? <Badge color="yellow">Requiere revisión</Badge> : <Badge color="green">Guardadas</Badge> },
+      { key: "status", header: "Estatus", render: row => row.courseStatus && row.courseStatus !== "DRAFT" ? <Badge color="green">{row.courseStatus === "COMPLETED" ? "Completada" : "Revisada"}</Badge> : row.courseStatus === "DRAFT" ? <Badge color="yellow">Pendiente de revisión</Badge> : row.errorCount ? <Badge color="red">{row.errorCount} con error</Badge> : row.pendingCount || row.contextNeedsReview || row.school === "Sin escuela" ? <Badge color="yellow">Requiere revisión</Badge> : <Badge color="green">Guardadas</Badge> },
     ]} />
     <Pagination meta={{ page: currentPage, pageSize: 10, total: visibleRows.length, totalPages }} onPageChange={setPage} disabled={loading} />
   </div>;

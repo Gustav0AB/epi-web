@@ -79,6 +79,7 @@ export const QuestionAnalysisScoringSchema = z.array(z.object({
   analysisType: z.enum(ANALYSIS_TYPES),
   maxScore: scoreField.nullable(),
   correctAnswer: optionalTrimmed,
+  correctAnswers: z.array(z.string().trim().min(1).max(1000)).max(500).refine(items => new Set(items).size === items.length, "Duplicate correct answers").optional(),
   scoringMode: z.enum(["standard", "option_scores", "numeric_range", "ordered_scale"]).optional(),
   inverse: z.boolean().optional(),
   excludedOptions: z.array(z.string().trim().min(1).max(1000)).max(500).refine(items => new Set(items).size === items.length, "Duplicate excluded options").optional(),
@@ -503,12 +504,14 @@ export type CourseSubmissionDto = {
   status: SubmissionStatus;
   isDuplicate: boolean;
   participantName: string | null;
+  participantId?: string | null;
+  submittedAt?: string | null;
   answers: { questionId: string; text: string; value: string }[];
 };
 export type CourseExpectationInput = z.infer<typeof CourseExpectationSchema>;
 
 export type SurveyGroupSearchRow = {
-  isOpenPublic?: boolean; courseId?: string; courseStatus?: "REVIEWED" | "COMPLETED"; courseName?: string; confirmedParticipants?: number | null; dates?: string[];
+  isOpenPublic?: boolean; courseId?: string; courseStatus?: "DRAFT" | "REVIEWED" | "COMPLETED"; courseName?: string; confirmedParticipants?: number | null; dates?: string[];
   versioned?: boolean; savedCount?: number; contextNeedsReview?: boolean;
   meetsResponseCoverage: boolean;
   excludedCount: number;

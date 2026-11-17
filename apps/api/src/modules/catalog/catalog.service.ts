@@ -1,4 +1,3 @@
-import { prisma } from "../../db/prisma.js";
 import { usersRepository } from "../users/users.repository.js";
 import { allowedSiteIds } from "../../shared/site-scope.js";
 import { catalogRepository } from "./catalog.repository.js";
@@ -79,7 +78,7 @@ export const catalogService = {
       if (!organizationId) throw forbidden("An organization is required to create sites");
     }
     try {
-      return await catalogRepository.createSite({ name: dto.name, organizationId, ...(dto.programs ? { programs: dto.programs } : {}), ...(dto.activityTypes ? { activityTypes: dto.activityTypes } : {}) }, requester.role === "org_admin" ? requester.sub : undefined, requester);
+      return await catalogRepository.createSite({ name: dto.name, organizationId, ...(dto.programs ? { programs: dto.programs } : {}), ...(dto.activityTypes ? { activityTypes: dto.activityTypes } : {}), ...(dto.activities ? { activities: dto.activities } : {}) }, requester.role === "org_admin" ? requester.sub : undefined, requester);
     } catch (err) {
       if (isUniqueConstraintError(err)) throw conflict("A site with that name already exists");
       throw err;
@@ -117,7 +116,6 @@ export const catalogService = {
     if (dto.organizationId !== undefined && dto.organizationId !== existing.organizationId && await catalogRepository.countAssignedUsers(id)) {
       throw conflict("Reassign users before moving this site to another organization");
     }
-    if (dto.organizationId !== undefined && dto.organizationId !== existing.organizationId && await prisma.categorySite.count({ where: { siteId: id } })) throw conflict("Desvincula las categorías antes de cambiar la organización del sitio");
     try {
       return await catalogRepository.updateSite(id, dto, requester);
     } catch (err) {
@@ -176,7 +174,6 @@ export const catalogService = {
       throw forbidden("org_admin cannot move categories to another organization");
     }
 
-    if (dto.organizationId !== undefined && dto.organizationId !== existing.organizationId && await prisma.categorySite.count({ where: { categoryId: id } })) throw conflict("Desvincula los sitios antes de cambiar la organización de la categoría");
     try {
       return await catalogRepository.updateCategory(id, dto, requester);
     } catch (err) {

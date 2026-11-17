@@ -1,3 +1,4 @@
+import { brandColors } from "../../../config/theme";
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import Logo from "../../../assets/logo.svg";
 import LogoText from "../../../assets/logo-text.svg";
@@ -5,8 +6,8 @@ import type { ReportData, ReportTemplate } from "../templates/types";
 import { formatValue } from "./format";
 import { downloadBlob } from "./chart-export";
 
-const PIE_COLORS = ["#2a78d6", "#eb6834", "#3fa15e", "#e34948", "#8e6fd1", "#d6a92a"];
-const INK = "#52514e";
+const PIE_COLORS = [brandColors.blue, brandColors.orange, brandColors.darkTurquoise, brandColors.red, brandColors.purple, brandColors.gold];
+const INK = brandColors.gray;
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, color: INK, fontFamily: "Helvetica" },
@@ -85,7 +86,7 @@ function ChartSection({ block, rows }: { block: Extract<ReportTemplate["blocks"]
               <Text style={styles.barLabel}>{String(r[block.xKey] ?? "")}</Text>
               <View style={styles.barTrack}>
                 <View style={styles.barBg}>
-                  <View style={[styles.barFill, { width: `${widthPct}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] ?? "#2a78d6" }]} />
+                  <View style={[styles.barFill, { width: `${widthPct}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] ?? brandColors.blue }]} />
                 </View>
                 <Text style={styles.barValue}>{Math.round(widthPct)}%</Text>
               </View>

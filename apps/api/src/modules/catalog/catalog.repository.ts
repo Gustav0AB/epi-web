@@ -5,7 +5,7 @@ import type { JwtPayload } from "../../middlewares/auth.middleware.js";
 async function auditCatalog(tx: Prisma.TransactionClient, actor: JwtPayload, action: string, targetType: string, targetId: string, previous: unknown, current: unknown) {
   await tx.auditLog.create({ data: { actorId: actor.sub, actorUsername: actor.username, actorRole: actor.role, actorOrganizationId: actor.organizationId, action, targetType, targetId, metadata: { previous, current } as Prisma.InputJsonValue } });
 }
-const siteFields = (site: { name: string; organizationId: string | null; programs: string[]; activityTypes: string[]; isActive: boolean }) => ({ name: site.name, organizationId: site.organizationId, programs: site.programs, activityTypes: site.activityTypes, isActive: site.isActive });
+const siteFields = (site: { name: string; organizationId: string | null; programs: string[]; activityTypes: string[]; activities: string[]; isActive: boolean }) => ({ name: site.name, organizationId: site.organizationId, programs: site.programs, activityTypes: site.activityTypes, activities: site.activities, isActive: site.isActive });
 const categoryFields = (category: { name: string; subcategory: string | null; organizationId: string; isActive: boolean }) => ({ name: category.name, subcategory: category.subcategory, organizationId: category.organizationId, isActive: category.isActive });
 import { UpdateSiteSchema, type UpdateOrganizationDto, type UpdateSiteDto, type CreateCategoryDto, type UpdateCategoryDto } from "@epi/shared";
 
@@ -39,7 +39,7 @@ export const catalogRepository = {
     return prisma.site.findUnique({ where: { id } });
   },
 
-  async createSite(data: { name: string; organizationId: string | null; programs?: string[]; activityTypes?: string[] }, creatorId: string | undefined, actor: JwtPayload) {
+  async createSite(data: { name: string; organizationId: string | null; programs?: string[]; activityTypes?: string[]; activities?: string[] }, creatorId: string | undefined, actor: JwtPayload) {
     return prisma.$transaction(async (tx) => {
       const site = await tx.site.create({ data });
       if (creatorId) await tx.user.update({ where: { id: creatorId }, data: { siteIds: { push: site.id } } });
@@ -49,7 +49,7 @@ export const catalogRepository = {
   },
 
   async catalogSources(organizationId: string, targetId: string) {
-    return prisma.site.findMany({ where: { organizationId, id: { not: targetId }, isActive: true }, select: { id: true, name: true, programs: true, activityTypes: true }, orderBy: { name: "asc" } });
+    return prisma.site.findMany({ where: { organizationId, id: { not: targetId }, isActive: true }, select: { id: true, name: true, programs: true, activityTypes: true, activities: true }, orderBy: { name: "asc" } });
   },
 
   async duplicateSiteCatalogs(targetId: string, sourceId: string, actor: JwtPayload) {
@@ -61,9 +61,9 @@ export const catalogRepository = {
         for (const item of [...existing, ...incoming]) { const key = item.trim().toLocaleLowerCase("es"); if (!values.has(key)) values.set(key, item); }
         return [...values.values()];
       };
-      const merged = UpdateSiteSchema.safeParse({ programs: merge(target.programs, source.programs), activityTypes: merge(target.activityTypes, source.activityTypes) });
+      const merged = UpdateSiteSchema.safeParse({ programs: merge(target.programs, source.programs), activityTypes: merge(target.activityTypes, source.activityTypes), activities: merge(target.activities, source.activities) });
       if (!merged.success) throw Object.assign(new Error("Los catálogos combinados superan el límite o requieren incluir el programa Otro"), { statusCode: 400 });
-      const site = await tx.site.update({ where: { id: targetId }, data: { programs: merged.data.programs!, activityTypes: merged.data.activityTypes! } });
+      const site = await tx.site.update({ where: { id: targetId }, data: { programs: merged.data.programs!, activityTypes: merged.data.activityTypes!, activities: merged.data.activities! } });
       await tx.auditLog.create({ data: { actorId: actor.sub, actorUsername: actor.username, actorRole: actor.role, actorOrganizationId: actor.organizationId, action: "SITE_CATALOG_DUPLICATE", targetType: "Site", targetId, metadata: { sourceSiteId: source.id, sourceSiteName: source.name, previous: siteFields(target), current: siteFields(site) } } });
       return site;
     }, { isolationLevel: "Serializable" });
@@ -77,6 +77,7 @@ export const catalogRepository = {
         ...(dto.organizationId !== undefined && { organizationId: dto.organizationId }),
         ...(dto.programs !== undefined && { programs: dto.programs }),
         ...(dto.activityTypes !== undefined && { activityTypes: dto.activityTypes }),
+        ...(dto.activities !== undefined && { activities: dto.activities }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       } });
       await auditCatalog(tx, actor, "SITE_UPDATE", "Site", id, siteFields(previous), siteFields(site));

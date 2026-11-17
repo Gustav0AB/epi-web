@@ -1,3 +1,4 @@
+import { brandColors } from "../../../config/theme";
 import { Document, Image, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
 import type { ReportRow } from "@epi/shared";
 import Logo from "../../../assets/logo.svg";
@@ -7,10 +8,10 @@ import { filterSectionRows } from "./section-rows";
 import { downloadBlob } from "./chart-export";
 import type { I18nKey } from "../../../lib/i18n";
 
-const COLOR_PRE = "#2a78d6";
-const COLOR_POST = "#eb6834";
-const COLOR_NEG = "#e34948";
-const INK = "#52514e";
+const COLOR_PRE = brandColors.blue;
+const COLOR_POST = brandColors.orange;
+const COLOR_NEG = brandColors.red;
+const INK = brandColors.gray;
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 10, color: INK, fontFamily: "Helvetica" },

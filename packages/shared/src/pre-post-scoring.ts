@@ -1,11 +1,11 @@
-import { assistantScoringReady, configuredForAnalysis, scaleOptionPoints } from "./question-analysis.js";
+import { assistantScoringReady, configuredForAnalysis, correctAnswerValues, scaleOptionPoints } from "./question-analysis.js";
 import type { SurveySetupQuestion } from "./schemas/survey.schema.js";
 export type PrePostQuestion = SurveySetupQuestion & { options: string[] };
 export type AnswerScore = { reason: "valid" | "blank" | "non_scorable" | "invalid" | "configuration_pending" | "zero_maximum"; points: number | null; maximum: number | null };
 export function prePostOptionPoints(question: PrePostQuestion) {
   const rule = question.analysisScoring?.find(item => item.analysisType === "pre_post");
   if (!configuredForAnalysis(question, "pre_post") || !assistantScoringReady([question], "pre_post") || !rule) return [];
-  return rule.scoringMode === "ordered_scale" ? scaleOptionPoints(question.options, rule.maxScore, rule.inverse, rule.excludedOptions) : question.options.map(value => ({ value, score: rule.excludedOptions?.includes(value) ? null : value === rule.correctAnswer ? rule.maxScore : 0 }));
+  return rule.scoringMode === "ordered_scale" ? scaleOptionPoints(question.options, rule.maxScore, rule.inverse, rule.excludedOptions) : question.options.map(value => ({ value, score: rule.excludedOptions?.includes(value) ? null : correctAnswerValues(rule).includes(value) ? rule.maxScore : 0 }));
 }
 // Only E1 rules are scored. Legacy partial/numeric rules require explicit version review.
 export function scorePrePostAnswer(question: PrePostQuestion, values: unknown[]): AnswerScore {
@@ -18,7 +18,7 @@ export function scorePrePostAnswer(question: PrePostQuestion, values: unknown[])
   const text = String(value); const rule = question.analysisScoring!.find(item => item.analysisType === "pre_post")!;
   if (rule.excludedOptions?.includes(text)) return excluded("non_scorable");
   if (question.options.length && !question.options.includes(text)) return excluded("invalid");
-  const points = rule.scoringMode === "ordered_scale" ? prePostOptionPoints(question).find(item => item.value === text)?.score : text === rule.correctAnswer ? rule.maxScore : 0;
+  const points = rule.scoringMode === "ordered_scale" ? prePostOptionPoints(question).find(item => item.value === text)?.score : correctAnswerValues(rule).includes(text) ? rule.maxScore : 0;
   if (points == null || !Number.isFinite(points)) return excluded("invalid");
   return { reason: rule.maxScore === 0 ? "zero_maximum" : "valid", points, maximum: rule.maxScore };
 }

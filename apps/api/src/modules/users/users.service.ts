@@ -85,7 +85,7 @@ export class UsersService {
     if (byUsername) throw Object.assign(new Error("Username already taken"), { statusCode: 409, code: "USERNAME_CONFLICT" });
 
     const user = await usersRepository.create(dto);
-    await auditService.record(requester, "USER_CREATE", { type: "User", id: user.id }, { role: user.role, organizationId: user.organizationId });
+    await auditService.record(requester, "USER_CREATE", { type: "User", id: user.id }, { username: user.username, role: user.role, organizationId: user.organizationId });
     return this.#mapToDto(user);
   }
 
@@ -122,9 +122,10 @@ export class UsersService {
 
     if (dto.siteIds !== undefined) await this.#assertAssignableSites(requester, dto.siteIds);
     const user = await usersRepository.update(id, dto);
+    await auditService.record(requester, "USER_UPDATE", { type: "User", id }, { username: user.username });
 
     if (dto.role !== undefined && dto.role !== existing.role.toLowerCase()) {
-      await auditService.record(requester, "USER_ROLE_CHANGE", { type: "User", id }, { from: existing.role.toLowerCase(), to: dto.role });
+      await auditService.record(requester, "USER_ROLE_CHANGE", { type: "User", id }, { username: existing.username, from: existing.role.toLowerCase(), to: dto.role });
     }
 
     if (dto.siteIds !== undefined || dto.organizationId !== undefined) {

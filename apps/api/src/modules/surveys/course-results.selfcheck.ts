@@ -12,6 +12,13 @@ const changed = { ...scale, options: [...scale.options].reverse() }; assert.equa
 const zero = structuredClone(scale); zero.analysisScoring![0]!.maxScore = 0; assert.equal(scorePrePostAnswer(zero,["Neutral"]).reason,"zero_maximum");
 const choice: PrePostQuestion = { ...scale, externalId: "choice", text: "Correcta", type: "ONE_ANSWER", options: ["A","B"], analysisScoring: [{ analysisType: "pre_post", scoringMode: "standard", maxScore: 2, correctAnswer: "A", responsePolicy: { blank: "exclude", invalid: "review" } }] };
 assert.deepEqual(scorePrePostAnswer(choice,["B"]),{ reason: "valid", points: 0, maximum: 2 }); assert.equal(scorePrePostAnswer(choice,["A"]).points,2);
+const multiple: PrePostQuestion = { ...choice, options: ["A", "B", "C"], analysisScoring: [{ ...choice.analysisScoring![0]!, correctAnswers: ["A", "B"] }] };
+assert.equal(scorePrePostAnswer(multiple, ["A"]).points, 2);
+assert.equal(scorePrePostAnswer(multiple, ["B"]).points, 2);
+assert.equal(scorePrePostAnswer(multiple, ["C"]).points, 0);
+assert.equal(scorePrePostAnswer(multiple, ["A", "B"]).reason, "invalid");
+assert.equal(scorePrePostAnswer({ ...multiple, options: ["A", "C"] }, ["A"]).reason, "configuration_pending");
+assert.equal(scorePrePostAnswer({ ...multiple, analysisScoring: [{ ...multiple.analysisScoring![0]!, excludedOptions: ["B"] }] }, ["A"]).reason, "configuration_pending");
 const definition: ResultsDefinition = { id: "v1", instrumentName: "Learning", version: 1, configurationVersion: 4, instrumentKind: "LEARNING", questions: [scale,choice].map(q => ({ ...q, role: q.role ?? "SCORED", id: q.externalId, classification: q.classification, analysisParticipation: q.analysisParticipation, analysisScoring: q.analysisScoring, sourceContext: null, weight: null })) };
 const receipt = (answers: { questionId: string; value: unknown }[], patch: Partial<ResultsReceipt> = {}): ResultsReceipt => ({ definition, moment: "PRE", rawJsonData: { answers }, excluded: false, contextPending: false, ...patch });
 const source = [receipt([{ questionId: "scale", value: "Muy de acuerdo" },{ questionId: "choice", value: "A" }]),receipt([{ questionId: "choice", value: "B" }]),receipt([], { excluded: true }),receipt([], { contextPending: true }),receipt([], { definition: { ...definition, id: "cqs", instrumentKind: "CQS" } }),receipt([], { definition: { ...definition, id: "old", configurationVersion: 3 } }),receipt([], { rawJsonData: { answers: [], unresolvedAnswers: [null] } })];
