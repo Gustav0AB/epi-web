@@ -18,6 +18,7 @@ describe("tema EPI", () => {
     expect(colors.primary).toBe("#4197B5");
     expect(contrast(colors.primary, colors["primary-contrast"])).toBeGreaterThanOrEqual(4.5);
     expect(contrast(colors["primary-hover"], brandColors.white)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(colors["primary-pressed"], brandColors.white)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(colors["primary-ink"], colors["primary-muted"])).toBeGreaterThanOrEqual(4.5);
     expect(contrast(brandColors.orange, brandColors.black)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(colors["danger-ink"], colors["danger-muted"])).toBeGreaterThanOrEqual(4.5);
@@ -26,7 +27,7 @@ describe("tema EPI", () => {
     const html = renderToStaticMarkup(<ThemeProvider><Button>Guardar</Button><Button variant="secondary">Atrás</Button></ThemeProvider>);
     expect(html).toContain("--font-body:"); expect(html).toContain("--font-heading:");
     expect(fonts.heading).toContain("Cambria"); expect(fonts.body).toContain("Calibri");
-    expect(html).toContain("bg-primary text-primary-contrast");
+    expect(html).toContain("bg-primary-hover text-white");
     expect(html).toContain("bg-primary-muted text-primary");
   });
 });

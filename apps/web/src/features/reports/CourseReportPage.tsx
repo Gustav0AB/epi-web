@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { COURSE_REPORT_DRAFT_NOTICE, CourseReportContentSchema, CourseReportDraftSchema, courseResponseCoverage, type CourseReportPublicationsPage, type CourseReportDraft, type CourseReportDraftDto, type CourseResultsDto } from "@epi/shared";
 import { Button, Card, Label, Modal, Table } from "@epi/ui";
 import { useAuthStore } from "../../store/auth.store";
@@ -7,6 +7,7 @@ import { surveyApi } from "../surveys/api";
 import { ReportRenderer } from "./components/ReportRenderer";
 import { buildCourseReportPreview } from "./course-report-preview";
 export function CourseReportPage() {
+  const navigate = useNavigate();
   const sequence = useRef(0);
   const role = useAuthStore(state => state.currentUser?.role);
   const [history,setHistory] = useState<CourseReportPublicationsPage | null>(null);
@@ -63,7 +64,7 @@ export function CourseReportPage() {
     return { moment, expected, admitted, ...courseResponseCoverage(admitted, expected) };
   }) : [];
   const adequate = coverage.length === 2 && coverage.every(row => row.meetsThreshold);
-  return <div className="space-y-4"><Label variant="title">Validar y publicar reporte del curso</Label><Link className="text-primary underline" to="/reports">← Volver a Reportes</Link><p className="rounded border border-amber-500 p-3">{COURSE_REPORT_DRAFT_NOTICE}</p>
+  return <div className="space-y-4"><Label variant="title">Validar y publicar reporte del curso</Label><Button variant="ghost" onClick={() => navigate("/reports")}>← Volver a Reportes</Button><p className="rounded border border-amber-500 p-3">{COURSE_REPORT_DRAFT_NOTICE}</p>
     {error && <p role="alert" className="text-danger">{error}</p>}{!stored && !error && <p role="status">Cargando borrador…</p>}
     {document && result && <><p className="text-sm">Vista previa: selecciona una imagen o edita los textos directamente. Guarda el borrador antes de publicar.</p><ReportRenderer template={document.template} data={document.data} mode="interactive" {...(!busy ? { editContent, editImage } : {})} /></>}
     {draft && stored && <Card><fieldset disabled={busy}><p>Revisión {stored.revision} · {stored.savedAt ? `Guardado: ${new Date(stored.savedAt).toLocaleString("es")}` : "Aún no guardado"}. Plantilla: Reporte general de curso · General.</p>
@@ -73,7 +74,7 @@ export function CourseReportPage() {
     {published && <p role="status">Publicación guardada. <Link className="text-primary underline" to={`/reports/${encodeURIComponent(published)}`}>Abrir versión publicada</Link></p>}
     <Button variant="secondary" disabled={!history} onClick={() => setShowHistory(true)}>Historial de publicaciones</Button>
     <Modal open={showHistory} title="Historial de publicaciones de aprendizaje" onClose={() => setShowHistory(false)} width="60rem">{history && <><p className="mb-3 text-sm">Cada versión conserva resultados, contenido y plantilla. Republicar crea una versión nueva. CQS y seguimiento no forman parte de la publicación de aprendizaje.</p><Table rows={history.rows} keyExtractor={row => row.id} emptyText="Este curso aún no tiene publicaciones." columns={[{ key: "version", header: "Versión" },{ key: "createdAt", header: "Publicación", render: row => new Date(row.createdAt).toLocaleString("es") },{ key: "open", header: "Reporte", render: row => <Link className="text-primary underline" to={`/reports/${encodeURIComponent(row.id)}`}>Abrir versión {row.version}</Link> }]} /><Link className="text-primary underline" to="/reports">Consultar publicaciones autorizadas</Link></>}</Modal>
-    <Modal open={confirmPublish} width="60rem" title="Publicar evaluación de aprendizaje" onClose={() => { if (!busy) setConfirmPublish(false); }} footer={<><Button variant="secondary" disabled={busy} onClick={() => setConfirmPublish(false)}>Cancelar</Button><Button loading={busy} onClick={() => void publish()}>Confirmar publicación</Button></>}><p>Se guardará una versión nueva del borrador guardado, con su plantilla y resultados Pre/Post. Las versiones anteriores se conservan. El servidor comprobará cobertura de 80% en cada momento y datos pendientes de revisión.</p><p className="mt-3">Curso: {result?.name}. Esperados Pre: {result?.expectedParticipantsPre ?? "Sin definir"}; Post: {result?.expectedParticipantsPost ?? "Sin definir"}. Pre: {result?.preReceipts ?? "—"}. Post: {result?.postReceipts ?? "—"}.</p><p className="mt-3">Esta publicación corresponde a aprendizaje; CQS y seguimiento se consultan por separado.</p></Modal>
+    <Modal open={confirmPublish} width="60rem" title="Publicar evaluación de aprendizaje" onClose={() => { if (!busy) setConfirmPublish(false); }} footer={<><Button variant="secondary" disabled={busy} onClick={() => setConfirmPublish(false)}>Cancelar</Button><Button loading={busy} onClick={() => void publish()}>Confirmar publicación</Button></>}><p>Se guardará una versión nueva del borrador guardado, con su plantilla y resultados Pre/Post. Las versiones anteriores se conservan. El servidor comprobará cobertura de 80% en cada momento y datos pendientes de revisión.</p><p className="mt-3">Curso: {result?.name}. Esperados Pre: {result?.expectedParticipantsPre ?? "Sin definir"}; Post: {result?.expectedParticipantsPost ?? "Sin definir"}. Pre: {result?.preReceipts ?? "—"}. Post: {result?.postReceipts ?? "—"}.</p><p className="mt-3">Puedes publicar aprendizaje sin CQS. Los resultados de calidad se incorporarán cuando se aprueben y vinculen sus reglas; seguimiento permanece pendiente.</p></Modal>
 
   </div>;
 }

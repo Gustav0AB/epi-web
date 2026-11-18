@@ -13,6 +13,7 @@ export default {
       colors: {
         primary:          "var(--color-primary)",
         "primary-hover":  "var(--color-primary-hover)",
+        "primary-pressed": "var(--color-primary-pressed)",
         "primary-muted":  "var(--color-primary-muted)",
         "primary-contrast": "var(--color-primary-contrast)",
 

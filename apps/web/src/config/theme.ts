@@ -29,6 +29,7 @@ export const colors = {
   "brand-black": brandColors.black,
   primary: brandColors.blue,
   "primary-hover": brandColors.darkBlue,
+  "primary-pressed": "#29445f",
   "primary-muted": "#e8f2f5",
   "primary-ink": brandColors.darkBlue,
   "primary-contrast": brandColors.black,
@@ -46,7 +47,7 @@ export const colors = {
 } as const;
 
 export const fonts = {
-  body: 'Calibri, "Segoe UI", Arial, sans-serif',
+  body: 'Calibri, system-ui, -apple-system, "Segoe UI", sans-serif',
   heading: 'Cambria, Georgia, serif',
 } as const;
 

@@ -132,7 +132,7 @@ export function Header() {
               className="flex items-center gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-gray-100"
             >
               <span
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-contrast"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-hover text-xs font-semibold text-white"
                 title={currentUser?.email}
               >
                 {initials}

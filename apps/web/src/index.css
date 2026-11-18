@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body, button, input, select, textarea {
-  font-family: var(--font-body, Calibri, "Segoe UI", Arial, sans-serif);
+  font-family: var(--font-body, Calibri, system-ui, -apple-system, "Segoe UI", sans-serif);
 }
 
 h1, h2, h3, h4, h5, h6 {

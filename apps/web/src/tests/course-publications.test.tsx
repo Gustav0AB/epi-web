@@ -22,6 +22,7 @@ describe("published course reports", () => {
  it("renders a reader entry without draft controls, mutation or a live data request", () => {
   const fetch = vi.fn(); vi.stubGlobal("fetch",fetch);
   const html = renderToStaticMarkup(<MemoryRouter><PublishedCourseReportsPage /></MemoryRouter>);
+  expect(html).not.toContain(">Recargar</button>");
   expect(html).toContain("Reportes"); expect(html).not.toContain("Guardar borrador"); expect(fetch).not.toHaveBeenCalled();
  });
  it("maps approved learning aggregates into existing templates and never fabricates CQS or rankings", () => {

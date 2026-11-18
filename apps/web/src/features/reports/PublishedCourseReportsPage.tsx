@@ -17,7 +17,6 @@ export function PublishedCourseReportsPage() {
   const [courseError, setCourseError] = useState<string | null>(null);
   const [mode, setMode] = useState<"interactive" | "document">("document");
   const [page, setPage] = useState(1);
-  const [refresh, setRefresh] = useState(0);
   const [list, setList] = useState<CourseReportPublicationsPage | null>(null);
   const [publication, setPublication] = useState<CourseReportPublication | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +38,7 @@ export function PublishedCourseReportsPage() {
       .catch(error => { if (!cancelled) setError(error instanceof Error ? error.message : "No se pudieron consultar las publicaciones"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [publicationId, page, refresh]);
+  }, [publicationId, page]);
 
   useEffect(() => {
     if (publicationId || !canPrepare) return;
@@ -48,7 +47,7 @@ export function PublishedCourseReportsPage() {
     void surveyApi.courseEditions(`?status=REVIEWED&page=${coursePage}`).then(value => { if (!cancelled) setCourses(value); })
       .catch(reason => { if (!cancelled) setCourseError(reason instanceof Error ? reason.message : "No se pudieron consultar los cursos revisados"); });
     return () => { cancelled = true; };
-  }, [publicationId, canPrepare, coursePage, refresh]);
+  }, [publicationId, canPrepare, coursePage]);
 
   const selected = publication?.id === publicationId ? publication : null;
   return (
@@ -57,7 +56,6 @@ export function PublishedCourseReportsPage() {
       <Label variant="title">Reportes</Label>
       <div className="flex flex-wrap items-center gap-3">
         {publicationId && <Link className="text-primary underline" to="/reports">← Ver todos los reportes</Link>}
-        <Button variant="secondary" disabled={loading} onClick={() => setRefresh(value => value + 1)}>Recargar</Button>
       </div>
       {loading && <p role="status">Consultando reportes…</p>}
       {error && <p role="alert" className="text-danger">{error}</p>}

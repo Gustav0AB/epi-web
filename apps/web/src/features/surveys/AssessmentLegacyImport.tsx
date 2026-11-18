@@ -5,8 +5,7 @@ import { parseAssessmentCsv, type AssessmentParseResult } from "./assessment-csv
 import { previewAssessmentImport } from "./assessment-import";
 import type { ConfigQuestion } from "./instrument-config-table";
 
-export function AssessmentLegacyImport({ draft, questions, categories, protectedIds, disabled, onApply }: { draft: SurveySetupDraft; questions: ConfigQuestion[]; categories: CategoryDto[]; protectedIds: string[]; disabled: boolean; onApply: (draft: SurveySetupDraft) => void }) {
-  const [open, setOpen] = useState(false);
+export function AssessmentLegacyImport({ draft, questions, categories, protectedIds, disabled, onApply, open, onToggle }: { open: boolean; onToggle: () => void; draft: SurveySetupDraft; questions: ConfigQuestion[]; categories: CategoryDto[]; protectedIds: string[]; disabled: boolean; onApply: (draft: SurveySetupDraft) => void }) {
   const [file, setFile] = useState<AssessmentParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -25,7 +24,7 @@ export function AssessmentLegacyImport({ draft, questions, categories, protected
     } catch (reason) { if (sequence.current === current) setError(reason instanceof Error ? reason.message : "No se pudo leer el archivo."); }
   }
   return <>
-    <Button variant="secondary" onClick={() => setOpen(value => !value)} aria-expanded={open}>Configurar por formato antiguo</Button>
+    <Button variant="secondary" onClick={onToggle} aria-expanded={open}>Configurar por formato antiguo</Button>
     {open && <div className="w-full space-y-3 rounded border p-3">
       <p className="text-sm">Carga un CSV Assessment Results / Answer Key. Las preguntas se comparan con el formulario actual; el archivo no se modifica y la configuración no se guarda automáticamente.</p>
       <TextField label="Archivo Assessment CSV" type="file" accept=".csv,text/csv" disabled={disabled} onChange={event => void read(event.target.files?.[0])} />
@@ -40,8 +39,7 @@ export function AssessmentLegacyImport({ draft, questions, categories, protected
         <p className="text-sm">Las escalas se cargarán en sentido normal con el puntaje máximo del archivo. Las preguntas evaluables ya cargadas que coincidan con el archivo se marcarán como revisadas sin cambiar su configuración. Revisa las coincidencias de filas de matriz antes de guardar. Cuando el texto cambió, compara ambas preguntas y confirma la coincidencia sugerida. Si falta una subcategoría, selecciona la actual del catálogo; se aplicará a las preguntas que tengan el mismo nombre en el archivo.</p>
         {file.warnings.map((warning, i) => <p key={i} role="status" className="text-amber-700">Columna {warning.column}: {warning.message}</p>)}
         <Table rows={preview.rows} keyExtractor={row => String(row.id)} pageSize={10} columns={[
-          { key: "question", header: "Pregunta", render: row => <p className="max-w-64 truncate" title={row.question}>{row.question}</p> },
-          { key: "matchedQuestion", header: "Pregunta del formulario", render: row => <p className="max-w-64 truncate" title={row.matchedQuestion ?? undefined}>{row.matchedQuestion ?? "—"}</p> },
+          { key: "question", header: "Pregunta", render: row => <div className="min-w-64 whitespace-normal break-words"><p>{row.matchedQuestion ?? row.question}</p>{row.matchedQuestion && row.matchedQuestion !== row.question && <p className="mt-1 text-xs text-gray-600">Archivo: {row.question}</p>}</div> },
           { key: "type", header: "Tipo" }, { key: "subcategory", header: "Subcategoría", render: row => <div className="min-w-56 space-y-1"><p>Archivo: {row.subcategory ?? "Sin subcategoría"}</p>{row.needsCategoryChoice && <Dropdown label={`Subcategoría actual para ${row.question}`} value={selectedCategories[row.categoryKey] ?? ""} options={[{ value: "", label: "Selecciona una subcategoría" }, ...categories.filter(item => item.isActive && item.subcategory).map(item => ({ value: item.id, label: `${item.name} / ${item.subcategory}` }))]} onChange={value => setSelectedCategories(current => ({ ...current, [row.categoryKey]: value }))} />}</div> },
           { key: "maximum", header: "Máximo", render: row => row.maximum ?? "—" }, { key: "correct", header: "Respuesta correcta", render: row => row.correct ?? "—" },
           { key: "scaleDirection", header: "Escala", render: row => row.scaleDirection ?? "—" }, { key: "postOnly", header: "Post Only", render: row => row.postOnly ? "Sí" : "No" }, { key: "status", header: "Revisión", render: row => <div>{row.status}{row.status === "Coincidencia sugerida; confirmar" && row.suggestedId && <Button variant="secondary" onClick={() => setConfirmed(value => ({ ...value, [row.id]: row.suggestedId! }))}>Confirmar coincidencia</Button>}</div> },

@@ -9,6 +9,8 @@ describe("server pagination", () => {
       meta: { page: 3, pageSize: 10, total: 23, totalPages: 3 }, onPageChange: () => {},
     }));
     expect(html).toContain("21–23");
+    expect(html).toContain('aria-label="Anterior"'); expect(html).toContain('aria-label="Siguiente"');
+    expect(html).not.toContain(">Anterior</button>"); expect(html).not.toContain(">Siguiente</button>");
     expect(html.match(/disabled=""/g)).toHaveLength(1);
   });
   it("disables both directions for an empty result", () => {

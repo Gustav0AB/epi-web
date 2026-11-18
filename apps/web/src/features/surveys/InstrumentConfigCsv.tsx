@@ -9,10 +9,11 @@ import { previewInstrumentConfigCsv } from "./instrument-config-csv";
 import { hasScoreValues, previewInstrumentTable, readInstrumentTableCsv, type ConfigQuestion, type ConfigRow } from "./instrument-config-table";
 
 export function InstrumentConfigCsv({ formId, draft, questions, categories, sites, protectedIds = [], catalogReady = true, onApply }: { formId: string; draft: SurveySetupDraft; questions: ConfigQuestion[]; categories: CategoryDto[]; sites: SiteDto[]; protectedIds?: string[]; catalogReady?: boolean; onApply: (draft: SurveySetupDraft) => void }) {
-  const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<"file" | "source" | "legacy" | null>(null);
+  const open = panel === "file";
+  const sourceOpen = panel === "source";
   const [sources, setSources] = useState<{ id: string; title: string; rows: ReturnType<typeof prefillPreview> }[]>([]);
   const [sourceId, setSourceId] = useState("");
-  const [sourceOpen, setSourceOpen] = useState(false);
   const [fileRows, setFileRows] = useState<{ questions: ConfigRow[]; scores?: ConfigRow[]; scoreError?: string } | null>(null);
   const [includeScores, setIncludeScores] = useState(true);
   const [legacyCsv, setLegacyCsv] = useState("");
@@ -27,7 +28,7 @@ export function InstrumentConfigCsv({ formId, draft, questions, categories, site
   const preview = modernPreview ?? (legacyCsv ? previewInstrumentConfigCsv(legacyCsv, formId, draft, questions, categories, sites) : null);
   const matches = modernPreview?.matches ?? [];
   async function findSources() {
-    setBusy(true); setError(null); setSourceOpen(true); setSources([]); setSourceId("");
+    setBusy(true); setError(null); setPanel("source"); setSources([]); setSourceId("");
     try {
       const definitions = (await surveyApi.definitions()).filter(item => item.jotformFormId !== formId);
       const results = await Promise.all(definitions.map(async definition => {
@@ -64,11 +65,11 @@ export function InstrumentConfigCsv({ formId, draft, questions, categories, site
   }
   return <section className="space-y-3 rounded border p-3">
     <div className="flex flex-wrap items-start gap-3">
-    <Button variant="secondary" onClick={() => setOpen(value => !value)} aria-expanded={open}>Configurar por CSV / Excel</Button>
-    <Button variant="secondary" disabled={busy || !draft.siteId || !catalogReady} onClick={() => void findSources()}>Prellenar desde otros instrumentos</Button>
-    <AssessmentLegacyImport draft={draft} questions={questions} categories={categories} protectedIds={protectedIds} disabled={busy || !draft.siteId || !catalogReady} onApply={onApply} />
+    <Button variant="secondary" onClick={() => setPanel(value => value === "file" ? null : "file")} aria-expanded={open}>Configurar por CSV / Excel</Button>
+    <Button variant="secondary" disabled={busy || !draft.siteId || !catalogReady} aria-expanded={sourceOpen} onClick={() => sourceOpen ? setPanel(null) : void findSources()}>Prellenar desde otros instrumentos</Button>
+    <AssessmentLegacyImport open={panel === "legacy"} onToggle={() => setPanel(value => value === "legacy" ? null : "legacy")} draft={draft} questions={questions} categories={categories} protectedIds={protectedIds} disabled={busy || !draft.siteId || !catalogReady} onApply={onApply} />
     </div>
-    {sourceOpen && <div className="space-y-2"><p className="text-sm">Revisa las coincidencias antes de aplicarlas. Las preguntas ya editadas se conservan.</p><Dropdown label="Instrumento de referencia" value={sourceId} options={[{ value: "", label: "Selecciona un instrumento" }, ...sources.map(item => ({ value: item.id, label: `${item.title} · ${item.rows.count}/${item.rows.total} coincidencias` }))]} onChange={setSourceId} />{!busy && !sources.length && <p>No hay instrumentos disponibles para comparar.</p>}{source && <><Table rows={source.rows.matches} pageSize={10} keyExtractor={row => row.externalId} columns={[{ key: "text", header: "Pregunta" }, { key: "status", header: "Resultado" }]} />{source.rows.errors.map((message, i) => <p role="alert" key={i}>{message}</p>)}<Button disabled={!source.rows.draft} onClick={() => { if (source.rows.draft) { onApply(source.rows.draft); setSourceOpen(false); setSources([]); setApplied(true); } }}>Aplicar {source.rows.count} coincidencias</Button></>}</div>}
+    {sourceOpen && <div className="space-y-2"><p className="text-sm">Revisa las coincidencias antes de aplicarlas. Las preguntas ya editadas se conservan.</p><Dropdown label="Instrumento de referencia" value={sourceId} options={[{ value: "", label: "Selecciona un instrumento" }, ...sources.map(item => ({ value: item.id, label: `${item.title} · ${item.rows.count}/${item.rows.total} coincidencias` }))]} onChange={setSourceId} />{!busy && !sources.length && <p>No hay instrumentos disponibles para comparar.</p>}{source && <><Table rows={source.rows.matches} pageSize={10} keyExtractor={row => row.externalId} columns={[{ key: "text", header: "Pregunta" }, { key: "status", header: "Resultado" }]} />{source.rows.errors.map((message, i) => <p role="alert" key={i}>{message}</p>)}<Button disabled={!source.rows.draft} onClick={() => { if (source.rows.draft) { onApply(source.rows.draft); setPanel(null); setSources([]); setApplied(true); } }}>Aplicar {source.rows.count} coincidencias</Button></>}</div>}
     {error && !open && <p role="alert" className="text-danger">{error}</p>}
     {open && <>
       <p className="text-sm">Una fila por pregunta, sin ID de formulario. Reutiliza el archivo en instrumentos con las mismas preguntas y opciones; si cambia alguno, edita esa copia como referencia. Los datos generales se eligen aquí, no en el archivo.</p>
@@ -88,7 +89,7 @@ export function InstrumentConfigCsv({ formId, draft, questions, categories, site
         {scoreError && <p role="alert">{scoreError}. Puedes desmarcar Ponderaciones para cargar solo Preguntas.</p>}
         <p>{preview.questionCount} preguntas compatibles · {preview.errors.length} errores{ modernPreview ? ` · ${modernPreview.unchanged} preguntas del destino sin modificar` : " · Formato anterior ligado al formulario"}.</p>
         {matches.some(match => match.status !== "Compatible") && <p role="status" className="text-amber-700">Hay filas sin coincidencia que se omitirán. Revisa la tabla antes de cargar las compatibles.</p>}
-        {!!matches.length && <Table rows={matches} pageSize={10} keyExtractor={row => String(row.row)} columns={[{ key: "row", header: "Fila" }, { key: "question", header: "Pregunta del archivo", render: row => <p className="w-52 truncate" title={row.question}>{row.question}</p> }, { key: "status", header: "Coincidencia" }, { key: "detail", header: "Revisión", render: row => <p className="max-w-md whitespace-normal break-words">{row.detail}</p> }]} />}
+        {!!matches.length && <Table rows={matches} pageSize={10} keyExtractor={row => String(row.row)} columns={[{ key: "row", header: "Fila" }, { key: "question", header: "Pregunta", render: row => <p className="min-w-64 max-w-xl whitespace-normal break-words">{row.target !== "—" ? row.target : row.question}{row.target !== "—" && row.target !== row.question && <span className="block text-xs text-gray-600">Archivo: {row.question}</span>}</p> }, { key: "status", header: "Coincidencia" }, { key: "detail", header: "Revisión", render: row => <p className="max-w-md whitespace-normal break-words">{row.detail}</p> }]} />}
         {!!preview.errors.length && <Table rows={preview.errors.slice(0, 100).map((item, id) => ({ ...item, id }))} keyExtractor={row => String(row.id)} columns={[{ key: "row", header: "Fila" }, { key: "message", header: "Corrección necesaria" }]} />}
         {preview.draft && !scoreError && <Button disabled={busy || applied} onClick={() => { onApply(preview.draft!); setApplied(true); setFileRows(null); setLegacyCsv(""); }}>Cargar {preview.questionCount} preguntas compatibles al asistente</Button>}
       </>}

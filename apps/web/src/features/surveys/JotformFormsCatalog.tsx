@@ -1,5 +1,5 @@
 import { SetupSubcategoryOther } from "./SetupSubcategoryOther";
-import { applyBulkRole } from "./setup-bulk-role";
+import { applyBulkEdits } from "./setup-bulk-edit";
 import { SurveySetupReview } from "./SurveySetupReview";
 import { InstrumentConfigDownload } from "./InstrumentConfigDownload";
 import { InstrumentConfigCsv } from "./InstrumentConfigCsv";
@@ -65,10 +65,15 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
   const [newSubcategoryFor, setNewSubcategoryFor] = useState<string | null>(null);
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
   const [bulkRole, setBulkRole] = useState("");
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkReview, setBulkReview] = useState("");
+  const [bulkEditor, setBulkEditor] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [bulkOutcome, setBulkOutcome] = useState<{ id: string; text: string; status: string }[]>([]);
   const [scoringTarget, setScoringTarget] = useState<{ id: string; request: number } | null>(null);
   const stepHeading = useRef<HTMLDivElement>(null);
-  useEffect(() => { setSectionFilter(""); setStatusFilter("all"); setCategoryFilter(""); setOpenQuestionIds([]); setSelectedQuestions([]); setBulkRole(""); setBulkMessage(null); setNewSubcategoryFor(null); }, [target]);
+  useEffect(() => { setSectionFilter(""); setStatusFilter("all"); setCategoryFilter(""); setOpenQuestionIds([]); setSelectedQuestions([]); setBulkRole(""); setBulkCategory(""); setBulkReview(""); setBulkEditor(false); setBulkConfirm(false); setBulkMessage(null); setBulkOutcome([]); setNewSubcategoryFor(null); }, [target]);
   useEffect(() => { if (target && !scoringTarget) stepHeading.current?.focus(); }, [step, target]);
   useEffect(() => { if (step !== 4) setScoringTarget(null); }, [step]);
   useEffect(() => { onViewChange?.(target !== null); }, [target, onViewChange]);
@@ -415,7 +420,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
   });
   function showQuestionError(externalId: string) {
     setStep(2); setSectionFilter(""); setStatusFilter("all"); setCategoryFilter("");
-    setOpenQuestionIds(current => current.includes(externalId) ? current : [...current, externalId]);
+    setOpenQuestionIds([externalId]);
     requestAnimationFrame(() => document.getElementById(`${target?.id}-question-${externalId}`)?.focus());
   }
 
@@ -425,18 +430,28 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
     setQuestionEdits(previous => [...previous.filter(question => !ids.has(question.externalId)), ...questions]);
     setSavedMessage(false);
   }
-  function editQuestion(question: (typeof configuredQuestions)[number], reviewed = question.setupReviewed ?? false) {
-    const next = setQuestionSetupReview(question, reviewed, issueForQuestion(question));
+  function editQuestion(question: (typeof configuredQuestions)[number], reviewed?: boolean) {
+    const all = configuredQuestions.map(item => item.externalId === question.externalId ? question : item);
+    const issue = questionSetupIssue(question, all, currentCatalog, organizationId, categoriesLoading || !!categoryError, preview?.scoredQuestions.find(source => source.externalId === question.externalId));
+    const next = setQuestionSetupReview(question, reviewed ?? !issue, issue);
     editQuestions([next]);
   }
 
-  function applySelectedRole() {
-    if (!bulkRole) return;
-    const result = applyBulkRole(configuredQuestions, selectedQuestions, bulkRole as NonNullable<SurveySetupQuestion["role"]>);
-    if (result.error) { setBulkMessage(result.error); return; }
-    editQuestions(result.changed);
-    setBulkMessage(`${result.changed.length} preguntas actualizadas. ${result.skipped} incompatibles quedaron sin cambios; revisa la configuración de las modificadas.`);
-    setSelectedQuestions([]);
+  const bulkSelection = subcategories.find(item => item.value === bulkCategory);
+  const bulkResult = applyBulkEdits(configuredQuestions, selectedQuestions, {
+    ...(bulkRole ? { role: bulkRole as NonNullable<SurveySetupQuestion["role"]> } : {}),
+    ...(bulkSelection ? { classification: { category: bulkSelection.category, subcategory: bulkSelection.subcategory } } : {}),
+    ...(bulkReview === "pending" || bulkReview === "reviewed" ? { review: bulkReview } : {}),
+  }, (question, all) => questionSetupIssue(question, all, currentCatalog, organizationId, categoriesLoading || !!categoryError, preview?.scoredQuestions.find(source => source.externalId === question.externalId)));
+  function applySelectedChanges() {
+    if (bulkResult.error) { setBulkMessage(bulkResult.error); return; }
+    setBulkOutcome(configuredQuestions.filter(question => selectedQuestions.includes(question.externalId)).map(question => {
+      const updated = bulkResult.changed.find(item => item.externalId === question.externalId);
+      return { id: question.externalId, text: question.text.replace(/<\/?strong\b[^>]*>/gi, ""), status: !updated ? "Sin cambios: incompatible" : updated.setupReviewed ? "Actualizada · revisada" : "Actualizada · pendiente" };
+    }));
+    editQuestions(bulkResult.changed);
+    setBulkMessage(`${bulkResult.changed.length} preguntas actualizadas · ${bulkResult.pending} pendientes de revisión · ${bulkResult.skipped} incompatibles sin cambios.`);
+    setSelectedQuestions([]); setBulkConfirm(false); setBulkEditor(false);
   }
 
   const columns: Column<JotformFormDto>[] = [
@@ -477,7 +492,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
 
     {target && <section className="space-y-5" aria-label="Configuración del instrumento">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2"><Button variant="ghost" disabled={saving} onClick={closeModal}>← Volver a instrumentos</Button><h1 className="text-xl font-semibold">{setup?.activeVersion ? "Nueva versión de" : t("unregistered.associateTitlePrefix")} {target.title}</h1><nav aria-label="Progreso de configuración" className="flex items-center gap-2">{([1, 2, 3, 4, 5] as const).map(item => <span key={item} aria-current={step === item ? "step" : undefined} aria-label={`Paso ${item}: ${t(`surveySetup.step${item}`)}`} title={t(`surveySetup.step${item}`)} className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${step === item ? "bg-primary text-primary-contrast" : "bg-gray-200 text-gray-700"}`}>{item}</span>)}</nav></div>
+        <div className="space-y-2"><Button variant="ghost" disabled={saving} onClick={closeModal}>← Volver a instrumentos</Button><h1 className="text-xl font-semibold">{setup?.activeVersion ? "Nueva versión de" : t("unregistered.associateTitlePrefix")} {target.title}</h1><nav aria-label="Progreso de configuración" className="flex items-center gap-2">{([1, 2, 3, 4, 5] as const).map(item => <span key={item} aria-current={step === item ? "step" : undefined} aria-label={`Paso ${item}: ${t(`surveySetup.step${item}`)}`} title={t(`surveySetup.step${item}`)} className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${step === item ? "bg-primary-hover text-white" : "bg-gray-200 text-gray-700"}`}>{item}</span>)}</nav></div>
       </div>
       <Card><div className="space-y-4">
 
@@ -520,8 +535,8 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
 
               {step === 2 && <><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><Dropdown label="Filtrar preguntas por sección" value={sectionFilter} options={[{ value: "", label: "Todas las secciones" }, ...questionSections.map(section => ({ value: section.key, label: questionSections.filter(item => item.label === section.label).length > 1 && section.heading ? `${section.label} (${section.heading})` : section.label }))]} onChange={value => { setSectionFilter(value); }} /><Dropdown label="Estado en el paso 2" value={statusFilter} options={[{ value: "all", label: "Todas" }, { value: "pending", label: "Solo pendientes" }, { value: "ready", label: "Solo revisadas" }]} onChange={value => { setStatusFilter(value); }} /></div>
               <Dropdown label="Filtrar preguntas por categoría" value={categoryFilter} options={[{ value: "", label: "Todas las categorías" }, ...[...new Set(categoryCatalog.items.filter(item => item.isActive).map(item => item.name))].sort().map(name => ({ value: name, label: name }))]} onChange={setCategoryFilter} />
-              <div className="flex flex-wrap items-end gap-2"><Dropdown label="Rol para preguntas seleccionadas" value={bulkRole} options={[{ value: "", label: "Selecciona un rol" }, ...QUESTION_ROLES.filter(value => value !== "FILTER").map(value => ({ value, label: t(`surveySetup.roles.${value}`) }))]} onChange={setBulkRole} /><Button size="sm" disabled={!bulkRole || !selectedQuestions.length} onClick={applySelectedRole}>Aplicar a {selectedQuestions.length} preguntas</Button></div>
-              {bulkMessage && <p role="status" className="text-sm">{bulkMessage}</p>}
+              <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded border bg-white p-3 shadow-sm"><span>{selectedQuestions.length} preguntas seleccionadas</span><Button size="sm" variant="secondary" disabled={!selectedQuestions.length} onClick={() => { setBulkRole(""); setBulkCategory(""); setBulkReview(""); setBulkEditor(true); }}>Editar seleccionadas</Button><Button size="sm" variant="ghost" disabled={!selectedQuestions.length} onClick={() => setSelectedQuestions([])}>Limpiar selección</Button></div>
+              {bulkMessage && <div role="status" className="text-sm"><p>{bulkMessage}</p>{!!bulkOutcome.length && <details><summary className="cursor-pointer">Ver resultado por pregunta</summary><ul className="list-disc pl-5">{bulkOutcome.map(item => <li key={item.id}>{item.text}: {item.status}</li>)}</ul></details>}</div>}
               <p className="text-sm" role="status">{reviewedIds.size} revisadas · {pendingQuestions} pendientes · {visibleQuestions.length} visibles. Confirma las preguntas con valores por defecto; la puntuación se revisa en el paso 4.</p>
               {!visibleQuestions.length && <p className="text-sm text-gray-500">No hay preguntas configurables para estos filtros.</p>}</>}
               {step === 2 && [false, true].map(conditional => <section key={String(conditional)} className="space-y-3">
@@ -531,17 +546,17 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
                   const expanded = openQuestionIds.includes(question.externalId);
                   const reviewed = reviewedIds.has(question.externalId);
                   const panelId = `${target?.id}-question-${question.externalId}`;
-                  return <div key={question.externalId} className={`rounded border ${questionIssues.get(question.externalId) ? "border-danger" : expanded ? "border-primary bg-blue-50" : ""}`}>
+                  return <div key={question.externalId} className={`rounded border ${expanded ? "border-primary bg-blue-50" : questionIssues.get(question.externalId) ? "border-danger" : ""}`}>
                     <div className="flex items-center gap-3 px-3">
                       <input type="checkbox" aria-label={`Seleccionar pregunta: ${question.text}`} checked={selectedQuestions.includes(question.externalId)} onChange={event => setSelectedQuestions(current => event.target.checked ? [...current, question.externalId] : current.filter(id => id !== question.externalId))} />
-                      <button type="button" className="flex min-w-0 flex-1 items-start gap-2 py-3 text-left" aria-expanded={expanded} aria-controls={panelId} onClick={() => setOpenQuestionIds(current => current.includes(question.externalId) ? current : [...current, question.externalId])}>
+                      <button type="button" className="flex min-w-0 flex-1 items-start gap-2 py-3 text-left" aria-expanded={expanded} aria-controls={panelId} onClick={() => setOpenQuestionIds(current => current.includes(question.externalId) ? [] : [question.externalId])}>
                         <span aria-hidden="true" className="shrink-0">{expanded ? "▾" : "▸"}</span>
                         <span className="min-w-0 break-words">
                           <span className="flex flex-wrap items-center gap-2"><span className="text-xs">Sección: {questionSection(question).label}</span><Badge color={reviewed ? "green" : "yellow"}>{reviewed ? "Revisada" : "Pendiente"}</Badge></span>
                           <span className="block text-sm font-medium">{question.text.replace(/<\/?strong\b[^>]*>/gi, "")}</span>
                         </span>
                       </button>
-                      <label className="shrink-0" title="Marcar como revisada"><input type="checkbox" role="switch" aria-label={`Revisada: ${question.text}`} checked={reviewed} disabled={!!questionIssues.get(question.externalId)} onChange={event => { const checked = event.target.checked; editQuestion(question, checked); if (checked && !questionIssues.get(question.externalId)) setOpenQuestionIds(current => current.filter(id => id !== question.externalId)); }} /></label>
+                      <label className="shrink-0" title="Marcar como revisada"><input type="checkbox" role="switch" aria-label={`Revisada: ${question.text}`} checked={reviewed} disabled={!!questionIssues.get(question.externalId)} onChange={event => { const checked = event.target.checked; editQuestion(question, checked); }} /></label>
                     </div>
                     <div id={panelId} tabIndex={-1} hidden={!expanded} className="space-y-2 border-t p-3">
                 {expanded && <>
@@ -562,7 +577,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={question.isFilter ?? false} disabled={!question.isFilter && (!["control_radio", "control_dropdown", "control_yesno"].includes(question.controlType ?? "") || !question.options.length)} onChange={event => editQuestion({ ...question, isFilter: event.target.checked })} />Usar también como filtro</label>
                 {step === 2 && question.isFilter && <div className="space-y-2">
                   <p className="text-sm">Sus opciones se agregan automáticamente al filtro del instrumento. Puedes personalizar las etiquetas que se mostrarán.</p>
-                  {question.options.map((value, optionIndex) => <TextField key={value} id={`${target?.id}-${question.externalId}-filter-${optionIndex}`} label={`${t("surveySetup.filterLabel")}: ${value}`} value={question.optionLabels?.find((item) => item.value === value)?.label ?? value} maxLength={200} onChange={(event) => editQuestion({ ...question, optionLabels: [...(question.optionLabels ?? []).filter((item) => item.value !== value && question.options.includes(item.value)), ...(event.target.value.trim() ? [{ value, label: event.target.value }] : [])] }, question.setupReviewed ?? false)} />)}
+                  {question.options.map((value, optionIndex) => <TextField key={value} id={`${target?.id}-${question.externalId}-filter-${optionIndex}`} label={`${t("surveySetup.filterLabel")}: ${value}`} value={question.optionLabels?.find((item) => item.value === value)?.label ?? value} maxLength={200} onChange={(event) => editQuestion({ ...question, optionLabels: [...(question.optionLabels ?? []).filter((item) => item.value !== value && question.options.includes(item.value)), ...(event.target.value.trim() ? [{ value, label: event.target.value }] : [])] })} />)}
                 </div>}
                 </>}
                 {step === 2 && question.role === "MOMENT" && <div className={`space-y-2 ${incompleteQuestionMoment(question) ? "rounded border border-danger p-3" : ""}`}>
@@ -580,7 +595,7 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
                   const panelId = `${target?.id}-skipped-question-${index}`;
                   return <div key={key} className="rounded border">
                     <div className="flex items-center gap-3 px-3">
-                      <button type="button" className="flex min-w-0 flex-1 items-start gap-2 py-3 text-left" aria-expanded={expanded} aria-controls={panelId} onClick={() => setOpenQuestionIds(current => current.includes(key) ? current.filter(id => id !== key) : [...current, key])}>
+                      <button type="button" className="flex min-w-0 flex-1 items-start gap-2 py-3 text-left" aria-expanded={expanded} aria-controls={panelId} onClick={() => setOpenQuestionIds(current => current.includes(key) ? [] : [key])}>
                         <span aria-hidden="true" className="shrink-0">{expanded ? "▾" : "▸"}</span>
                         <span className="min-w-0 break-words"><span className="flex flex-wrap items-center gap-2"><span className="text-xs">Sección: Sin sección reconocida</span><Badge color="yellow">Pendiente</Badge></span><span className="block text-sm font-medium">{question.text || "Pregunta sin texto"}</span></span>
                       </button>
@@ -642,14 +657,21 @@ export function JotformFormsCatalog({ onRegistered, configureFormId, onViewChang
             <Button variant="secondary" size="sm" onClick={() => setPreviewRevision((value) => value + 1)}>{t("jotformCatalog.retry")}</Button></div>}
         </div></Card>
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 rounded border bg-white p-3 shadow-lg">
-          <Button variant="secondary" disabled={saving} onClick={closeModal}>Cerrar</Button>
-          {step > 1 && <Button variant="secondary" disabled={saving} onClick={() => setStep((step - 1) as SetupStep)}>{t("jotformCatalog.back")}</Button>}
+          {step > 1 && <Button variant="ghost" disabled={saving} onClick={closeModal}>Cerrar asistente</Button>}
+          {step > 1 && <Button variant="secondary" disabled={saving} onClick={() => setStep((step - 1) as SetupStep)}>← Atrás</Button>}
           {step < 5 ? <>
             <Button variant="secondary" disabled={!setup || saving || invalidQuestions || !dirty} onClick={() => void saveDraft()}>{t("surveySetup.saveDraft")}</Button>
             <Button loading={saving} disabled={!setup} onClick={() => { if (!canContinue) { setShowStepErrors(true); return; } setShowStepErrors(false); setStep((step + 1) as SetupStep); }}>{t(step === 4 ? "jotformCatalog.review" : "surveySetup.continue")}</Button>
           </> : <Button disabled={!canContinue} loading={saving} onClick={() => void associate()}>{setup?.activeVersion ? `Activar versión ${setup.activeVersion.version + 1}` : t("unregistered.associate")}</Button>}
       </div>
     </section>}
+      <Modal open={bulkEditor} title="Editar preguntas seleccionadas" onClose={() => setBulkEditor(false)} width="60rem" footer={<><Button variant="secondary" onClick={() => setBulkEditor(false)}>Cancelar</Button><Button disabled={(!bulkRole && !bulkCategory && !bulkReview) || !!bulkResult.error || !bulkResult.changed.length} onClick={() => setBulkConfirm(true)}>Revisar cambios</Button></>}>
+        <p className="mb-3">Seleccionadas: {selectedQuestions.length}. Deja vacío cualquier campo que no quieras cambiar.</p>
+        <div className="space-y-3"><Dropdown label="Nuevo rol" value={bulkRole} options={[{ value: "", label: "Conservar rol" }, ...QUESTION_ROLES.filter(value => value !== "FILTER").map(value => ({ value, label: t(`surveySetup.roles.${value}`) }))]} onChange={setBulkRole} /><Dropdown label="Nueva categoría / subcategoría" value={bulkCategory} options={[{ value: "", label: "Conservar categoría" }, ...subcategories.map(item => ({ value: item.value, label: `${item.category} / ${item.subcategory}` }))]} onChange={setBulkCategory} /><Dropdown label="Estado de revisión" value={bulkReview} options={[{ value: "", label: "Revisar automáticamente al cambiar" }, { value: "reviewed", label: "Marcar revisadas si están completas" }, { value: "pending", label: "Marcar pendientes" }]} onChange={setBulkReview} /></div>
+        {bulkResult.error && <p role="alert" className="mt-3 text-danger">{bulkResult.error}</p>}
+        <p className="mt-3 text-sm">{bulkResult.changed.length} compatibles · {bulkResult.pending} quedarán pendientes · {bulkResult.skipped} incompatibles sin cambios.</p><ul className="mt-3 max-h-48 list-disc overflow-y-auto pl-5 text-sm">{configuredQuestions.filter(question => selectedQuestions.includes(question.externalId)).map(question => <li key={question.externalId}>{question.text.replace(/<\/?strong\b[^>]*>/gi, "")}</li>)}</ul>
+      </Modal>
+      <Modal open={bulkConfirm} title="Confirmar cambios masivos" onClose={() => setBulkConfirm(false)} footer={<><Button variant="secondary" onClick={() => setBulkConfirm(false)}>Volver</Button><Button onClick={applySelectedChanges}>Confirmar cambios</Button></>}><p>Se modificarán {bulkResult.changed.length} preguntas. Las incompatibles no cambiarán y las incompletas seguirán pendientes. Los cambios solo se guardan al guardar el borrador.</p></Modal>
       <Modal open={progressForm !== null} title="Actualización de versiones anteriores" onClose={() => setProgressForm(null)}>
         {progressError && <p role="alert">{progressError}</p>}
         {versionProgress ? <div role="status" className="space-y-2"><p>{versionProgress.state === "FINISHED" ? "Finalizada" : versionProgress.state === "INTERRUPTED" ? "Interrumpida; puedes reintentar." : "En curso o pendiente de verificar si se interrumpió."}</p><p>Procesadas: {versionProgress.processed} de {versionProgress.total}. {versionResult(versionProgress)}</p><p>Última actualización: {new Date(versionProgress.lastUpdate).toLocaleString("es")}</p><p>Los fallos individuales quedan registrados en la bitácora sin incluir las respuestas originales.</p></div> : !progressError && <p role="status">No hay avances registrados o se está iniciando la consulta.</p>}
